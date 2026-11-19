@@ -17955,58 +17955,154 @@
 /* ===== ADMIN INVOICES - end ================================================= */
 
 /* ===== ADMIN CATALOGUE PDF - begin ==========================================
- * 20. Catalogue PDF (owner request 2026-11-18: "make dynamic catalogue for all current products ... pdf file with downloadable link at
- * backends ... and make page called catalogue at main menu with link updated live"; the owner chose a PUBLIC catalogue built IN THE BROWSER).
+ * 20. Catalogue (owner request 2026-11-18: "make dynamic catalogue for all current products ... pdf file with downloadable link at backends ... and make
+ * page called catalogue at main menu with link updated live"; 2026-11-19: "full improve catalogue, full dynamic" = CATALOGUE V2, sporta-web/CATALOGUE-V2.md).
  *
- * A "Catalogue PDF" button in the header of the Catalogue screen opens a dialog: the number of products the shop shows today (and how many
- * are on sale or sold out), the language of the file (Arabic or English), a Download button, and the addresses to share: the public
- * Catalogue page of the main menu, and one live PDF link per language (www.sporta.com.kw/catalogue?pdf=ar|en: whoever opens it gets a PDF
- * made from the live shop at that moment, so a link sent a month ago is still today's catalogue).
- *
- * The work is done by /sporta-catalogue.js (the same engine the shop's Catalogue page uses), loaded ON DEMAND when the dialog opens: this
- * block only draws the dialog. The PDF is built from the shop's PUBLIC routes (api.php?r=products, ?r=stock, ?r=brands), i.e. exactly what a
- * shopper sees: no cost, no quantity, no SKU. Writes: NOTHING. No POST, no setting, no request to another host; the only download is the
- * file the person asked for (a Blob from this page). createElement + textContent only.
+ * A "Catalogue PDF" button in the header of the Catalogue screen opens ONE dialog. Nothing is requested before it opens. It holds:
+ *   - the DOWNLOAD card (always on show): how many products the shop shows, the language of the file, "show prices" and "include sold-out products",
+ *     Download, the progress, "Download again". The file is made in the browser by /sporta-catalogue.js (loaded on demand, the engine the shop's
+ *     Catalogue page uses) from the live shop, never a stale copy; "this view" is everything (no filter).
+ *   - four tabs over the owner's catalogue settings (admin.php catalogue_settings, ONE settings row on the server, no migration):
+ *       Content   title / introduction / footer note in Arabic and English with live character counters; what to show (prices, sold-out products,
+ *                 sizes, brand names, the PDF cover); products per PDF page (6, 9, 12); category order (up / down) and which categories are visible.
+ *       Products  every product the shop lists with a "Hide from the catalogue" switch and a "Pin to top" switch; search; the products the shop keeps
+ *                 out on its own (AUTO-HIDE: no name, no price, no size row / SKU, no photo, switched off) with the reason.
+ *       Share     the page and the live PDF links in Arabic and English, a link for one category or brand, Copy, WhatsApp, a QR code when the engine can
+ *                 draw one (SportaCatalogue.qr; null = no QR button).
+ *       Status    the numbers (listed, in the catalogue, on sale, sold out, hidden, pinned), the revision, and "what a crawler sees": the item count of
+ *                 the ItemList JSON-LD in the head of the live /catalogue page (GET of the page, both languages).
+ *   One Save (POST catalogue_settings_save {settings: {...every field}}, all or nothing on the server). The draft is kept if the save fails and the dialog
+ *   says why; after a save the settings are read again from the server. Closing with unsaved changes asks first (Keep editing / Discard and close).
+ *   Reads: GET catalogue_settings (admin) and the shop's public routes through the engine; GET /catalogue and /catalogue?lang=en for the crawler check.
+ *   Writes: ONLY the one save. An API that does not know catalogue_settings yet (the release has not shipped): the tabs say so, the download still works.
+ *   createElement + textContent only; no timers (the entry check is the same few timeouts as before).
  * ======================================================================== */
 ;(function () {
   'use strict'
   try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaCataloguePdf) return
-  try { Object.defineProperty(window, '__sportaCataloguePdf', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+  try { Object.defineProperty(window, '__sportaCataloguePdf', { value: { version: 2 }, enumerable: false, configurable: false }) } catch (e) { return }
 
   var BTN = 'data-sporta-cpdf-open'
   var HOST = 'https://www.sporta.com.kw'
+  var API = '/api/admin.php'
+  var DEFLIM = { title: 80, intro: 400, note: 200 }
+  var MAX_LIST = 200
+  var STEP = 60
+  var TABS = ['content', 'products', 'share', 'status']
+  var SWITCHES = ['show_prices', 'show_sold_out', 'show_sizes', 'show_brand', 'cover']
   var STR = {
     en: {
-      open: 'Catalogue PDF', title: 'Catalogue PDF', close: 'Close',
-      intro: 'A PDF of every product the shop shows today, with its price and the sizes in stock. It is made from the live shop each time you press Download, so it is never out of date.',
+      open: 'Catalogue PDF', title: 'Catalogue', close: 'Close',
+      intro: 'The shop’s catalogue: its page in the main menu and the PDF. Both are made from the live shop each time, so they are never out of date. Here you choose the wording, what is shown, the order, and which products are in it.',
       reading: 'Reading the live catalogue…', failed: 'The live catalogue could not be read.', retry: 'Try again', refresh: 'Read again',
       sum: 'Products: {n} · On sale: {o} · Sold out: {s}', at: 'Read {t}',
-      lang: 'Language of the file', ar: 'Arabic', en: 'English',
+      dlTitle: 'Download the PDF', lang: 'Language of the file', ar: 'Arabic', en: 'English',
+      optPrices: 'Show prices', optSold: 'Include sold-out products', shopHidesPrices: 'The shop hides prices (Content tab).', shopHidesSold: 'The shop leaves sold-out products out (Content tab).',
+      whole: 'The file holds the whole catalogue (no filter).', unsavedDl: 'The file uses the saved settings: save your changes first to include them.',
       dl: 'Download PDF', starting: 'Preparing the PDF…', busy: 'Preparing page {i} of {n}…', done: 'Ready: {name} ({size}).', again: 'Download again', fail: 'The PDF could not be made. Try again.',
-      links: 'Addresses to share', page: 'Catalogue page (main menu)', pdfAr: 'Live PDF link (Arabic)', pdfEn: 'Live PDF link (English)',
-      open2: 'Open', copy: 'Copy', copied: 'Copied', copyFail: 'Copy failed: select the address and copy it.',
-      hint: 'These addresses never go stale: whoever opens the PDF link gets a catalogue made from the shop at that moment. Prices, sales and sizes come from the shop itself.',
-      note: 'The pages are pictures, so the text cannot be selected; every product is a link to its page on the shop. The file is about 2 to 4 MB.',
-      empty: 'The shop shows no products yet.'
+      empty: 'The shop shows no products yet.',
+      tabs: 'Catalogue settings', tabContent: 'Content', tabProducts: 'Products', tabShare: 'Share', tabStatus: 'Status',
+      sReading: 'Reading the settings…', sFailed: 'The settings could not be read.', sSignedOut: 'You are signed out. Sign in again, then reopen this dialog.',
+      sNoApi: 'The catalogue settings are not on the server yet (they arrive with the next shop update). The PDF download above works as before.',
+      hText: 'Wording', hTextHint: 'Leave a field empty to use the shop’s own wording. Plain text only.',
+      f_title: 'Title', f_intro: 'Introduction', f_note: 'Footer note',
+      hShow: 'What to show', hPer: 'Products on each PDF page', hOrder: 'Category order',
+      sw_show_prices: 'Prices', sw_show_prices_h: 'On the page and in the PDF.',
+      sw_show_sold_out: 'Sold-out products', sw_show_sold_out_h: 'Off removes them from the page and the PDF.',
+      sw_show_sizes: 'Sizes', sw_show_sizes_h: 'The sizes in stock on each card.',
+      sw_show_brand: 'Brand names', sw_show_brand_h: 'The maker’s name on each card.',
+      sw_cover: 'PDF cover page', sw_cover_h: 'The first page with the title and contents.',
+      visShort: 'Visible', orderHint: 'Use the arrows to move a category. A category that is switched off is not shown in the catalogue.',
+      up: 'Move {name} up', down: 'Move {name} down', visible: 'Show {name}', countN: '{n} products', moved: '{name} is now number {i} of {n}.',
+      pSearch: 'Search products', pSearchPh: 'Name, address name or category', pAll: 'All', pHidden: 'Hidden by you', pPinned: 'Pinned',
+      pSummary: 'In the list: {a} · Hidden by you: {h} · Pinned: {p}', pShowing: 'Showing {a} of {b}', pMore: 'Show more', pNone: 'No product matches.',
+      pHide: 'Hide', pPin: 'Pin to top', pHideL: 'Hide {name} from the catalogue', pPinL: 'Pin {name} to the top',
+      pIn: 'In the catalogue', pOwner: 'Hidden by you', pCat: 'Category hidden', pPinB: 'Pinned',
+      keptOut: 'Kept out by the shop’s own rules ({n})', keptOutHint: 'The shop does not list these products at all, so the catalogue cannot either. Fix what is missing in Catalogue.',
+      r_name: 'no name', r_price: 'no price', r_sku: 'no size or SKU', r_photo: 'no photo', r_inactive: 'switched off',
+      limit: 'At most {n} products can be hidden, and at most {n} pinned.',
+      links: 'Addresses to share', page: 'Catalogue page (Arabic)', pageEn: 'Catalogue page (English)', pdfAr: 'Live PDF link (Arabic)', pdfEn: 'Live PDF link (English)',
+      one: 'A link for one category or brand', oneCat: 'Category', oneBrand: 'Brand', allCats: 'All categories', allBrands: 'All brands',
+      selPage: 'Page (Arabic)', selPageEn: 'Page (English)', selPdfAr: 'Live PDF (Arabic)', selPdfEn: 'Live PDF (English)',
+      open2: 'Open', copy: 'Copy', copied: 'Copied', copyFail: 'Copy failed: select the address and copy it.', wa: 'WhatsApp', waText: 'Sporta catalogue',
+      qr: 'QR code', qrHide: 'Hide QR', qrSave: 'Save image', qrFail: 'The QR code could not be drawn.', qrLabel: 'QR code of {url}',
+      hint: 'These addresses never go stale: whoever opens the PDF link gets a catalogue made from the shop at that moment.',
+      note: 'The PDF pages are pictures, so the text cannot be selected; every product is a link to its page on the shop. The file is about 2 to 4 MB.',
+      st_listed: 'Listed by the shop', st_in: 'In the catalogue', st_sale: 'On sale', st_sold: 'Sold out', st_owner: 'Hidden by you', st_rules: 'Kept out by shop rules', st_pinned: 'Pinned',
+      stRev: 'Revision', stGen: 'Made', stPublic: 'Public page revision', stSame: 'The public page shows this revision.', stDiff: 'The public page shows another revision: press Read again.',
+      stLegacy: 'The public page is on the older data routes (no revision).', stReload: 'Read again', stReloadDirty: 'Save or discard your changes before reading again.',
+      crawlH: 'What a crawler sees', crawlLead: 'Reads the live /catalogue page the way a search engine does, before any script runs, and counts the products listed in its head (ItemList data).',
+      crawlRun: 'Check the live page', crawlRunning: 'Reading the page…', crawlLang_ar: 'Arabic', crawlLang_en: 'English',
+      crawlOk: '{lang}: {n} products in the page head (expected {e}).', crawlBad: '{lang}: {n} products in the page head, expected {e}.', crawlNone: '{lang}: the page answers but lists no products in its head.',
+      crawlHttp: '{lang}: the page answered {code}.', crawlFail: '{lang}: the page could not be read.', crawlNoindex: ' It is marked noindex.',
+      dirty: 'Unsaved changes', clean: 'No unsaved changes', save: 'Save', saving: 'Saving…', discard: 'Discard changes',
+      saved: 'Saved. The catalogue page and the PDF now use these settings.', saveFailed: 'The settings could not be saved. Nothing was changed.',
+      signedOut: 'You are signed out. Sign in again, then save.', refused: 'The server refused the save ({token}). Nothing was changed.',
+      t_invalid: 'A value is too long or not valid ({token}). Nothing was changed.', t_unknown_product: 'A product in your lists no longer exists. Read again, then save.',
+      t_unknown_category: 'A category in your lists no longer exists. Read again, then save.', t_request_too_large: 'The request is too large. Nothing was changed.',
+      leave: 'You have unsaved changes.', keep: 'Keep editing', leaveGo: 'Discard and close'
     },
     ar: {
-      open: 'كتالوج PDF', title: 'كتالوج PDF', close: 'إغلاق',
-      intro: 'ملف PDF بكل المنتجات التي يعرضها المتجر اليوم مع أسعارها والمقاسات المتوفرة. يُنشأ من المتجر مباشرةً في كل مرة تضغط فيها تحميل، فلا يتقادم أبداً.',
+      open: 'كتالوج PDF', title: 'الكتالوج', close: 'إغلاق',
+      intro: 'كتالوج المتجر: صفحته في القائمة الرئيسية وملف PDF. كلاهما يُنشأ من المتجر مباشرةً في كل مرة، فلا يتقادم أبداً. من هنا تختار الصياغة وما يُعرض والترتيب والمنتجات التي تدخل فيه.',
       reading: 'جارٍ قراءة الكتالوج المباشر…', failed: 'تعذّرت قراءة الكتالوج المباشر.', retry: 'إعادة المحاولة', refresh: 'قراءة من جديد',
       sum: 'عدد المنتجات: {n} · عليها خصم: {o} · نفدت: {s}', at: 'قُرئ {t}',
-      lang: 'لغة الملف', ar: 'العربية', en: 'English',
+      dlTitle: 'تحميل ملف PDF', lang: 'لغة الملف', ar: 'العربية', en: 'English',
+      optPrices: 'إظهار الأسعار', optSold: 'تضمين المنتجات التي نفدت', shopHidesPrices: 'المتجر يُخفي الأسعار (تبويب المحتوى).', shopHidesSold: 'المتجر يستبعد المنتجات التي نفدت (تبويب المحتوى).',
+      whole: 'يحتوي الملف على الكتالوج كاملاً (دون تصفية).', unsavedDl: 'الملف يستخدم الإعدادات المحفوظة: احفظ تغييراتك أولاً لتدخل فيه.',
       dl: 'تحميل PDF', starting: 'جارٍ تجهيز ملف PDF…', busy: 'جارٍ تجهيز الصفحة {i} من {n}…', done: 'الملف جاهز: {name} ({size}).', again: 'تحميل مرة أخرى', fail: 'تعذّر إنشاء ملف PDF. حاول مرة أخرى.',
-      links: 'عناوين للمشاركة', page: 'صفحة الكتالوج (القائمة الرئيسية)', pdfAr: 'رابط PDF مباشر (العربية)', pdfEn: 'رابط PDF مباشر (English)',
-      open2: 'فتح', copy: 'نسخ', copied: 'تم النسخ', copyFail: 'تعذّر النسخ: حدّد العنوان وانسخه.',
-      hint: 'هذه العناوين لا تتقادم: من يفتح رابط PDF يحصل على كتالوج مُنشأ من المتجر في تلك اللحظة. الأسعار والخصومات والمقاسات تأتي من المتجر نفسه.',
-      note: 'الصفحات صور، فلا يمكن تحديد النص؛ وكل منتج رابط إلى صفحته في المتجر. حجم الملف نحو 2 إلى 4 ميغابايت.',
-      empty: 'لا يعرض المتجر منتجات بعد.'
+      empty: 'لا يعرض المتجر منتجات بعد.',
+      tabs: 'إعدادات الكتالوج', tabContent: 'المحتوى', tabProducts: 'المنتجات', tabShare: 'المشاركة', tabStatus: 'الحالة',
+      sReading: 'جارٍ قراءة الإعدادات…', sFailed: 'تعذّرت قراءة الإعدادات.', sSignedOut: 'تم تسجيل خروجك. سجّل الدخول من جديد ثم افتح هذه النافذة.',
+      sNoApi: 'إعدادات الكتالوج ليست على الخادم بعد (تصل مع التحديث القادم للمتجر). تحميل PDF أعلاه يعمل كما كان.',
+      hText: 'الصياغة', hTextHint: 'اترك الحقل فارغاً لاستخدام صياغة المتجر نفسها. نص عادي فقط.',
+      f_title: 'العنوان', f_intro: 'المقدمة', f_note: 'ملاحظة أسفل الصفحة',
+      hShow: 'ما يُعرض', hPer: 'عدد المنتجات في كل صفحة PDF', hOrder: 'ترتيب الفئات',
+      sw_show_prices: 'الأسعار', sw_show_prices_h: 'في الصفحة وفي ملف PDF.',
+      sw_show_sold_out: 'المنتجات التي نفدت', sw_show_sold_out_h: 'عند الإيقاف تُحذف من الصفحة والملف.',
+      sw_show_sizes: 'المقاسات', sw_show_sizes_h: 'المقاسات المتوفرة على كل بطاقة.',
+      sw_show_brand: 'أسماء العلامات', sw_show_brand_h: 'اسم الشركة المصنّعة على كل بطاقة.',
+      sw_cover: 'غلاف ملف PDF', sw_cover_h: 'الصفحة الأولى بالعنوان والفهرس.',
+      visShort: 'ظاهرة', orderHint: 'استخدم الأسهم لتحريك الفئة. الفئة المُوقَفة لا تظهر في الكتالوج.',
+      up: 'تحريك {name} للأعلى', down: 'تحريك {name} للأسفل', visible: 'إظهار {name}', countN: '{n} منتجات', moved: 'أصبحت {name} رقم {i} من {n}.',
+      pSearch: 'بحث في المنتجات', pSearchPh: 'الاسم أو الاسم في العنوان أو الفئة', pAll: 'الكل', pHidden: 'مخفية من قبلك', pPinned: 'المثبّتة',
+      pSummary: 'في القائمة: {a} · مخفية من قبلك: {h} · مثبّتة: {p}', pShowing: 'عرض {a} من {b}', pMore: 'عرض المزيد', pNone: 'لا يوجد منتج مطابق.',
+      pHide: 'إخفاء', pPin: 'تثبيت في الأعلى', pHideL: 'إخفاء {name} من الكتالوج', pPinL: 'تثبيت {name} في الأعلى',
+      pIn: 'في الكتالوج', pOwner: 'مخفي من قبلك', pCat: 'الفئة مخفية', pPinB: 'مثبّت',
+      keptOut: 'مستبعدة بقواعد المتجر نفسه ({n})', keptOutHint: 'المتجر لا يعرض هذه المنتجات أصلاً، فلا يستطيع الكتالوج عرضها. أكمل الناقص من شاشة الكتالوج.',
+      r_name: 'بلا اسم', r_price: 'بلا سعر', r_sku: 'بلا مقاس أو رمز SKU', r_photo: 'بلا صورة', r_inactive: 'مُوقَف',
+      limit: 'يمكن إخفاء {n} منتج على الأكثر وتثبيت {n} على الأكثر.',
+      links: 'عناوين للمشاركة', page: 'صفحة الكتالوج (العربية)', pageEn: 'صفحة الكتالوج (English)', pdfAr: 'رابط PDF مباشر (العربية)', pdfEn: 'رابط PDF مباشر (English)',
+      one: 'رابط لفئة أو علامة محددة', oneCat: 'الفئة', oneBrand: 'العلامة', allCats: 'كل الفئات', allBrands: 'كل العلامات',
+      selPage: 'الصفحة (العربية)', selPageEn: 'الصفحة (English)', selPdfAr: 'PDF مباشر (العربية)', selPdfEn: 'PDF مباشر (English)',
+      open2: 'فتح', copy: 'نسخ', copied: 'تم النسخ', copyFail: 'تعذّر النسخ: حدّد العنوان وانسخه.', wa: 'واتساب', waText: 'كتالوج سبورتا',
+      qr: 'رمز QR', qrHide: 'إخفاء الرمز', qrSave: 'حفظ الصورة', qrFail: 'تعذّر رسم رمز QR.', qrLabel: 'رمز QR للعنوان {url}',
+      hint: 'هذه العناوين لا تتقادم: من يفتح رابط PDF يحصل على كتالوج مُنشأ من المتجر في تلك اللحظة.',
+      note: 'صفحات PDF صور، فلا يمكن تحديد النص؛ وكل منتج رابط إلى صفحته في المتجر. حجم الملف نحو 2 إلى 4 ميغابايت.',
+      st_listed: 'يعرضها المتجر', st_in: 'في الكتالوج', st_sale: 'عليها خصم', st_sold: 'نفدت', st_owner: 'مخفية من قبلك', st_rules: 'مستبعدة بقواعد المتجر', st_pinned: 'مثبّتة',
+      stRev: 'الإصدار', stGen: 'وقت الإنشاء', stPublic: 'إصدار الصفحة العامة', stSame: 'الصفحة العامة تعرض هذا الإصدار.', stDiff: 'الصفحة العامة تعرض إصداراً آخر: اضغط قراءة من جديد.',
+      stLegacy: 'الصفحة العامة تعمل بمسارات البيانات القديمة (بلا إصدار).', stReload: 'قراءة من جديد', stReloadDirty: 'احفظ تغييراتك أو تجاهلها قبل القراءة من جديد.',
+      crawlH: 'ما يراه محرك البحث', crawlLead: 'يقرأ صفحة /catalogue الحية كما يقرؤها محرك البحث قبل تشغيل أي سكربت، ويعدّ المنتجات المذكورة في رأس الصفحة (بيانات ItemList).',
+      crawlRun: 'فحص الصفحة الحية', crawlRunning: 'جارٍ قراءة الصفحة…', crawlLang_ar: 'العربية', crawlLang_en: 'English',
+      crawlOk: '{lang}: {n} منتجاً في رأس الصفحة (المتوقع {e}).', crawlBad: '{lang}: {n} منتجاً في رأس الصفحة، والمتوقع {e}.', crawlNone: '{lang}: الصفحة تستجيب لكنها لا تذكر منتجات في رأسها.',
+      crawlHttp: '{lang}: ردّت الصفحة بالرمز {code}.', crawlFail: '{lang}: تعذّرت قراءة الصفحة.', crawlNoindex: ' والصفحة موسومة بعدم الفهرسة.',
+      dirty: 'تغييرات غير محفوظة', clean: 'لا توجد تغييرات غير محفوظة', save: 'حفظ', saving: 'جارٍ الحفظ…', discard: 'تجاهل التغييرات',
+      saved: 'تم الحفظ. صفحة الكتالوج وملف PDF يستخدمان هذه الإعدادات الآن.', saveFailed: 'تعذّر حفظ الإعدادات. لم يتغيّر شيء.',
+      signedOut: 'تم تسجيل خروجك. سجّل الدخول من جديد ثم احفظ.', refused: 'رفض الخادم الحفظ ({token}). لم يتغيّر شيء.',
+      t_invalid: 'قيمة طويلة جداً أو غير صالحة ({token}). لم يتغيّر شيء.', t_unknown_product: 'منتج في قوائمك لم يعد موجوداً. اقرأ من جديد ثم احفظ.',
+      t_unknown_category: 'فئة في قوائمك لم تعد موجودة. اقرأ من جديد ثم احفظ.', t_request_too_large: 'الطلب كبير جداً. لم يتغيّر شيء.',
+      leave: 'لديك تغييرات غير محفوظة.', keep: 'متابعة التعديل', leaveGo: 'تجاهل وإغلاق'
     }
   }
-  var S = { lang: 'en', fileLang: 'en', phase: 'idle', products: null, at: null, build: null, busy: false, opener: null }
-  var root = null, onKey = null, engineP = null
+  var S = {
+    lang: 'en', fileLang: 'en', phase: 'idle', products: null, settings: null, at: null, build: null, busy: false, opener: null, E: null, qrOk: false, publicRev: '', source: '', brands: [],
+    optPrices: true, optSold: true,
+    tab: 'content', aPhase: 'idle', aErr: '', admin: null, D: null, baseJson: '', baseOrder: [],
+    saving: false, note: '', kind: '', leave: false, q: '', pf: 'all', shown: STEP, pnote: '', moveNote: '', selCat: '', selBrand: '', qrOpen: '', crawl: {}, crawling: false
+  }
+  var root = null, onKey = null, onUnload = null, engineP = null, R = {}
 
   function t(k, v) {
     var s = (STR[S.lang] && STR[S.lang][k] != null ? STR[S.lang][k] : STR.en[k]) || ''
@@ -18014,8 +18110,10 @@
     return s
   }
   function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function add(p) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) p.appendChild(arguments[i]); return p }
   function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').replace(/^ | $/g, '') }
   function shown(n) { return !!(n && n.getClientRects && n.getClientRects().length) }
+  function nop() { /* a failed background read is not an error to show */ }
   function langOf(node) {
     var n = node
     while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
@@ -18040,65 +18138,223 @@
   }
   function sizeText(b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' kB' }
   function timeText(d) { try { return d.toLocaleTimeString(S.lang === 'ar' ? 'ar-KW-u-nu-latn' : 'en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kuwait' }) } catch (e) { return '' } }
+  function stamp(iso) {
+    var d = iso ? new Date(iso) : null
+    if (!d || isNaN(d.getTime())) return ''
+    try { return d.toLocaleString(S.lang === 'ar' ? 'ar-KW-u-nu-latn' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kuwait' }) } catch (e) { return String(iso) }
+  }
+  function fold(s) { return String(s == null ? '' : s).toLowerCase().replace(/[ً-ٰٟـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه') }
+  function isSale(p) { return p.sale != null ? !!p.sale : !!p.on_sale }
+  function isSold(p) { return p.soldOut != null ? !!p.soldOut : p.in_stock === false }
+  function nameOf(o) { return S.lang === 'ar' ? (o.name_ar || o.name_en || o.slug || '') : (o.name_en || o.name_ar || o.slug || '') }
 
-  // ---------------------------------------------------------------------------------------------------- the dialog
-  var CSS = '.scp-root{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(23,26,30,.55)}'
-    + '.scp-dlg{width:min(100%,40rem);max-height:92vh;overflow:auto;background:#fff;color:#171a1e;border-radius:1rem;padding:1.25rem;box-shadow:0 20px 50px rgba(0,0,0,.25)}'
-    + '.scp-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}.scp-title{margin:0;font-size:1.125rem;font-weight:800}'
-    + '.scp-x,.scp-btn{min-height:2.75rem;padding:.5rem 1rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-weight:700;cursor:pointer}'
-    + '.scp-btn:disabled{opacity:.5;cursor:not-allowed}.scp-primary{background:#4f46e5;border-color:#4f46e5;color:#fff}.scp-small{padding:.25rem .75rem;font-size:.8125rem}'
-    + '.scp-intro,.scp-hint,.scp-note{margin:.75rem 0;color:#4b5563;font-size:.875rem}.scp-note{font-size:.8125rem}'
-    + '.scp-card{margin:.75rem 0;padding:.75rem;border:1px solid #e5e7eb;border-radius:.75rem}.scp-h{margin:0 0 .5rem;font-size:.9375rem;font-weight:800}'
-    + '.scp-sum{margin:.25rem 0;font-size:.875rem;font-weight:700}.scp-at{margin:.25rem 0;font-size:.8125rem;color:#4b5563}'
-    + '.scp-radios{display:flex;gap:1rem;flex-wrap:wrap;border:0;margin:0 0 .75rem;padding:0}.scp-radios legend{padding:0;margin-bottom:.25rem;font-size:.8125rem;font-weight:700;color:#4b5563}'
-    + '.scp-radio{display:inline-flex;align-items:center;gap:.5rem;min-height:2.75rem;font-size:.9375rem;font-weight:600}.scp-radio input{width:1.25rem;height:1.25rem}'
-    + '.scp-status{margin:.5rem 0 0;font-size:.875rem;font-weight:600;min-height:1.3em}'
-    + '.scp-kv{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.4rem 0;border-bottom:1px solid #f1f5f9}.scp-k{flex:1 1 100%;font-size:.8125rem;font-weight:700;color:#4b5563}'
-    + '.scp-v{flex:1 1 14rem;font-size:.8125rem;word-break:break-all}.scp-link{color:#3730a3;font-weight:700}'
-    + '.admin-page-header:has([data-sporta-cpdf-open]){flex-wrap:wrap}'
-    + '@media (max-width:640px){.scp-dlg{padding:.875rem}}'
+  function req(route, body) {
+    var opt = { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', headers: { 'X-Sporta-Admin': '1' } }
+    if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body) }
+    return fetch(API + '?r=' + route, opt).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
+    })
+  }
+
+  // ----------------------------------------------------------------------------------------------------------- the draft
+  function listOf(v) { return Array.isArray(v) ? v.filter(function (x) { return typeof x === 'string' }) : [] }
+  function mapOf(a) { var m = {}; listOf(a).forEach(function (x) { m[x] = true }); return m }
+  function draftOf(s) {
+    var D = { order: null, hc: mapOf(s.hidden_categories), hs: mapOf(s.hidden_slugs), pin: mapOf(s.pinned_slugs) }
+    ;['title', 'intro', 'note'].forEach(function (b) { ;['_ar', '_en'].forEach(function (x) { D[b + x] = typeof s[b + x] === 'string' ? s[b + x] : '' }) })
+    SWITCHES.forEach(function (k) { D[k] = s[k] !== false })
+    D.per_page = s.per_page === 6 || s.per_page === 12 ? s.per_page : 9
+    return D
+  }
+  function effOrder() { return S.D && S.D.order ? S.D.order : S.baseOrder }
+  function orderChanged() { return !!(S.D && S.D.order && S.D.order.join('|') !== S.baseOrder.join('|')) }
+  function sortedKeys(m) { return Object.keys(m).sort() }
+  function snap(D) {
+    var o = { order: orderChanged() ? D.order : null, hc: sortedKeys(D.hc), hs: sortedKeys(D.hs), pin: sortedKeys(D.pin), pp: D.per_page }
+    ;['title', 'intro', 'note'].forEach(function (b) { o[b + '_ar'] = D[b + '_ar']; o[b + '_en'] = D[b + '_en'] })
+    SWITCHES.forEach(function (k) { o[k] = !!D[k] })
+    return o
+  }
+  function dirty() { return !!(S.D && S.aPhase === 'ready' && JSON.stringify(snap(S.D)) !== S.baseJson) }
+  function keep(saved, map) {
+    var out = listOf(saved).filter(function (x) { return map[x] })
+    Object.keys(map).forEach(function (x) { if (out.indexOf(x) < 0) out.push(x) })
+    return out
+  }
+  /** The body of the save: every field (the server merges a field that is left out, but a full body leaves nothing to chance). */
+  function payload() {
+    var s = (S.admin && S.admin.settings) || {}, D = S.D, o = {}
+    ;['title', 'intro', 'note'].forEach(function (b) { o[b + '_ar'] = D[b + '_ar']; o[b + '_en'] = D[b + '_en'] })
+    SWITCHES.forEach(function (k) { o[k] = !!D[k] })
+    o.per_page = D.per_page
+    o.categories_order = orderChanged() ? D.order.slice() : listOf(s.categories_order)
+    o.hidden_categories = keep(s.hidden_categories, D.hc)
+    o.hidden_slugs = keep(s.hidden_slugs, D.hs)
+    o.pinned_slugs = keep(s.pinned_slugs, D.pin)
+    return o
+  }
+  function applyAdmin(a) {
+    S.admin = a; S.aPhase = 'ready'; S.aErr = ''
+    S.baseOrder = (Array.isArray(a.categories) ? a.categories : []).map(function (c) { return c.slug })
+    S.D = draftOf(a.settings || {}); S.baseJson = JSON.stringify(snap(S.D))
+  }
+  function limitOf(base) { var l = S.admin && S.admin.limits && S.admin.limits[base]; return typeof l === 'number' && l > 0 ? l : DEFLIM[base] }
+
+  // ---------------------------------------------------------------------------------------------------------- the dialog
+  var CSS = [
+    '.scp-root{--scp-bg:#fff;--scp-soft:#f7f8fa;--scp-line:#d9dfe5;--scp-edge:#7d8799;--scp-text:#171a1e;--scp-muted:#4b5563;--scp-action:#9a452c;--scp-action-hover:#813a25;--scp-on-action:#fff;--scp-ok:#166534;--scp-warn:#92400e;--scp-err:#be123c;--scp-focus:#9a452c;',
+    'position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(23,26,30,.55);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    ':is(html.dark,html[data-theme="dark"]) .scp-root{--scp-bg:#151b21;--scp-soft:#1a2128;--scp-line:#303942;--scp-edge:#7a8896;--scp-text:#eef2f5;--scp-muted:#a7b3be;--scp-action:#ff7b17;--scp-action-hover:#ff9a4d;--scp-on-action:#171a1e;--scp-ok:#6ee7a3;--scp-warn:#fcd34d;--scp-err:#fda4af;--scp-focus:#ff7b17}',
+    '.scp-root *{box-sizing:border-box}',
+    '.scp-dlg{width:min(100%,52rem);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;background:var(--scp-bg);color:var(--scp-text);border-radius:1rem;box-shadow:0 20px 50px rgba(0,0,0,.25)}',
+    '.scp-scroll{flex:1 1 auto;min-height:0;overflow:auto;padding:1.25rem}',
+    '.scp-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.25rem 0}.scp-title{margin:0;font-size:1.125rem;font-weight:800;color:var(--scp-text)}',
+    '.scp-x,.scp-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--scp-edge);border-radius:.75rem;background:var(--scp-bg);color:var(--scp-text);font:inherit;font-weight:700;cursor:pointer;text-align:center;text-decoration:none}',
+    // the admin's own `.admin-shell .admin-page :where(button, .btn)` rule sets .7rem and out-ranks a one-class rule: the shared button radius is .75rem
+    '.admin-shell .admin-page .scp-btn,.admin-shell .admin-page .scp-x{border-radius:.75rem}',
+    '.scp-x:hover,.scp-btn:hover:not(:disabled){background:var(--scp-soft);border-color:var(--scp-text)}.scp-btn:disabled{opacity:.55;cursor:not-allowed}',
+    '.scp-primary{background:var(--scp-action);border-color:var(--scp-action);color:var(--scp-on-action)}.scp-btn.scp-primary:hover:not(:disabled){background:var(--scp-action-hover);border-color:var(--scp-action-hover)}',
+    '.scp-small{padding:.25rem .75rem;font-size:.8125rem}.scp-ic{min-width:2.75rem;padding:.25rem .5rem;font-size:1.125rem;line-height:1}',
+    '.scp-x:focus-visible,.scp-btn:focus-visible,.scp-tab:focus-visible,.scp-in:focus-visible,.scp-sel:focus-visible,.scp-link:focus-visible,.scp-radio input:focus-visible{outline:3px solid var(--scp-focus);outline-offset:2px}',
+    '.scp-intro,.scp-hint,.scp-note,.scp-sub{margin:.5rem 0;color:var(--scp-muted);font-size:.875rem}.scp-note,.scp-sub{font-size:.8125rem}.scp-sub{margin:.125rem 0}',
+    '.scp-card{margin:.75rem 0;padding:.75rem;border:1px solid var(--scp-line);border-radius:.75rem;background:var(--scp-bg)}.scp-h{margin:0 0 .5rem;font-size:.9375rem;font-weight:800;color:var(--scp-text)}',
+    '.scp-sum{margin:.25rem 0;font-size:.875rem;font-weight:700}.scp-at{margin:.25rem 0;font-size:.8125rem;color:var(--scp-muted)}',
+    '.scp-radios{display:flex;gap:1rem;flex-wrap:wrap;border:0;margin:0 0 .5rem;padding:0;min-width:0}.scp-radios legend{padding:0;margin-bottom:.25rem;font-size:.8125rem;font-weight:700;color:var(--scp-muted)}',
+    '.scp-radio{display:inline-flex;align-items:center;gap:.5rem;min-height:2.75rem;font-size:.9375rem;font-weight:600;cursor:pointer}.scp-radio input{width:1.25rem;height:1.25rem;margin:0;accent-color:var(--scp-action)}',
+    '.scp-status{margin:.5rem 0 0;font-size:.875rem;font-weight:600;min-height:1.3em}',
+    '.scp-opts{display:grid;gap:.125rem;margin:0 0 .5rem}',
+    '.scp-kv{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--scp-line)}.scp-k{flex:1 1 100%;font-size:.8125rem;font-weight:700;color:var(--scp-muted)}',
+    '.scp-v{flex:1 1 14rem;min-width:0;font-size:.8125rem;word-break:break-all}.scp-link{color:var(--scp-action);font-weight:700;text-decoration:underline}',
+    '.scp-tabs{display:flex;gap:.25rem;margin:1rem 0 .75rem;border-bottom:1px solid var(--scp-line);overflow-x:auto}',
+    '.scp-tab{flex:1 1 0;min-width:max-content;min-height:2.75rem;padding:.5rem .875rem;border:0;border-bottom:3px solid transparent;border-radius:.75rem .75rem 0 0;background:transparent;color:var(--scp-muted);font:inherit;font-weight:700;cursor:pointer}',
+    '.scp-tab[aria-selected="true"]{color:var(--scp-text);border-bottom-color:var(--scp-action)}.scp-tab:hover{background:var(--scp-soft)}',
+    '.scp-panel{min-width:0}.scp-panel[aria-busy="true"]{opacity:.6;pointer-events:none}',
+    '.scp-sec{margin:1.25rem 0 .5rem;font-size:1rem;font-weight:800;color:var(--scp-text)}.scp-sec:first-child{margin-top:.25rem}',
+    '.scp-set{margin:.5rem 0 1rem;padding:0;border:0;min-width:0}.scp-set legend{padding:0;margin-bottom:.375rem;font-weight:800}',
+    '.scp-pair{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}.scp-fld{min-width:0;display:grid;gap:.25rem;align-content:start}',
+    '.scp-flab{font-size:.8125rem;font-weight:700;color:var(--scp-muted)}',
+    '.scp-in,.scp-sel{display:block;width:100%;min-height:2.75rem;padding:.5rem .75rem;border:1px solid var(--scp-edge);border-radius:.75rem;background:var(--scp-bg);color:var(--scp-text);font:inherit;font-size:1rem}textarea.scp-in{min-height:5.5rem;resize:vertical}',
+    '.scp-cnt{font-size:.75rem;color:var(--scp-muted);text-align:end}.scp-cnt[data-warn="1"]{color:var(--scp-warn);font-weight:700}',
+    '.scp-sws{display:grid;grid-template-columns:1fr 1fr;gap:.25rem .75rem}',
+    '.scp-sw{position:relative;display:flex;align-items:center;gap:.75rem;min-height:2.75rem;padding:.25rem 0;cursor:pointer}',
+    '.scp-sw input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}',
+    '.scp-trk{position:relative;flex:none;width:2.75rem;height:1.5rem;border-radius:.75rem;background:var(--scp-edge)}',
+    '.scp-trk::after{content:"";position:absolute;top:.1875rem;inset-inline-start:.1875rem;width:1.125rem;height:1.125rem;border-radius:50%;background:#fff}',
+    '.scp-sw input:checked ~ .scp-trk{background:var(--scp-action)}.scp-sw input:checked ~ .scp-trk::after{inset-inline-start:calc(100% - 1.3125rem);background:var(--scp-on-action)}',
+    '.scp-sw input:focus-visible ~ .scp-trk{outline:3px solid var(--scp-focus);outline-offset:2px}.scp-sw input:disabled ~ *{opacity:.55}',
+    '.scp-swt{display:grid;min-width:0}.scp-swl{font-weight:700}.scp-swh{font-size:.8125rem;color:var(--scp-muted)}',
+    '.scp-list{list-style:none;margin:0;padding:0;display:grid;gap:.5rem}',
+    '.scp-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;padding:.5rem .75rem;border:1px solid var(--scp-line);border-radius:.75rem;background:var(--scp-bg)}',
+    '.scp-rinfo{flex:1 1 14rem;min-width:0}.scp-rname{font-weight:800;overflow-wrap:anywhere}.scp-rctl{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem 1rem}',
+    '.scp-pos{flex:none;min-width:1.5rem;font-weight:800;color:var(--scp-muted);text-align:center}',
+    '.scp-badges{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.25rem}',
+    '.scp-badge{display:inline-block;padding:.0625rem .5rem;border:1px solid var(--scp-edge);border-radius:.5rem;font-size:.75rem;font-weight:700;color:var(--scp-muted)}',
+    '.scp-badge[data-k="ok"]{border-color:var(--scp-ok);color:var(--scp-ok)}.scp-badge[data-k="warn"]{border-color:var(--scp-warn);color:var(--scp-warn)}.scp-badge[data-k="pin"]{border-color:var(--scp-action);color:var(--scp-action)}',
+    '.scp-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.5rem 0}.scp-bar .scp-in{flex:1 1 14rem;width:auto}',
+    '.scp-chip[aria-pressed="true"]{background:var(--scp-action);border-color:var(--scp-action);color:var(--scp-on-action)}',
+    '.scp-pick{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin:.5rem 0}.scp-pick label{display:grid;gap:.25rem;font-size:.8125rem;font-weight:700;color:var(--scp-muted)}',
+    '.scp-qr{display:grid;justify-items:start;gap:.5rem;width:100%;padding:.5rem 0}.scp-qr canvas{display:block;max-width:100%;height:auto;border:1px solid var(--scp-line);border-radius:.5rem;background:#fff}',
+    '.scp-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(9rem,1fr));gap:.5rem;margin:.5rem 0}',
+    '.scp-stat{display:grid;gap:.125rem;padding:.625rem .75rem;border:1px solid var(--scp-line);border-radius:.75rem;background:var(--scp-soft)}.scp-stat b{font-size:1.25rem;font-weight:800}.scp-stat span{font-size:.8125rem;color:var(--scp-muted)}',
+    '.scp-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;direction:ltr;unicode-bidi:isolate}',
+    '.scp-res{margin:.25rem 0;font-weight:600}.scp-res[data-k="ok"]{color:var(--scp-ok)}.scp-res[data-k="bad"]{color:var(--scp-warn)}',
+    '.scp-foot{padding:.75rem 1.25rem;border-top:1px solid var(--scp-line);background:var(--scp-bg)}',
+    '.scp-foot-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem}.scp-state{font-weight:700;color:var(--scp-muted)}.scp-state[data-dirty="1"]{color:var(--scp-warn)}',
+    '.scp-acts{display:flex;flex-wrap:wrap;gap:.5rem}',
+    '.scp-fnote{margin:0 0 .5rem;min-height:1.3em;font-weight:700}.scp-fnote[data-kind="ok"]{color:var(--scp-ok)}.scp-fnote[data-kind="err"]{color:var(--scp-err)}.scp-fnote:empty{display:none}',
+    '.scp-leave{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:0 0 .5rem;padding:.5rem .75rem;border:1px solid var(--scp-warn);border-radius:.75rem;font-weight:700}.scp-leave span{flex:1 1 12rem}',
+    '.scp-root [hidden]{display:none!important}',
+    '.admin-page-header:has([data-sporta-cpdf-open]){flex-wrap:wrap}',
+    '@media (max-width:640px){.scp-scroll{padding:.875rem}.scp-head{padding:.875rem .875rem 0}.scp-foot{padding:.625rem .875rem}.scp-pair,.scp-sws,.scp-pick{grid-template-columns:1fr}.scp-acts .scp-btn{flex:1 1 40%}}',
+    '@media (prefers-reduced-motion:reduce){.scp-root *{transition:none!important}}'
+  ].join('\n')
   function styleOnce() { if (document.getElementById('scp-style')) return; var s = el('style'); s.id = 'scp-style'; s.textContent = CSS; document.head.appendChild(s) }
+
   function closeDialog() {
     if (!root) return
     if (S.build && S.build.ctl) S.build.ctl.aborted = true
     document.removeEventListener('keydown', onKey, true)
+    if (onUnload) window.removeEventListener('beforeunload', onUnload)
     if (root.parentNode) root.parentNode.removeChild(root)
     var back = S.opener && S.opener.isConnected ? S.opener : null
-    root = null; onKey = null
+    root = null; onKey = null; onUnload = null; R = {}
     if (back) back.focus()
   }
-  function readData() {
-    S.phase = 'loading'; draw()
-    return engine().then(function (E) { return E.load() }).then(function (r) { S.products = r.products; S.at = r.at; S.phase = 'ready'; draw() }, function () { S.phase = 'error'; draw() })
+  /** Close, or ask first when there are unsaved changes (Keep editing / Discard and close). A save in flight cannot be left half way. */
+  function tryClose() {
+    if (S.saving) return
+    if (dirty()) { S.leave = true; updateBar(); try { R.keep.focus() } catch (e) { /* courtesy */ } return }
+    closeDialog()
+  }
+
+  // ------------------------------------------------------------------------------------------------------------- reads
+  function probeQr(E) {
+    try { return !!(E && typeof E.qr === 'function' && E.qr(HOST + '/catalogue')) } catch (e) { return false }
+  }
+  function readData(force) {
+    S.phase = 'loading'; drawDl()
+    return engine().then(function (E) { S.E = E; return E.load(force ? { force: true } : undefined) }).then(function (r) {
+      S.products = r.products; S.settings = r.settings || null; S.brands = Array.isArray(r.brands) ? r.brands : []; S.at = r.at; S.publicRev = r.revision || ''; S.source = r.source || ''; S.qrOk = probeQr(S.E); S.phase = 'ready'
+      if (!root) return
+      drawDl(); if (S.tab === 'share' || S.tab === 'status') drawPanel()
+    }, function () { S.phase = 'error'; if (root) drawDl() })
+  }
+  function readAdmin() {
+    S.aPhase = 'loading'; S.aErr = ''; drawPanel(); updateBar()
+    return req('catalogue_settings').then(function (res) {
+      var b = res.body
+      if (res.ok && b && b.settings && typeof b.settings === 'object') applyAdmin(b)
+      else if (res.status === 401 || res.status === 403) { S.aPhase = 'error'; S.aErr = 'sSignedOut' }
+      else if (res.ok || (res.status >= 400 && res.status < 500 && res.status !== 429)) { S.aPhase = 'unavailable'; S.aErr = 'sNoApi' }
+      else { S.aPhase = 'error'; S.aErr = 'sFailed' }
+    }, function () { S.aPhase = 'error'; S.aErr = 'sFailed' }).then(function () { if (root) { drawDl(); drawPanel(); updateBar() } })
   }
   function startBuild() {
     if (S.busy || !S.products || !S.products.length) return
     S.busy = true; var ctl = { aborted: false }
-    S.build = { state: 'busy', i: 0, n: 0, ctl: ctl }; draw()
+    S.build = { state: 'busy', i: 0, n: 0, ctl: ctl }; drawDl()
     engine().then(function (E) {
-      return E.buildPdf({ products: S.products, lang: S.fileLang, signal: ctl, onProgress: function (p) { if (S.build) { S.build.i = p.i; S.build.n = p.n; liveStatus() } } }).then(function (res) {
+      var view = typeof E.viewOf === 'function' ? E.viewOf('') : undefined
+      return E.buildPdf({ products: S.products, lang: S.fileLang, prices: S.optPrices, soldOut: S.optSold, view: view, settings: S.settings || undefined, signal: ctl, onProgress: function (p) { if (S.build) { S.build.i = p.i; S.build.n = p.n; liveStatus() } } }).then(function (res) {
         S.build = { state: 'done', name: res.name, bytes: res.bytes, res: res }; E.download(res)
       })
-    }).then(null, function (e) { S.build = e && e.cancelled ? null : { state: 'fail' } }).then(function () { S.busy = false; if (root) draw() })
+    }).then(null, function (e) { S.build = e && e.cancelled ? null : { state: 'fail' } }).then(function () { S.busy = false; if (root) drawDl() })
   }
   function liveStatus() {
     var s = root && root.querySelector('[data-scp="status"]'); if (!s || !S.build) return
     s.textContent = S.build.state === 'busy' ? (S.build.n ? t('busy', { i: S.build.i, n: S.build.n }) : t('starting')) : s.textContent
   }
-  function draw() {
+
+  // ---------------------------------------------------------------------------------------------------- small controls
+  function sw(dk, label, checked, on, hint, aria) {
+    var lab = el('label', 'scp-sw'), inp = el('input'); inp.type = 'checkbox'; inp.setAttribute('role', 'switch'); inp.checked = !!checked; inp.setAttribute('data-scp', dk)
+    if (aria) inp.setAttribute('aria-label', aria)
+    var tx = el('span', 'scp-swt'); tx.appendChild(el('span', 'scp-swl', label)); if (hint) tx.appendChild(el('span', 'scp-swh', hint))
+    var trk = el('span', 'scp-trk'); trk.setAttribute('aria-hidden', 'true')
+    inp.addEventListener('change', function () { on(inp.checked, inp) })
+    return add(lab, inp, trk, tx)
+  }
+  function btn(cls, label, dk, on) {
+    var b = el('button', 'scp-btn ' + cls, label); b.type = 'button'; if (dk) b.setAttribute('data-scp', dk); b.addEventListener('click', on); return b
+  }
+  function focusKey(k) { var n = k && root ? root.querySelector('[data-scp="' + k + '"]') : null; if (n && !n.disabled) { try { n.focus() } catch (e) { /* courtesy */ } } return !!n }
+
+  // ------------------------------------------------------------------------------------------------- the download card
+  function drawDl() {
     if (!root) return
-    var body = root.querySelector('[data-scp="body"]'); body.textContent = ''
+    var host = R.dl; host.textContent = ''
     var card = el('section', 'scp-card')
-    if (S.phase === 'loading' || S.phase === 'idle') { card.appendChild(el('p', 'scp-sum', t('reading'))); body.appendChild(card); return }
+    if (S.phase === 'loading' || S.phase === 'idle') { card.appendChild(el('p', 'scp-sum', t('reading'))); host.appendChild(card); return }
     if (S.phase === 'error') {
       card.appendChild(el('p', 'scp-sum', t('failed')))
-      var rb = el('button', 'scp-btn', t('retry')); rb.type = 'button'; rb.addEventListener('click', readData); card.appendChild(rb); body.appendChild(card); return
+      card.appendChild(btn('', t('retry'), 'retry', function () { readData(true) })); host.appendChild(card); return
     }
     var n = S.products.length, sale = 0, sold = 0
-    S.products.forEach(function (p) { if (p.sale) sale++; if (p.soldOut) sold++ })
+    S.products.forEach(function (p) { if (isSale(p)) sale++; if (isSold(p)) sold++ })
+    card.appendChild(el('h3', 'scp-h', t('dlTitle')))
     card.appendChild(el('p', 'scp-sum', n ? t('sum', { n: n, o: sale, s: sold }) : t('empty')))
     var at = el('p', 'scp-at', t('at', { t: timeText(S.at) }) + ' ')
-    var rf = el('button', 'scp-btn scp-small', t('refresh')); rf.type = 'button'; rf.setAttribute('data-scp', 'refresh'); rf.disabled = S.busy; rf.addEventListener('click', readData); at.appendChild(rf)
+    var rf = el('button', 'scp-btn scp-small', t('refresh')); rf.type = 'button'; rf.setAttribute('data-scp', 'refresh'); rf.disabled = S.busy; rf.addEventListener('click', function () { readData(true) }); at.appendChild(rf)
     card.appendChild(at)
     var fs = el('fieldset', 'scp-radios'); fs.appendChild(el('legend', '', t('lang')))
     ;['ar', 'en'].forEach(function (k) {
@@ -18107,6 +18363,14 @@
       lab.appendChild(inp); lab.appendChild(document.createTextNode(t(k))); fs.appendChild(lab)
     })
     card.appendChild(fs)
+    // what goes in the file: the owner's saved switches can only be tightened here, never widened
+    var shopPrices = !(S.settings && S.settings.show_prices === false), shopSold = !(S.settings && S.settings.show_sold_out === false)
+    var opts = el('div', 'scp-opts')
+    opts.appendChild(sw('opt-prices', t('optPrices'), shopPrices && S.optPrices, function (v) { S.optPrices = v }, shopPrices ? '' : t('shopHidesPrices')))
+    opts.appendChild(sw('opt-sold', t('optSold'), shopSold && S.optSold, function (v) { S.optSold = v }, shopSold ? '' : t('shopHidesSold')))
+    ;[['opt-prices', shopPrices], ['opt-sold', shopSold]].forEach(function (x) { var i = opts.querySelector('[data-scp="' + x[0] + '"]'); i.disabled = S.busy || !x[1] })
+    card.appendChild(opts)
+    card.appendChild(el('p', 'scp-sub', dirty() ? t('unsavedDl') : t('whole')))
     var dl = el('button', 'scp-btn scp-primary', t('dl')); dl.type = 'button'; dl.setAttribute('data-scp', 'download'); dl.disabled = S.busy || !n; dl.addEventListener('click', startBuild); card.appendChild(dl)
     var st = el('p', 'scp-status'); st.setAttribute('role', 'status'); st.setAttribute('aria-live', 'polite'); st.setAttribute('data-scp', 'status')
     var b = S.build
@@ -18117,41 +18381,456 @@
       var ag = el('button', 'scp-btn scp-small', t('again')); ag.type = 'button'; ag.setAttribute('data-scp', 'again')
       ag.addEventListener('click', function () { engine().then(function (E) { E.download(b.res) }) }); st.appendChild(ag)
     }
-    card.appendChild(st); body.appendChild(card)
-    var lk = el('section', 'scp-card'); lk.appendChild(el('h3', 'scp-h', t('links')))
-    ;[['page', HOST + '/catalogue', true], ['pdfAr', HOST + '/catalogue?pdf=ar', false], ['pdfEn', HOST + '/catalogue?pdf=en', false]].forEach(function (r) {
-      var kv = el('div', 'scp-kv'); kv.appendChild(el('span', 'scp-k', t(r[0])))
-      var v = el('span', 'scp-v'); v.setAttribute('dir', 'ltr')
-      if (r[2]) { var a = el('a', 'scp-link', r[1]); a.href = r[1]; a.target = '_blank'; a.rel = 'noopener noreferrer'; v.appendChild(a) } else v.textContent = r[1]
-      kv.appendChild(v)
-      var cp = el('button', 'scp-btn scp-small', t('copy')); cp.type = 'button'; cp.setAttribute('data-scp', 'copy-' + r[0])
-      cp.addEventListener('click', function () { copyText(r[1], function (ok) { cp.textContent = ok ? t('copied') : t('copyFail') }) }); kv.appendChild(cp)
-      lk.appendChild(kv)
-    })
-    lk.appendChild(el('p', 'scp-hint', t('hint'))); body.appendChild(lk)
-    body.appendChild(el('p', 'scp-note', t('note')))
+    card.appendChild(st); host.appendChild(card)
   }
+
+  // --------------------------------------------------------------------------------------------------------- the tabs
+  function drawTablist() {
+    var tl = R.tablist; tl.textContent = ''
+    TABS.forEach(function (k) {
+      var b = el('button', 'scp-tab', t('tab' + k.charAt(0).toUpperCase() + k.slice(1))); b.type = 'button'; b.id = 'scp-tab-' + k
+      b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', S.tab === k ? 'true' : 'false'); b.setAttribute('aria-controls', 'scp-panel'); b.setAttribute('data-scp', 'tab-' + k)
+      b.tabIndex = S.tab === k ? 0 : -1
+      b.addEventListener('click', function () { setTab(k, false) })
+      tl.appendChild(b)
+    })
+  }
+  function setTab(k, focus) {
+    S.tab = k; drawTablist(); drawPanel()
+    if (focus) focusKey('tab-' + k)
+  }
+  function tabKey(e) {
+    var i = TABS.indexOf(S.tab), rtl = S.lang === 'ar', n = -1
+    if (e.key === 'ArrowRight') n = rtl ? i - 1 : i + 1
+    else if (e.key === 'ArrowLeft') n = rtl ? i + 1 : i - 1
+    else if (e.key === 'Home') n = 0
+    else if (e.key === 'End') n = TABS.length - 1
+    if (n < 0 && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    e.preventDefault(); e.stopPropagation()
+    n = (n + TABS.length) % TABS.length
+    setTab(TABS[n], true)
+  }
+  function adminNotice() {
+    var box = el('div', 'scp-card')
+    if (S.aPhase === 'loading' || S.aPhase === 'idle') { box.appendChild(el('p', 'scp-sum', t('sReading'))); return box }
+    box.appendChild(el('p', 'scp-sum', t(S.aErr || 'sFailed')))
+    if (S.aPhase === 'error' && S.aErr !== 'sSignedOut') box.appendChild(btn('', t('retry'), 'admin-retry', readAdmin))
+    return box
+  }
+  function drawPanel() {
+    if (!root) return
+    var host = R.panel, top = R.scroll ? R.scroll.scrollTop : 0
+    host.textContent = ''; host.setAttribute('aria-labelledby', 'scp-tab-' + S.tab)
+    host.setAttribute('aria-busy', S.saving ? 'true' : 'false'); host.inert = !!S.saving
+    if (S.tab === 'share') drawShare(host)
+    else if (S.tab === 'status') drawStatus(host)
+    else if (S.aPhase !== 'ready') host.appendChild(adminNotice())
+    else if (S.tab === 'content') drawContent(host)
+    else drawProducts(host)
+    if (R.scroll && R.scroll.scrollTop !== top) R.scroll.scrollTop = top
+  }
+
+  // ------------------------------------------------------------------------------------------------------- Content tab
+  function textField(base, lang) {
+    var key = base + '_' + lang, max = limitOf(base), fld = el('div', 'scp-fld'), id = 'scp-f-' + key
+    var lab = el('label', 'scp-flab', t('f_' + base) + ' · ' + t(lang)); lab.htmlFor = id
+    var inp = el(base === 'title' ? 'input' : 'textarea', 'scp-in'); inp.id = id; inp.setAttribute('data-scp', 'f-' + key)
+    if (base === 'title') inp.type = 'text'; else inp.rows = base === 'intro' ? 4 : 2
+    inp.value = S.D[key]; inp.maxLength = max; inp.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr'); inp.setAttribute('lang', lang); inp.autocomplete = 'off'
+    var cnt = el('span', 'scp-cnt'); cnt.id = id + '-n'; cnt.setAttribute('data-scp', 'n-' + key); inp.setAttribute('aria-describedby', cnt.id)
+    function count() { cnt.textContent = inp.value.length + ' / ' + max; cnt.setAttribute('data-warn', inp.value.length >= max * 0.9 ? '1' : '0') }
+    count()
+    inp.addEventListener('input', function () { if (S.saving) return; S.D[key] = inp.value; count(); S.note = ''; S.kind = ''; updateBar(); refreshDlHint() })
+    return add(fld, lab, inp, cnt)
+  }
+  function refreshDlHint() { /* the download card says whether the file will lack unsaved changes */
+    var h = root && root.querySelector('[data-scp="dl"] .scp-sub'); if (h) h.textContent = dirty() ? t('unsavedDl') : t('whole')
+  }
+  function orderedCats() {
+    var by = {}, cats = (S.admin && S.admin.categories) || []
+    cats.forEach(function (c) { by[c.slug] = c })
+    var out = []; effOrder().forEach(function (s) { if (by[s]) out.push(by[s]) })
+    cats.forEach(function (c) { if (out.indexOf(c) < 0) out.push(c) })
+    return out
+  }
+  function moveCat(slug, d) {
+    var cur = orderedCats().map(function (c) { return c.slug }), i = cur.indexOf(slug), j = i + d
+    if (i < 0 || j < 0 || j >= cur.length) return
+    cur.splice(i, 1); cur.splice(j, 0, slug); S.D.order = cur
+    var c = null; orderedCats().forEach(function (x) { if (x.slug === slug) c = x })
+    S.moveNote = t('moved', { name: nameOf(c || { slug: slug }), i: j + 1, n: cur.length }); S.note = ''; S.kind = ''
+    drawPanel(); updateBar()
+    if (!focusKey((d < 0 ? 'up-' : 'down-') + slug)) focusKey((d < 0 ? 'down-' : 'up-') + slug)
+  }
+  function drawContent(host) {
+    host.appendChild(el('h3', 'scp-sec', t('hText'))); host.appendChild(el('p', 'scp-sub', t('hTextHint')))
+    ;['title', 'intro', 'note'].forEach(function (b) {
+      var fs = el('fieldset', 'scp-set'); fs.appendChild(el('legend', '', t('f_' + b)))
+      var pair = el('div', 'scp-pair'); add(pair, textField(b, 'ar'), textField(b, 'en')); fs.appendChild(pair); host.appendChild(fs)
+    })
+    host.appendChild(el('h3', 'scp-sec', t('hShow')))
+    var sws = el('div', 'scp-sws')
+    SWITCHES.forEach(function (k) { sws.appendChild(sw('sw-' + k, t('sw_' + k), S.D[k], function (v) { if (S.saving) return; S.D[k] = v; S.note = ''; S.kind = ''; updateBar(); refreshDlHint() }, t('sw_' + k + '_h'))) })
+    host.appendChild(sws)
+    host.appendChild(el('h3', 'scp-sec', t('hPer')))
+    var fs2 = el('fieldset', 'scp-radios'); fs2.setAttribute('aria-label', t('hPer'))
+    ;[6, 9, 12].forEach(function (n) {
+      var lab = el('label', 'scp-radio'), inp = el('input'); inp.type = 'radio'; inp.name = 'scp-per'; inp.value = String(n); inp.checked = S.D.per_page === n; inp.setAttribute('data-scp', 'per-' + n)
+      inp.addEventListener('change', function () { if (S.saving) return; S.D.per_page = n; S.note = ''; S.kind = ''; updateBar(); refreshDlHint() })
+      add(lab, inp, document.createTextNode(String(n))); fs2.appendChild(lab)
+    })
+    host.appendChild(fs2)
+    host.appendChild(el('h3', 'scp-sec', t('hOrder'))); host.appendChild(el('p', 'scp-sub', t('orderHint')))
+    var live = el('p', 'scp-sub', S.moveNote); live.setAttribute('role', 'status'); live.setAttribute('aria-live', 'polite'); live.setAttribute('data-scp', 'order-note'); host.appendChild(live)
+    var ul = el('ul', 'scp-list'), cats = orderedCats()
+    cats.forEach(function (c, i) {
+      var li = el('li', 'scp-row'); li.setAttribute('data-scp', 'cat-' + c.slug)
+      li.appendChild(el('span', 'scp-pos', String(i + 1)))
+      var info = el('div', 'scp-rinfo'); info.appendChild(el('div', 'scp-rname', nameOf(c))); info.appendChild(el('div', 'scp-sub', t('countN', { n: c.count == null ? 0 : c.count }))); li.appendChild(info)
+      var ctl = el('div', 'scp-rctl')
+      var up = btn('scp-ic', '↑', 'up-' + c.slug, function () { moveCat(c.slug, -1) }); up.setAttribute('aria-label', t('up', { name: nameOf(c) })); up.disabled = i === 0
+      var dn = btn('scp-ic', '↓', 'down-' + c.slug, function () { moveCat(c.slug, 1) }); dn.setAttribute('aria-label', t('down', { name: nameOf(c) })); dn.disabled = i === cats.length - 1
+      var vis = sw('vis-' + c.slug, t('visShort'), !S.D.hc[c.slug], function (v) {
+        if (S.saving) return; if (v) delete S.D.hc[c.slug]; else S.D.hc[c.slug] = true; S.note = ''; S.kind = ''; updateBar(); refreshDlHint()
+      }, '', t('visible', { name: nameOf(c) }))
+      add(ctl, up, dn, vis); li.appendChild(ctl); ul.appendChild(li)
+    })
+    host.appendChild(ul)
+  }
+
+  // ------------------------------------------------------------------------------------------------------ Products tab
+  function reasonText(p) {
+    var out = []
+    if (p.active === false) out.push(t('r_inactive'))
+    ;(Array.isArray(p.hidden_reasons) ? p.hidden_reasons : []).forEach(function (r) { out.push(STR.en['r_' + r] != null ? t('r_' + r) : String(r)) })
+    return out.join(' · ')
+  }
+  function badge(k, text) { var b = el('span', 'scp-badge', text); b.setAttribute('data-k', k); return b }
+  function priceText(p) { var n = Number(p.price); return isFinite(n) ? n.toFixed(3) : '' }
+  function count(m) { return Object.keys(m).length }
+  function toggleList(map, slug, on, key) {
+    if (on) {
+      if (count(map) >= MAX_LIST) { S.pnote = t('limit', { n: MAX_LIST }); return false }
+      map[slug] = true
+    } else delete map[slug]
+    S.pnote = ''; S.note = ''; S.kind = ''; updateBar(); refreshDlHint(); return true
+  }
+  function drawProducts(host) {
+    var all = (S.admin && S.admin.products) || []
+    var bar = el('div', 'scp-bar'), lab = el('label', 'scp-flab', t('pSearch')); lab.htmlFor = 'scp-q'
+    var q = el('input', 'scp-in'); q.type = 'search'; q.id = 'scp-q'; q.value = S.q; q.placeholder = t('pSearchPh'); q.setAttribute('data-scp', 'p-search'); q.autocomplete = 'off'
+    var sum = el('p', 'scp-sub'); sum.setAttribute('data-scp', 'p-summary')
+    var chips = el('div', 'scp-acts'), listHost = el('div'); listHost.setAttribute('data-scp', 'p-list')
+    add(host, el('h3', 'scp-sec', t('tabProducts')), sum)
+    ;[['all', 'pAll'], ['hidden', 'pHidden'], ['pinned', 'pPinned']].forEach(function (c) {
+      var b = btn('scp-chip scp-small', t(c[1]), 'pf-' + c[0], function () { S.pf = c[0]; S.shown = STEP; drawPanel(); focusKey('pf-' + c[0]) }); b.setAttribute('aria-pressed', S.pf === c[0] ? 'true' : 'false'); chips.appendChild(b)
+    })
+    var lw = el('div', 'scp-fld'); add(lw, lab, q); bar.appendChild(lw); bar.appendChild(chips)
+    var pn = el('p', 'scp-sub'); pn.setAttribute('role', 'status'); pn.setAttribute('aria-live', 'polite'); pn.setAttribute('data-scp', 'p-note'); pn.textContent = S.pnote
+    add(host, bar, pn, listHost)
+    function fresh() {
+      var listed = all.filter(function (p) { return p.listed }), kept = all.filter(function (p) { return !p.listed })
+      sum.textContent = t('pSummary', { a: listed.length, h: count(S.D.hs), p: count(S.D.pin) })
+      var f = fold(q.value)
+      function match(p) {
+        if (S.pf === 'hidden' && !S.D.hs[p.slug]) return false
+        if (S.pf === 'pinned' && !S.D.pin[p.slug]) return false
+        return !f || fold([p.name_en, p.name_ar, p.slug, p.category].join(' ')).indexOf(f) >= 0
+      }
+      var a = listed.filter(match), k = kept.filter(function (p) { return S.pf === 'all' && match(p) })
+      listHost.textContent = ''
+      if (!a.length && !k.length) listHost.appendChild(el('p', 'scp-sub', t('pNone')))
+      var ul = el('ul', 'scp-list')
+      a.slice(0, S.shown).forEach(function (p) { ul.appendChild(prow(p)) })
+      if (a.length) listHost.appendChild(ul)
+      if (a.length > S.shown) {
+        var more = el('div', 'scp-bar'); more.appendChild(el('span', 'scp-sub', t('pShowing', { a: S.shown, b: a.length })))
+        more.appendChild(btn('scp-small', t('pMore'), 'p-more', function () { S.shown += STEP; fresh(); focusKey('p-more') })); listHost.appendChild(more)
+      }
+      if (k.length) {
+        listHost.appendChild(el('h3', 'scp-sec', t('keptOut', { n: k.length }))); listHost.appendChild(el('p', 'scp-sub', t('keptOutHint')))
+        var ku = el('ul', 'scp-list'); k.forEach(function (p) {
+          var li = el('li', 'scp-row'); li.setAttribute('data-scp', 'kept-' + p.slug)
+          var info = el('div', 'scp-rinfo'); info.appendChild(el('div', 'scp-rname', nameOf(p))); info.appendChild(el('div', 'scp-sub scp-mono', p.slug))
+          var bs = el('div', 'scp-badges'); bs.appendChild(badge('warn', reasonText(p))); info.appendChild(bs); li.appendChild(info); ku.appendChild(li)
+        }); listHost.appendChild(ku)
+      }
+    }
+    function prow(p) {
+      var li = el('li', 'scp-row'); li.setAttribute('data-scp', 'prod-' + p.slug)
+      var info = el('div', 'scp-rinfo'); info.appendChild(el('div', 'scp-rname', nameOf(p)))
+      info.appendChild(el('div', 'scp-sub', [p.slug, p.category, priceText(p)].filter(Boolean).join(' · ')))
+      var bs = el('div', 'scp-badges'), hid = !!S.D.hs[p.slug], ch = !!S.D.hc[p.category]
+      if (hid) bs.appendChild(badge('warn', t('pOwner'))); else if (ch) bs.appendChild(badge('warn', t('pCat'))); else bs.appendChild(badge('ok', t('pIn')))
+      if (S.D.pin[p.slug]) bs.appendChild(badge('pin', t('pPinB')))
+      info.appendChild(bs); li.appendChild(info)
+      var ctl = el('div', 'scp-rctl')
+      ctl.appendChild(sw('hide-' + p.slug, t('pHide'), hid, function (v, inp) { if (S.saving) return; if (!toggleList(S.D.hs, p.slug, v)) { inp.checked = false; syncNote(); return } fresh(); syncNote(); focusKey('hide-' + p.slug) }, '', t('pHideL', { name: nameOf(p) })))
+      ctl.appendChild(sw('pin-' + p.slug, t('pPin'), !!S.D.pin[p.slug], function (v, inp) { if (S.saving) return; if (!toggleList(S.D.pin, p.slug, v)) { inp.checked = false; syncNote(); return } fresh(); syncNote(); focusKey('pin-' + p.slug) }, '', t('pPinL', { name: nameOf(p) })))
+      li.appendChild(ctl); return li
+    }
+    function syncNote() { pn.textContent = S.pnote }
+    q.addEventListener('input', function () { S.q = q.value; S.shown = STEP; fresh() })
+    fresh()
+  }
+
+  // --------------------------------------------------------------------------------------------------------- Share tab
+  function links() {
+    var sh = S.admin && S.admin.share, g = function (a, b) { return sh && sh[a] && sh[a][b] ? sh[a][b] : '' }
+    return {
+      page: g('page', 'ar') || HOST + '/catalogue', pageEn: g('page', 'en') || HOST + '/catalogue?lang=en',
+      pdfAr: g('pdf', 'ar') || HOST + '/catalogue?pdf=ar', pdfEn: g('pdf', 'en') || HOST + '/catalogue?pdf=en'
+    }
+  }
+  /** The four addresses of one category and/or brand: the engine's own link builders (the page reads the same parameters), else built by hand. */
+  function pickedLinks() {
+    var E = S.E, cat = S.selCat, brand = S.selBrand
+    if (E && typeof E.pageLink === 'function' && typeof E.pdfLink === 'function' && typeof E.viewOf === 'function') {
+      try {
+        var v = E.viewOf(''); v.cat = cat; v.brand = brand
+        return { page: E.pageLink('ar', v), pageEn: E.pageLink('en', v), pdfAr: E.pdfLink('ar', v), pdfEn: E.pdfLink('en', v) }
+      } catch (e) { /* by hand below */ }
+    }
+    var q = [], base = HOST + '/catalogue'
+    if (cat) q.push('cat=' + encodeURIComponent(cat)); if (brand) q.push('brand=' + encodeURIComponent(brand))
+    var qs = function (extra) { var a = q.concat(extra ? [extra] : []); return a.length ? '?' + a.join('&') : '' }
+    return { page: base + qs(''), pageEn: base + qs('lang=en'), pdfAr: base + qs('pdf=ar'), pdfEn: base + qs('pdf=en') }
+  }
+  function brandsOf() {
+    var seen = {}, out = []
+    var sh = S.admin && S.admin.share && S.admin.share.brands
+    ;(Array.isArray(sh) ? sh : []).concat(S.brands || []).forEach(function (b) { if (b && typeof b.slug === 'string' && !seen[b.slug]) { seen[b.slug] = true; out.push(b.slug) } })
+    return out
+  }
+  function brandName(slug) {
+    var b = (S.brands || []).filter(function (x) { return x.slug === slug })[0]
+    return b ? nameOf(b) : slug
+  }
+  function linkRow(dk, label, url, first) {
+    var kv = el('div', 'scp-kv'); kv.appendChild(el('span', 'scp-k', label))
+    var v = el('span', 'scp-v'); v.setAttribute('dir', 'ltr'); v.setAttribute('data-scp', 'url-' + dk)
+    if (first) { var a = el('a', 'scp-link', url); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; v.appendChild(a) } else v.textContent = url
+    kv.appendChild(v)
+    var cp = el('button', 'scp-btn scp-small', t('copy')); cp.type = 'button'; cp.setAttribute('data-scp', 'copy-' + dk)
+    cp.addEventListener('click', function () { copyText(url, function (ok) { cp.textContent = ok ? t('copied') : t('copyFail') }) }); kv.appendChild(cp)
+    var wa = el('a', 'scp-btn scp-small', t('wa')); wa.href = 'https://wa.me/?text=' + encodeURIComponent(t('waText') + ' ' + url); wa.target = '_blank'; wa.rel = 'noopener noreferrer'; wa.setAttribute('data-scp', 'wa-' + dk); kv.appendChild(wa)
+    if (S.qrOk) {
+      var open = S.qrOpen === dk
+      var qb = el('button', 'scp-btn scp-small', open ? t('qrHide') : t('qr')); qb.type = 'button'; qb.setAttribute('data-scp', 'qr-' + dk); qb.setAttribute('aria-expanded', open ? 'true' : 'false')
+      qb.addEventListener('click', function () { S.qrOpen = open ? '' : dk; drawPanel(); focusKey('qr-' + dk) }); kv.appendChild(qb)
+      if (open) kv.appendChild(qrBox(url, dk))
+    }
+    return kv
+  }
+  function qrBox(url, dk) {
+    var box = el('div', 'scp-qr'); box.setAttribute('data-scp', 'qrbox-' + dk)
+    var q = null; try { q = S.E.qr(url) } catch (e) { q = null }
+    if (!q || !q.rows || !q.size) { box.appendChild(el('p', 'scp-sub', t('qrFail'))); return box }
+    var n = q.size, quiet = 4, scale = Math.max(3, Math.floor(288 / (n + quiet * 2))), side = (n + quiet * 2) * scale
+    var c = document.createElement('canvas'); c.width = side; c.height = side; c.setAttribute('role', 'img'); c.setAttribute('aria-label', t('qrLabel', { url: url }))
+    var g = c.getContext('2d'); g.fillStyle = '#ffffff'; g.fillRect(0, 0, side, side); g.fillStyle = '#171a1e'
+    for (var y = 0; y < n; y++) { var row = String(q.rows[y] || ''); for (var x = 0; x < n; x++) if (row.charAt(x) === '1') g.fillRect((x + quiet) * scale, (y + quiet) * scale, scale, scale) }
+    box.appendChild(c)
+    var save = el('button', 'scp-btn scp-small', t('qrSave')); save.type = 'button'; save.setAttribute('data-scp', 'qrsave-' + dk)
+    save.addEventListener('click', function () { try { var a = el('a'); a.href = c.toDataURL('image/png'); a.download = 'sporta-catalogue-qr.png'; document.body.appendChild(a); a.click(); a.remove() } catch (e2) { /* nothing to save */ } })
+    box.appendChild(save)
+    return box
+  }
+  function drawShare(host) {
+    var lk = links(), sec = el('section', 'scp-card'); sec.appendChild(el('h3', 'scp-h', t('links')))
+    sec.appendChild(linkRow('page', t('page'), lk.page, true))
+    sec.appendChild(linkRow('pageEn', t('pageEn'), lk.pageEn, false))
+    sec.appendChild(linkRow('pdfAr', t('pdfAr'), lk.pdfAr, false))
+    sec.appendChild(linkRow('pdfEn', t('pdfEn'), lk.pdfEn, false))
+    sec.appendChild(el('p', 'scp-hint', t('hint'))); host.appendChild(sec)
+    var cats = (S.admin && S.admin.categories) || [], brands = brandsOf()
+    if (cats.length || brands.length) {
+      var one = el('section', 'scp-card'); one.appendChild(el('h3', 'scp-h', t('one')))
+      var pick = el('div', 'scp-pick')
+      function select(dk, label, all, items, cur, on) {
+        var lab = el('label', '', label), s = el('select', 'scp-sel'); s.setAttribute('data-scp', dk)
+        var o0 = el('option', '', all); o0.value = ''; s.appendChild(o0)
+        items.forEach(function (it) { var o = el('option', '', it[1]); o.value = it[0]; s.appendChild(o) })
+        s.value = cur; s.addEventListener('change', function () { on(s.value); S.qrOpen = ''; drawPanel(); focusKey(dk) })
+        return add(lab, s)
+      }
+      if (cats.length) pick.appendChild(select('pick-cat', t('oneCat'), t('allCats'), cats.map(function (c) { return [c.slug, nameOf(c)] }), S.selCat, function (v) { S.selCat = v }))
+      if (brands.length) pick.appendChild(select('pick-brand', t('oneBrand'), t('allBrands'), brands.map(function (b) { return [b, brandName(b)] }), S.selBrand, function (v) { S.selBrand = v }))
+      one.appendChild(pick)
+      var pl = pickedLinks()
+      one.appendChild(linkRow('selPage', t('selPage'), pl.page, false)); one.appendChild(linkRow('selPageEn', t('selPageEn'), pl.pageEn, false))
+      one.appendChild(linkRow('selPdfAr', t('selPdfAr'), pl.pdfAr, false)); one.appendChild(linkRow('selPdfEn', t('selPdfEn'), pl.pdfEn, false))
+      host.appendChild(one)
+    }
+    host.appendChild(el('p', 'scp-note', t('note')))
+  }
+
+  // -------------------------------------------------------------------------------------------------------- Status tab
+  /** What a crawler reads in the head: the ItemList of the JSON-LD blocks, and the robots meta. Pure (also used by the suite's mutation checks). */
+  function analyse(html) {
+    var out = { count: null, robots: '' }, re = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi, m
+    function walk(n, depth) {
+      if (!n || typeof n !== 'object' || depth > 6) return
+      if (Array.isArray(n)) { n.forEach(function (x) { walk(x, depth + 1) }); return }
+      var ty = n['@type']; if (ty === 'ItemList' || (Array.isArray(ty) && ty.indexOf('ItemList') >= 0)) { if (Array.isArray(n.itemListElement)) out.count = (out.count || 0) + n.itemListElement.length; else if (out.count == null) out.count = 0 }
+      ;['mainEntity', '@graph', 'hasPart'].forEach(function (k) { if (n[k]) walk(n[k], depth + 1) })
+    }
+    while ((m = re.exec(String(html))) !== null) { try { walk(JSON.parse(m[1]), 0) } catch (e) { /* a block that is not JSON is skipped */ } }
+    var r = /<meta[^>]+name=["']robots["'][^>]*content=["']([^"']*)["']/i.exec(String(html)) || /<meta[^>]+content=["']([^"']*)["'][^>]*name=["']robots["']/i.exec(String(html))
+    if (r) out.robots = r[1]
+    return out
+  }
+  function crawlOne(lang) {
+    var url = '/catalogue' + (lang === 'en' ? '?lang=en' : '')
+    return fetch(url, { method: 'GET', credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/html' } }).then(function (r) {
+      if (!r.ok) return { state: 'http', code: r.status }
+      return r.text().then(function (h) { var a = analyse(h); return { state: a.count == null ? 'none' : 'read', count: a.count, noindex: /noindex/i.test(a.robots) } })
+    }, function () { return { state: 'fail' } })
+  }
+  function expectedItems() {
+    var st = S.admin && S.admin.status
+    if (st && typeof st.in_catalogue === 'number') return Math.min(st.in_catalogue, 100)
+    return S.products ? Math.min(S.products.length, 100) : null
+  }
+  function runCrawl() {
+    if (S.crawling) return
+    S.crawling = true; S.crawl = {}; if (root && S.tab === 'status') drawPanel()
+    var e = expectedItems()
+    crawlOne('ar').then(function (a) { S.crawl.ar = a; if (root && S.tab === 'status') drawPanel(); return crawlOne('en') }).then(function (b) { S.crawl.en = b }).then(function () {
+      S.crawling = false; S.crawl.expected = e; if (root && S.tab === 'status') { drawPanel(); focusKey('crawl-run') }
+    })
+  }
+  function crawlLine(lang) {
+    var r = S.crawl[lang]; if (!r) return null
+    var p = { lang: t('crawlLang_' + lang), e: S.crawl.expected == null ? expectedItems() : S.crawl.expected }, txt, k = 'bad'
+    if (r.state === 'http') txt = t('crawlHttp', { lang: p.lang, code: r.code })
+    else if (r.state === 'fail') txt = t('crawlFail', { lang: p.lang })
+    else if (r.state === 'none') txt = t('crawlNone', { lang: p.lang })
+    else { var good = p.e == null || r.count === p.e; k = good ? 'ok' : 'bad'; txt = t(good ? 'crawlOk' : 'crawlBad', { lang: p.lang, n: r.count, e: p.e == null ? '?' : p.e }) }
+    if (r.noindex) txt += t('crawlNoindex')
+    var line = el('p', 'scp-res', txt); line.setAttribute('data-k', k); line.setAttribute('data-scp', 'crawl-' + lang); return line
+  }
+  function stat(n, label, dk) { var d = el('div', 'scp-stat'); d.appendChild(el('b', '', String(n))); d.appendChild(el('span', '', label)); d.setAttribute('data-scp', dk); return d }
+  function drawStatus(host) {
+    var st = S.admin && S.admin.status, sec = el('section', 'scp-card')
+    if (!st && S.products) {   // the settings API is not there: the numbers the engine can count
+      st = { in_catalogue: S.products.length, on_sale: S.products.filter(isSale).length, sold_out: S.products.filter(isSold).length }
+    }
+    if (S.aPhase !== 'ready') sec.appendChild(adminNotice())
+    if (st) {
+      var tiles = el('div', 'scp-stats')
+      ;[['listed', 'st_listed'], ['in_catalogue', 'st_in'], ['on_sale', 'st_sale'], ['sold_out', 'st_sold'], ['hidden_by_owner', 'st_owner'], ['hidden_by_rules', 'st_rules'], ['pinned', 'st_pinned']].forEach(function (x) {
+        if (st[x[0]] != null) tiles.appendChild(stat(st[x[0]], t(x[1]), 'stat-' + x[0]))
+      })
+      sec.appendChild(tiles)
+      if (st.revision) {
+        var rv = el('p', 'scp-sub'); rv.appendChild(document.createTextNode(t('stRev') + ': ')); var c = el('span', 'scp-mono', st.revision); c.setAttribute('data-scp', 'rev'); rv.appendChild(c)
+        if (st.generated_at) rv.appendChild(document.createTextNode(' · ' + t('stGen') + ': ' + stamp(st.generated_at)))
+        sec.appendChild(rv)
+      }
+    }
+    if (S.phase === 'ready') {
+      var pub = el('p', 'scp-sub'); pub.setAttribute('data-scp', 'public-rev')
+      if (S.source === 'catalogue' && S.publicRev) {
+        pub.appendChild(document.createTextNode(t('stPublic') + ': ')); pub.appendChild(el('span', 'scp-mono', S.publicRev))
+        pub.appendChild(document.createTextNode(' · ' + (st && st.revision ? (st.revision === S.publicRev ? t('stSame') : t('stDiff')) : '')))
+      } else pub.textContent = t('stLegacy')
+      sec.appendChild(pub)
+    }
+    var rr = btn('scp-small', t('stReload'), 'status-reload', function () { if (dirty()) return; readAdmin(); readData(true) }); rr.disabled = dirty() || S.saving; sec.appendChild(rr)
+    if (dirty()) sec.appendChild(el('p', 'scp-sub', t('stReloadDirty')))
+    host.appendChild(sec)
+    var cr = el('section', 'scp-card'); cr.appendChild(el('h3', 'scp-h', t('crawlH'))); cr.appendChild(el('p', 'scp-sub', t('crawlLead')))
+    var run = btn('scp-small', S.crawling ? t('crawlRunning') : t('crawlRun'), 'crawl-run', runCrawl); run.disabled = S.crawling; cr.appendChild(run)
+    var box = el('div'); box.setAttribute('role', 'status'); box.setAttribute('aria-live', 'polite'); box.setAttribute('data-scp', 'crawl-box')
+    ;['ar', 'en'].forEach(function (l) { var ln = crawlLine(l); if (ln) box.appendChild(ln) })
+    cr.appendChild(box); host.appendChild(cr)
+  }
+
+  // ---------------------------------------------------------------------------------------------------------- the save
+  function refuse(res) {
+    var token = res && res.body && res.body.error
+    if (res && (res.status === 401 || (res.status === 403 && !token))) return t('signedOut')
+    if (!token) return t('saveFailed')
+    if (/^invalid_/.test(token)) return t('t_invalid', { token: token })
+    if (STR.en['t_' + token] != null) return t('t_' + token)
+    return t('refused', { token: token })
+  }
+  function save() {
+    if (S.saving || !dirty()) return
+    S.saving = true; S.leave = false; S.note = ''; S.kind = ''; updateBar(); drawPanel()
+    req('catalogue_settings_save', { settings: payload() }).then(function (res) {
+      if (res.ok && res.body && res.body.settings) {
+        applyAdmin(res.body); S.note = t('saved'); S.kind = 'ok'
+        // read the settings back from the server (what is stored is what the page and the PDF will use), then the live catalogue
+        return req('catalogue_settings').then(function (r2) { if (r2.ok && r2.body && r2.body.settings) applyAdmin(r2.body) }, nop).then(function () {
+          return engine().then(function (E) { return E.load({ force: true }) }).then(function (r) { S.products = r.products; S.settings = r.settings || null; S.at = r.at; S.publicRev = r.revision || ''; S.source = r.source || ''; S.phase = 'ready' }, nop)
+        })
+      }
+      S.note = refuse(res); S.kind = 'err'
+    }, function () { S.note = t('saveFailed'); S.kind = 'err' }).then(function () {
+      S.saving = false; S.moveNote = ''
+      if (root) { drawDl(); drawPanel(); updateBar(); if (S.kind === 'ok') { try { R.fnote.tabIndex = -1; R.fnote.focus() } catch (e) { /* courtesy */ } } else focusKey('save') }
+    })
+  }
+  function discard() {
+    if (S.saving || !S.admin) return
+    S.D = draftOf(S.admin.settings || {}); S.pnote = ''; S.moveNote = ''; S.note = ''; S.kind = ''
+    drawDl(); drawPanel(); updateBar(); focusKey('tab-' + S.tab)
+  }
+  function updateBar() {
+    if (!root || !R.foot) return
+    var d = dirty()
+    R.foot.hidden = S.aPhase !== 'ready'
+    R.state.textContent = S.saving ? t('saving') : d ? t('dirty') : t('clean'); R.state.setAttribute('data-dirty', d ? '1' : '0')
+    R.save.textContent = S.saving ? t('saving') : t('save'); R.save.disabled = !d || S.saving
+    R.discard.textContent = t('discard'); R.discard.disabled = !d || S.saving
+    R.fnote.textContent = S.note; R.fnote.setAttribute('data-kind', S.kind || '')
+    R.leaveBox.hidden = !(S.leave && d)
+    if (S.leave && !d) S.leave = false
+  }
+
+  // ------------------------------------------------------------------------------------------------------- open / entry
   function openDialog(opener) {
     if (root) return
     styleOnce()
-    S.opener = opener; S.lang = langOf(opener); S.fileLang = S.lang; S.phase = 'idle'; S.products = null; S.build = null; S.busy = false
+    S.opener = opener; S.lang = langOf(opener); S.fileLang = S.lang; S.phase = 'idle'; S.products = null; S.settings = null; S.build = null; S.busy = false
+    S.tab = 'content'; S.aPhase = 'loading'; S.aErr = ''; S.admin = null; S.D = null; S.baseJson = ''; S.baseOrder = []; S.saving = false; S.note = ''; S.kind = ''; S.leave = false
+    S.q = ''; S.pf = 'all'; S.shown = STEP; S.pnote = ''; S.moveNote = ''; S.selCat = ''; S.selBrand = ''; S.qrOpen = ''; S.crawl = {}; S.crawling = false; S.optPrices = true; S.optSold = true
+    R = {}
     root = el('div', 'scp-root'); root.setAttribute('data-scp-root', ''); root.setAttribute('lang', S.lang); root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
     var dlg = el('div', 'scp-dlg'); dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'scp-title')
     var head = el('div', 'scp-head'), h = el('h2', 'scp-title', t('title')); h.id = 'scp-title'
-    var x = el('button', 'scp-x', t('close')); x.type = 'button'; x.addEventListener('click', closeDialog)
-    head.appendChild(h); head.appendChild(x); dlg.appendChild(head); dlg.appendChild(el('p', 'scp-intro', t('intro')))
-    var body = el('div'); body.setAttribute('data-scp', 'body'); dlg.appendChild(body)
-    root.appendChild(dlg)
+    var x = el('button', 'scp-x', t('close')); x.type = 'button'; x.addEventListener('click', tryClose)
+    add(head, h, x)
+    R.scroll = el('div', 'scp-scroll'); R.scroll.setAttribute('data-scp', 'body')
+    R.dl = el('div'); R.dl.setAttribute('data-scp', 'dl')
+    R.tablist = el('div', 'scp-tabs'); R.tablist.setAttribute('role', 'tablist'); R.tablist.setAttribute('aria-label', t('tabs')); R.tablist.addEventListener('keydown', tabKey)
+    R.panel = el('div', 'scp-panel'); R.panel.id = 'scp-panel'; R.panel.setAttribute('role', 'tabpanel'); R.panel.setAttribute('data-scp', 'panel')
+    add(R.scroll, el('p', 'scp-intro', t('intro')), R.dl, R.tablist, R.panel)
+    // the save bar
+    R.foot = el('div', 'scp-foot'); R.foot.setAttribute('data-scp', 'foot'); R.foot.hidden = true
+    R.fnote = el('p', 'scp-fnote'); R.fnote.setAttribute('role', 'status'); R.fnote.setAttribute('aria-live', 'polite'); R.fnote.setAttribute('data-scp', 'save-note')
+    R.leaveBox = el('div', 'scp-leave'); R.leaveBox.setAttribute('role', 'alert'); R.leaveBox.setAttribute('data-scp', 'leave'); R.leaveBox.hidden = true
+    R.keep = btn('', t('keep'), 'leave-keep', function () { S.leave = false; updateBar(); focusKey('save') })
+    R.go = btn('', t('leaveGo'), 'leave-go', function () { S.leave = false; closeDialog() })
+    add(R.leaveBox, el('span', '', t('leave')), R.keep, R.go)
+    var row = el('div', 'scp-foot-row'); R.state = el('span', 'scp-state'); R.state.setAttribute('data-scp', 'state')
+    var acts = el('div', 'scp-acts'); R.discard = btn('', t('discard'), 'discard', discard); R.save = btn('scp-primary', t('save'), 'save', save)
+    add(acts, R.discard, R.save); add(row, R.state, acts); add(R.foot, R.fnote, R.leaveBox, row)
+    add(dlg, head, R.scroll, R.foot); root.appendChild(dlg)
     onKey = function (e) {
-      if (e.key === 'Escape') { e.stopPropagation(); closeDialog(); return }
+      if (e.key === 'Escape') { e.stopPropagation(); if (S.leave) { S.leave = false; updateBar(); focusKey('save'); return } tryClose(); return }
       if (e.key !== 'Tab') return
-      var f = Array.prototype.filter.call(dlg.querySelectorAll('button,input,a[href]'), function (n) { return !n.disabled && n.offsetParent !== null })
+      var f = Array.prototype.filter.call(dlg.querySelectorAll('button,input,select,textarea,a[href]'), function (n) { return !n.disabled && n.tabIndex >= 0 && n.offsetParent !== null && !n.closest('[hidden]') && !n.closest('[inert]') })
       if (!f.length) return
       var first = f[0], last = f[f.length - 1]
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+      if (e.shiftKey && (document.activeElement === first || !dlg.contains(document.activeElement))) { e.preventDefault(); last.focus() } else if (!e.shiftKey && (document.activeElement === last || !dlg.contains(document.activeElement))) { e.preventDefault(); first.focus() }
     }
     document.addEventListener('keydown', onKey, true)
-    document.body.appendChild(root); draw(); x.focus(); readData()
+    onUnload = function (e) { if (dirty()) { e.preventDefault(); e.returnValue = '' } }
+    window.addEventListener('beforeunload', onUnload)
+    document.body.appendChild(root); drawDl(); drawTablist(); drawPanel(); updateBar(); x.focus(); readData(); readAdmin()
   }
   function catalogueHeading() {
     var hs = document.querySelectorAll('.admin-page h1')
@@ -19026,7 +19705,7 @@
   var TM = window.__sportaLiveTiming || {}
   var EVERY = TM.every || 30000, QUIET = TM.quiet != null ? TM.quiet : 15000, TICK = TM.tick || 5000, MAX_READS = 4, KEY = 'sporta_admin_live'
   // routes that are never polled: the session, the gateways and payment status, exports and files, the database centre, the assistant, images, health probes
-  var DENY = /(^|_)(me|google|session|passcode|totp|mfa|recovery|login|logout|password|export|download|csv|backup|db|xbrl|reconcile|knet|tpay|cbk|payment|assistant|voice|tts|ai|image|logo|icon|upload|health|scan|probe|cache|inventory|stock|variants|ahed|cost)(_|$)/i
+  var DENY = /(^|_)(me|google|session|passcode|totp|mfa|recovery|login|logout|password|export|download|csv|backup|db|xbrl|reconcile|knet|tpay|cbk|payment|assistant|voice|tts|ai|image|logo|icon|upload|health|scan|probe|cache|inventory|stock|variants|ahed|cost|catalogue)(_|$)/i
   // (checked against the real route names in admin.php: `stock` is not one, the stock list is `variants`; `ahed_cost` carries purchase costs. A read whose body is over
   // 256 kB is never polled either (MAXBODY: the brands list carries inline logos), whatever its name.)
   // screens refreshed by themselves (by their header text, English or Arabic); every other screen is an editor and only offers the button

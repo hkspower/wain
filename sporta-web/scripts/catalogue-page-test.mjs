@@ -184,7 +184,7 @@ for (const [lang, w] of [['en', 390], ['ar', 390], ['en', 1280], ['ar', 768]]) {
   const c = await openPage('en', 1280, '/catalogue/'); const F = await pageFacts(c.page)
   is(F.cards === 46 && !F.notFound, '/catalogue/ (a trailing slash) is the same page')
   is(c.reqs.filter((r) => r.includes('sporta-catalogue.js')).length === 1, 'the engine is requested once, only here')
-  is(c.reqs.filter((r) => /^POST /.test(r)).length === 0 && c.reqs.every((r) => !/^GET \/api\/api\.php\?r=(?!catalogue|products|stock|brands|slides|settings|theme|topbar|promo|checkout_config|content|text_style|me|shipping|slide_image)/.test(r)), 'only public GET routes are read')
+  is(c.reqs.filter((r) => /^POST /.test(r)).length === 0 && c.reqs.every((r) => !/^GET \/api\/api\.php\?r=(?!catalogue|brand_logo|products|stock|brands|slides|settings|theme|topbar|promo|checkout_config|content|text_style|me|shipping|slide_image)/.test(r)), 'only public GET routes are read')
   await c.ctx.close()
 }
 {
@@ -388,7 +388,7 @@ const shown = (list, f) => list.filter(f).length
   await c.page.emulateMedia({ media: 'screen' })
   is(await c.page.evaluate(() => getComputedStyle(document.querySelector('.app-header')).display !== 'none' && getComputedStyle(document.querySelector('.scat-actions')).display !== 'none'), '...and on screen nothing is hidden by those rules')
   await c.page.click('.navbar-secondary a[href="/shop"]'); await c.page.waitForFunction(() => location.pathname === '/shop'); await c.page.emulateMedia({ media: 'print' }); await c.page.waitForTimeout(400)
-  is(await c.page.evaluate(() => !document.getElementById('sporta-catalogue-css') && getComputedStyle(document.querySelector('.app-header')).display !== 'none'), 'after leaving the page its style is gone, so printing another page is not touched')
+  is(await c.page.evaluate(() => !document.getElementById('sporta-catalogue-css') && ![...document.styleSheets].some((x) => { try { return [...x.cssRules].some((r) => /scat-|:has\(#sporta-catalogue\)/.test(r.cssText)) } catch (e) { return false } })), 'after leaving the page its style (and its print rules) are gone, so printing another page is not touched')
   await c.page.emulateMedia({ media: 'screen' })
   is(c.errs.length === 0, 'no page errors', c.errs.join(' | '))
   await c.ctx.close()
@@ -396,8 +396,8 @@ const shown = (list, f) => list.filter(f).length
 {
   // invalid values in the address are ignored, never an error
   const c = await openPage('en', 390, '/catalogue?cat=zzz&brand=%3Cb%3E&sale=2&sort=bogus&min=-1&max=x&q=%00%00&stock=maybe')
-  const F = await c.page.evaluate(() => ({ n: document.querySelectorAll('.scat-card').length, search: location.search, pressed: [...document.querySelectorAll('[aria-pressed="true"]')].map((b) => b.getAttribute('data-scat') || b.getAttribute('data-scat-cat')) }))
-  is(F.n === base.state.products.length && !/cat=zzz/.test(F.search) && F.pressed.join() === 'all' && c.errs.length === 0, 'invalid values in the address are ignored: everything is shown, an unknown category leaves the address, no error', JSON.stringify(F) + c.errs.join('|'))
+  const F = await c.page.evaluate(() => ({ n: document.querySelectorAll('.scat-card').length, search: location.search, pressed: [...document.querySelectorAll('[aria-pressed="true"]')].map((b) => b.getAttribute('data-scat') || b.getAttribute('data-scat-cat') || b.getAttribute('data-scat-brand')) }))
+  is(F.n === base.state.products.length && !/cat=zzz/.test(F.search) && F.pressed.length >= 1 && F.pressed.every((x) => x === 'all') && c.errs.length === 0, 'invalid values in the address are ignored: everything is shown, an unknown category leaves the address, no error', JSON.stringify(F) + c.errs.join('|'))
   await c.ctx.close()
 }
 {
@@ -452,6 +452,7 @@ const MUT2 = [
   ['no live region on the count', ENGINE.replace("count.setAttribute('role', 'status'); count.setAttribute('aria-live', 'polite');", ''), '/catalogue', async (c, m) => { await c.page.waitForSelector('.scat-card'); return await c.page.evaluate(() => document.querySelector('[data-scat="count"]').getAttribute('aria-live') === 'polite') }],
   ['sorting ignored', ENGINE.replace('if (by) out = out.slice()', 'if (false) out = out.slice()'), '/catalogue?sort=price_asc', async (c, m) => { await c.page.waitForSelector('.scat-card'); const a = await priceOf(c.page); return a.every((v, i) => i === 0 || v >= a[i - 1]) }],
   ['the PDF ignores the view', ENGINE.replace('var items = everything ? S.products : visible()', 'var items = S.products'), '/catalogue?cat=' + base.state.products[1].category + '&sale=1', async (c, m) => { await c.page.waitForSelector('.scat-card'); const w = c.page.waitForEvent('download'); await c.page.click('[data-scat="dl"]'); const d = await w; const f = join(tmp, 'mut.pdf'); await d.saveAs(f); return urlsOf(f).filter((u) => /\/product\//.test(u)).length === m.state.products.filter((x) => x.category === m.state.products[1].category && x.on_sale && x.list_price > x.price).length }],
+  ['the print rules are cut', ENGINE.replace("'html:has(#sporta-catalogue) .scat-actions,html:has(#sporta-catalogue) .scat-share,", "'"), '/catalogue', async (c) => { await c.page.waitForSelector('.scat-card'); await c.page.emulateMedia({ media: 'print' }); return await c.page.evaluate(() => getComputedStyle(document.querySelector('.scat-actions')).display === 'none') }],
   ['an invalid category stays', ENGINE.replace("if (v.cat && !S.cats.some(function (c) { return c.slug === v.cat })) drop('cat', '')", ''), '/catalogue?cat=zzz', async (c, m) => { await c.page.waitForSelector('.scat-card'); await c.page.waitForTimeout(300); return (await slugsOf(c.page)).length === m.state.products.length }],
 ]
 for (const [label, text, path, check] of MUT2) {

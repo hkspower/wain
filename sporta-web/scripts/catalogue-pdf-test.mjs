@@ -58,7 +58,7 @@ async function buildPdf(page, lang, extra = '') {
     const res = await window.SportaCatalogue.buildPdf({ lang: l, onProgress: (p) => calls.push(p.i + '/' + p.n), ...(ex ? eval('(' + ex + ')') : {}) })
     const u = new Uint8Array(await res.blob.arrayBuffer()); let s = ''
     for (let i = 0; i < u.length; i += 32768) s += String.fromCharCode.apply(null, u.subarray(i, i + 32768))
-    return { b64: btoa(s), name: res.name, pages: res.pages, bytes: res.bytes, count: res.count, type: res.blob.type, calls }
+    return { b64: btoa(s), name: res.name, pages: res.pages, bytes: res.bytes, count: res.count, type: res.blob.type, calls, runs: res.textRuns, description: res.description }
   }, [lang, extra])
   return { ...r, buf: Buffer.from(r.b64, 'base64') }
 }
@@ -243,6 +243,153 @@ head('behaviour')
   const t0 = Date.now(), b = await buildPdf(t.page, 'ar'); const f = join(tmp, 'bulk.pdf'); writeFileSync(f, b.buf)
   is(info(f).Pages === String(b.pages) && b.pages === 7 + 11 && xrefOk(b.buf), '119 products give a long, well-formed file (7 + 11 pages)', `${b.pages} pages, ${Date.now() - t0} ms`)
   await t.close()
+}
+
+head('the view: address, filters, links (pure functions of the engine)')
+{
+  const r = await S.page.evaluate(async () => {
+    const E = window.SportaCatalogue, o = {}, M = (await E.load()).products
+    const full = E.viewOf('?cat=men&brand=ahed&q=hello%20world&sale=1&stock=true&sort=price_asc&min=5&max=20.5')
+    o.full = full
+    o.bad = E.viewOf('?cat=%3Cscript%3E&brand=A%20B&sale=2&stock=maybe&sort=bogus&min=-5&max=abc&q=%00x%01&lang=en&pdf=ar')
+    o.swap = E.viewOf('min=30&max=10'); o.dup = E.viewOf('?cat=men&cat=women').cat; o.broken = E.viewOf('?q=%E0%A4%A&cat=men'); o.plus = E.viewOf('?q=a+b').q
+    o.empty = E.viewOf(''); o.long = E.viewOf('?q=' + 'x'.repeat(200)).q.length; o.upper = [E.viewOf('?CAT=men').cat, E.viewOf('?cat=MEN').cat]
+    o.pdfAr = E.pdfLink('ar'); o.pdfEn = E.pdfLink('en', full); o.pageAr = E.pageLink('ar'); o.pageEn = E.pageLink('en'); o.pageFull = E.pageLink('en', full)
+    const arq = Object.assign(E.blankView(), { q: 'قبعة', cat: 'men' }); o.arLink = E.pdfLink('ar', arq); o.arBack = E.viewOf(o.arLink.split('?')[1])
+    o.round = [E.viewOf(o.pdfEn.split('?')[1]), E.viewOf(o.pageFull.split('?')[1])]
+    o.qr = E.qr('x')
+    const slugs = (v, l) => E.applyView(M, v, l).map((p) => p.slug), V = (x) => Object.assign(E.blankView(), x)
+    o.all = E.applyView(M, E.blankView()).map((p) => p.slug).join() === M.map((p) => p.slug).join()
+    o.sale = slugs(V({ sale: true })); o.stock = slugs(V({ stock: true })).length; o.men = slugs(V({ cat: 'men' })).length; o.ahed = slugs(V({ brand: 'ahed' }))
+    o.range = [slugs(V({ min: 5, max: 9 })).length, M.filter((p) => p.price >= 5 && p.price <= 9).length]
+    const asc = E.applyView(M, V({ sort: 'price_asc' })), idx = (p) => M.indexOf(p)
+    o.asc = asc.every((p, i) => i === 0 || asc[i - 1].price < p.price || (asc[i - 1].price === p.price && idx(asc[i - 1]) < idx(p)))
+    const desc = E.applyView(M, V({ sort: 'price_desc' })); o.desc = desc.every((p, i) => i === 0 || desc[i - 1].price >= p.price)
+    const nen = E.applyView(M, V({ sort: 'name' }), 'en').map((p) => p.name.en), nar = E.applyView(M, V({ sort: 'name' }), 'ar').map((p) => p.name.ar)
+    o.name = nen.every((x, i) => i === 0 || nen[i - 1].localeCompare(x, 'en') <= 0) && nar.every((x, i) => i === 0 || nar[i - 1].localeCompare(x, 'ar') <= 0)
+    const q = (t, l) => slugs(V({ q: t }), l).join()
+    o.search = { en: [q('denver'), q('DENVER'), q('dénver'), q(' denver  cap '), q('cap zzz')], ar: [q('قبعة'), q('قُبَّعَة'), q('قبعه'), q('كاب دنفر')], brand: [q('ahed'), q('أحد'), q('احد')], cat: [q('accessories'), q('إكسسوارات'), q('اكسسوارات')] }
+    o.digits = [E.fold('٣٠'), E.fold('۱۲'), E.fold('Ünïcode')]
+    o.mut = (() => { const before = M.map((p) => p.slug).join(); E.applyView(M, V({ sort: 'price_desc', cat: 'men' })); return M.map((p) => p.slug).join() === before })()
+    o.desc2 = [E.describeView(V({ cat: 'men', sale: true }), 'en'), E.describeView(V({ cat: 'men', sale: true }), 'ar'), E.describeView(V({ cat: 'men', sale: true }), 'en', null, null, false), E.describeView(V({ min: 5, max: 9, stock: true, q: 'cap' }), 'en')]
+    o.names = [E.fileName('ar', new Date('2026-11-19T12:00:00Z'), V({ cat: 'men', brand: 'ahed', q: 'Hello Wörld', stock: true, min: 5, max: 20.5, sale: true })), E.fileName('en', new Date('2026-11-19T21:30:00Z'), V({ q: 'قبعة' })), E.fileName('en', new Date('2026-11-19T12:00:00Z'))]
+    return { o }
+  })
+  const o = r.o
+  is(eq(o.full, { cat: 'men', brand: 'ahed', q: 'hello world', sale: true, stock: true, sort: 'price_asc', min: 5, max: 20.5 }), 'viewOf reads every parameter (cat, brand, q, sale, stock, sort, min, max)', JSON.stringify(o.full))
+  is(eq(o.bad, { cat: '', brand: '', q: 'x', sale: false, stock: false, sort: 'featured', min: null, max: null }), 'invalid values are ignored one by one: a tag, a slug with a space, sale=2, sort=bogus, a negative or non-numeric price, control characters', JSON.stringify(o.bad))
+  is(eq([o.swap.min, o.swap.max, o.dup, o.broken.q, o.broken.cat, o.plus, o.long, o.upper[0], o.upper[1]], [10, 30, 'men', '', 'men', 'a b', 80, '', 'men']) && eq(o.empty, { cat: '', brand: '', q: '', sale: false, stock: false, sort: 'featured', min: null, max: null }), 'min above max is swapped, the first of a repeated key wins, a broken %-escape is skipped, + is a space, q is cut at 80, the key is case sensitive and the slug lower-cased', JSON.stringify([o.swap, o.dup, o.broken, o.plus, o.long, o.upper]))
+  is(o.pdfAr === 'https://www.sporta.com.kw/catalogue?pdf=ar' && o.pdfEn === 'https://www.sporta.com.kw/catalogue?pdf=en&cat=men&brand=ahed&q=hello%20world&sale=1&stock=1&sort=price_asc&min=5&max=20.5', 'pdfLink: absolute https, ?pdf=<lang> then the view’s parameters (defaults left out)', o.pdfEn)
+  is(o.pageAr === 'https://www.sporta.com.kw/catalogue' && o.pageEn === 'https://www.sporta.com.kw/catalogue?lang=en' && o.pageFull === 'https://www.sporta.com.kw/catalogue?lang=en&cat=men&brand=ahed&q=hello%20world&sale=1&stock=1&sort=price_asc&min=5&max=20.5', 'pageLink: the bare page in Arabic, ?lang=en in English, then the view', o.pageFull)
+  is(eq(o.round[0], o.full) && eq(o.round[1], o.full) && o.arBack.q === 'قبعة' && o.arBack.cat === 'men' && /q=%D9%82/.test(o.arLink), 'a link read back gives the same view (also an Arabic search, percent-encoded)', o.arLink)
+  is(o.qr === null, 'qr() answers null until the encoder is integrated (callers must cope)')
+  is(o.all && eq(o.sale.slice().sort(), ['men-sale-shorts', 'women-jacket']) && o.stock === 18 && o.men === 11 && eq(o.ahed, ['men-brand-vest']) && eq(o.range, [o.range[1], o.range[1]]) && o.range[0] > 0, 'applyView: an empty view shows everything in order; sale, in stock, category, brand and price range each filter', JSON.stringify([o.sale, o.stock, o.men, o.ahed, o.range]))
+  is(o.asc && o.desc && o.name, 'applyView: price ascending (stable), price descending, and name in the page language (Arabic collation for ar)')
+  is(o.search.en.slice(0, 4).every((x) => x === 'acc-cap') && o.search.en[4] === '' && o.search.ar.every((x) => /men-no-stock-rows|acc-cap/.test(x)) && o.search.ar[0] === 'men-no-stock-rows' && o.search.ar[1] === 'men-no-stock-rows' && o.search.ar[2] === 'men-no-stock-rows' && o.search.ar[3] === 'acc-cap', 'search: case, accent and spaces (denver / DENVER / dénver), two words must both match, Arabic with diacritics (قُبَّعَة) and ta marbuta as ha (قبعه)', JSON.stringify(o.search))
+  is(o.search.brand.every((x) => x === 'men-brand-vest') && eq(o.search.cat[0].split(',').sort(), ['acc-backpack', 'acc-cap']) && o.search.cat[1] === o.search.cat[0] && o.search.cat[2] === o.search.cat[0], 'search also finds a brand (English, Arabic, alef-folded) and a category name (English, Arabic with and without the hamza)', JSON.stringify([o.search.brand, o.search.cat]))
+  is(eq(o.digits, ['30', '12', 'unicode']) && o.mut, 'Arabic-Indic and Persian digits fold to ASCII, accents drop, and applyView never changes the list it was given', JSON.stringify(o.digits))
+  is(eq(o.desc2, ['Men \u00b7 on sale', 'رجال \u00b7 تخفيضات', 'Men', 'in stock \u00b7 search \u201ccap\u201d \u00b7 KWD 5 to 9']), 'describeView says the view in words in both languages (and leaves the sale out when prices are off)', JSON.stringify(o.desc2))
+  is(o.names[0] === 'Sporta-Catalogue-AR-men-ahed-sale-instock-q-hello-world-min5-max20_5-2026-11-19.pdf' && o.names[1] === 'Sporta-Catalogue-EN-q-search-2026-11-20.pdf' && o.names[2] === 'Sporta-Catalogue-EN-2026-11-19.pdf', 'the file name says what it is: language, category, brand, sale, in stock, search, price range, and the Kuwait date (21:30 UTC is already the next day there)', JSON.stringify(o.names))
+}
+
+head('PDF options (the products of a view, prices, sold out, per page, cover, copy)')
+const CHECKS = {
+  async pricesOff(b) {
+    const hasPrice = (r) => r.runs.flat().some((t) => /KWD|د\.ك|\d\.\d{3}|\d%/.test(t.text))
+    return hasPrice(await b('{}')) && !hasPrice(await b('{prices:false}')) && !hasPrice(await b('{prices:false}', 'ar'))
+  },
+  async ownerWins(b) { const r = await b('{settings:{show_prices:false}, prices:true}'); return !r.runs.flat().some((t) => /KWD|\d\.\d{3}|\d%/.test(t.text)) },
+  async soldOutOff(b) { const a = await b('{soldOut:false}'), c = await b('{settings:{show_sold_out:false}, soldOut:true}'), d = await b('{}'); return a.count === 18 && c.count === 18 && d.count === 19 },
+  async per12(b) { return (await b('{settings:{per_page:12}}')).pages === 6 },
+  async coverOff(b) { const a = await b('{settings:{cover:false}}'); return a.pages === 6 && !a.runs[0].some((t) => t.text === 'Contents') },
+  async view(b) {
+    const v = await b("{view:{cat:'men',sale:true,sort:'featured',q:'',brand:'',stock:false,min:null,max:null}}"), a = await b("{lang:'ar', view:{cat:'men',sale:true,sort:'featured',q:'',brand:'',stock:false,min:null,max:null}}")
+    return v.count === 1 && /^Sporta-Catalogue-EN-men-sale-\d{4}-\d{2}-\d{2}\.pdf$/.test(v.name) && v.runs[0].some((t) => t.text === 'Men · on sale') && v.pages === 2 && a.description === 'رجال · تخفيضات'
+  },
+  async copy(b) {
+    const cp = await b("{settings:{title_en:'Spring Edit',intro_en:'Picked for you',note_en:'Footnote here'}}"), plain = await b('{}')
+    return cp.runs[0].some((t) => t.text === 'Spring Edit') && cp.runs[0].some((t) => t.text.includes('Picked for you')) && cp.runs[1].some((t) => t.text === 'Footnote here') && cp.runs[2].some((t) => t.text === 'Footnote here') && !plain.runs[1].some((t) => t.text === 'Footnote here')
+  },
+}
+const optProbe = async (engine, only) => {
+  const t = await open({ engine }); const R = {}
+  try {
+    const b = (ex, lang = 'en') => t.page.evaluate(async ([l, e]) => { const r = await window.SportaCatalogue.buildPdf({ lang: l, ...eval('(' + e + ')') }); return { pages: r.pages, count: r.count, name: r.name, runs: r.textRuns, description: r.description } }, [lang, ex])
+    for (const k of Object.keys(CHECKS)) if (!only || only === k) R[k] = await CHECKS[k](b)
+  } catch (e) { R.crashed = String(e.message).slice(0, 80) } finally { await t.close() }
+  return R
+}
+const OPT = await optProbe(engineSource())
+for (const [k, label] of [['pricesOff', 'prices: false removes every price, discount and percent from every page (the text runs hold none) in both languages, and they are there when it is on'], ['ownerWins', 'the owner’s switch wins: settings.show_prices false stays off even when the caller asks for prices'], ['soldOutOff', 'soldOut: false (or the owner’s show_sold_out off) leaves out the sold-out product (18 of 19)'], ['per12', 'per_page 12: cover + 5 pages for the 19 products (men fit one page)'], ['coverOff', 'cover off: no cover page and no contents (6 pages)'], ['view', 'a view: only its products (1), a file name that says it, "Men · on sale" on the cover (and in Arabic), cover + one page'], ['copy', 'the owner’s title and intro are on the cover, the note is the footer of every content page (and not there when unset)']]) is(OPT[k] === true, label, OPT.crashed || '')
+{
+  // the same facts in pixels: with prices off the price line of a card is blank, with prices on it is not; the sizes line stays
+  const a = await buildPdf(S.page, 'en'), c = await buildPdf(S.page, 'en', '{prices:false}')
+  const fa = join(tmp, 'pon.pdf'), fc = join(tmp, 'poff.pdf'); writeFileSync(fa, a.buf); writeFileSync(fc, c.buf)
+  const zone = (file, buf, y0, y1) => {
+    const pg = render(file, 2, 2).pages[0], card = annots(buf).filter((x) => x.page === 2).find((x) => x.url.includes('/men-alpha-top'))
+    let dark = 0; for (let y = Math.round(card.y + y0); y < card.y + y1; y += 1) for (let x = Math.round(card.x + 30); x < card.x + card.w - 30; x += 1) { const p = pg.at(x, y); if (p.r < 140 && p.g < 140 && p.b < 140) dark++ }
+    return dark
+  }
+  const on = zone(fa, a.buf, 322, 352), onSizes = zone(fa, a.buf, 366, 390), offGap = zone(fc, c.buf, 366, 400), offSizes = zone(fc, c.buf, 322, 352)
+  is(on > 80 && onSizes > 20 && offGap === 0 && offSizes > 20, 'in pixels: with prices on the price line (' + on + ' dark pixels) and the sizes line below it (' + onSizes + ') are inked; with prices off nothing is left where the sizes were (' + offGap + ') because the sizes line moves up into the price line\u2019s place (' + offSizes + ')')
+}
+{
+  // layout of 6 and 12 a page, read from the link rectangles
+  const t = await open({})
+  try {
+    const geo = async (per) => { const r = await buildPdf(t.page, 'en', `{settings:{per_page:${per}}}`); const A = annots(r.buf).filter((x) => /\/product\//.test(x.url)), by = {}; A.forEach((x) => { (by[x.page] = by[x.page] || []).push(x) }); return { max: Math.max(...Object.values(by).map((v) => v.length)), w: Math.round(A[0].w), h: Math.round(A[0].h), cols: new Set(A.filter((x) => x.page === 2).map((x) => Math.round(x.x))).size, inside: A.every((x) => x.y + x.h <= 1618 + 1 && x.x >= 63 && x.x + x.w <= 1177 + 1), pages: r.pages } }
+    const g6 = await geo(6), g9 = await geo(9), g12 = await geo(12)
+    is(g6.max === 6 && g6.cols === 3 && g6.h > 650 && g9.max === 9 && g9.cols === 3 && g9.h < 480 && g12.max === 11 && g12.cols === 4 && g12.w < 280 && g6.inside && g9.inside && g12.inside, 'per_page 6 / 9 / 12 are 3x2, 3x3 and 4x3 cards (tall, medium, narrow; men\u2019s 11 fit one 12-page), a page never holds more than its number, all inside the grid area', JSON.stringify([g6, g9, g12]))
+  } finally { await t.close() }
+}
+{
+  // products given by the caller are used as they are (the caller applied the view); no more than the page's own call
+  const r = await S.page.evaluate(async () => { const M = (await window.SportaCatalogue.load()).products; const x = await window.SportaCatalogue.buildPdf({ lang: 'en', products: M.slice(0, 3) }); return { pages: x.pages, count: x.count } })
+  is(r.count === 3 && r.pages === 2, 'products passed in are used as given (3 products: cover + 1 page)', JSON.stringify(r))
+  // the text layer seam: what is drawn is recorded per page with its place
+  const b = await buildPdf(S.page, 'en'), a = await buildPdf(S.page, 'ar')
+  const runs = b.runs[1], A = annots(b.buf).filter((x) => x.page === 2)
+  const alpha = runs.find((t) => t.text === 'Alpha Top'), card = A.find((x) => x.url.includes('/men-alpha-top'))
+  is(runs.length > 20 && runs.every((t) => typeof t.text === 'string' && [t.x, t.y, t.w, t.h, t.size].every(Number.isFinite) && (t.dir === 'ltr' || t.dir === 'rtl') && t.x >= -1 && t.x + t.w <= 1241 && t.y <= 1754), 'the text layer seam: every drawn string is recorded as { text, x, y, w, h, size, dir } inside the page', String(runs.length))
+  is(alpha && card && alpha.x >= card.x && alpha.x + alpha.w <= card.x + card.w && alpha.y > card.y && alpha.y < card.y + card.h && alpha.dir === 'ltr', 'a product name run lies inside its card’s link rectangle (the text layer can be mapped to the links)', JSON.stringify([alpha, card]))
+  const arName = a.runs[1].find((t) => t.text === 'توب ألفا')
+  is(arName && arName.dir === 'rtl' && a.runs[0].every((t) => t.dir === 'rtl'), 'in the Arabic file every run is right to left, the names in logical (Unicode) order, not reversed', JSON.stringify(arName))
+}
+{
+  // memory discipline: the photos of a page are fetched together, and the next page’s only after (never all at once)
+  const t = await open({ photos: (slug, ext) => (ext === 'jpg' ? 'jpg' : null) })
+  try {
+    const model = await t.page.evaluate(() => window.SportaCatalogue.load().then((r) => r.products.map((p) => p.slug)))
+    t.shop.st.reqs.length = 0
+    await buildPdf(t.page, 'en')
+    const order = t.shop.st.reqs.filter((q) => /^GET \/images\/products\/[^/]+\.jpg$/.test(q)).map((q) => /products\/([^.]+)\.jpg/.exec(q)[1])
+    const cats = ['men', 'women', 'outerwear', 'accessories', 'kids'], by = {}
+    const info2 = await t.page.evaluate(() => window.SportaCatalogue.load().then((r) => r.products.map((p) => [p.slug, p.category])))
+    cats.forEach((c) => info2.filter((x) => x[1] === c).forEach((x, i) => { by[x[0]] = c + Math.floor(i / 9) }))
+    const seq = order.map((sl) => by[sl]), seen = []
+    seq.forEach((k) => { if (seen[seen.length - 1] !== k) seen.push(k) })
+    is(order.length >= 15 && seen.length === new Set(seen).size, 'photos are fetched a page at a time: the requests come page by page, never back to an earlier page', seen.join(' '))
+    void model
+  } finally { await t.close() }
+}
+
+head('mutations of the options')
+const OPTMUT = [
+  ['prices off ignored', "if (o.prices) {\n      // price line", "if (true) {\n      // price line", 'pricesOff'],
+  ['owner switch loses to the caller', 'st.show_prices && o.prices !== false', 'o.prices !== false', 'ownerWins'],
+  ['sold-out filter dropped', 'return withSold || !p.soldOut', 'return true', 'soldOutOff'],
+  ['per_page ignored', 'layoutOf(st.per_page)', 'layoutOf(9)', 'per12'],
+  ['cover switch ignored', 'if (st.cover) {\n          chain', 'if (true) {\n          chain', 'coverOff'],
+  ['the view is not applied to the live products', 'products: applyView(r.products, view, lang)', 'products: r.products', 'view'],
+  ['the owner’s note is not drawn', "note: clean(st['note_' + lang]) }", "note: '' }", 'copy'],
+]
+{
+  const src0 = engineSource()
+  for (const [label, from, to, key] of OPTMUT) {
+    if (!src0.includes(from)) { is(false, `mutation "${label}": the cut text was found in the engine`); continue }
+    const R = await optProbe(src0.replace(from, to), key)
+    is(R[key] === false, `mutation "${label}": check ${key} goes red`, R.crashed || '')
+  }
 }
 
 head('mutations: the engine with one rule cut must fail its check')

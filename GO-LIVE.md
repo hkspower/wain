@@ -456,3 +456,34 @@ caught. Two blind spots surfaced that way and were fixed — `site.webmanifest`
 was being truncated to a phantom `/site.webma`, and the only reference to
 `logo.png` on the whole site is a JSON-LD `"logo"` key, so renaming it produced
 no warning at all.
+
+## The release gate (local; there is no CI)
+
+Before a "deploy", one command runs the gate that used to be run by hand (lanes of `npm run test:*` suites against the
+sandbox rig, comparison with the known failures, flake reruns) and prints the deploy readiness. **It is not CI and it
+deploys nothing**: the owner's saved rule (CLAUDE.md, item 2) is that nothing deploys from CI and there is no `.github/`.
+The gate never starts `scripts/vps-deploy.mjs`; it prints the plan and apply commands for a person to start.
+
+```
+cd sporta-web
+npm run gate:quick     # static and fast suites, a few minutes, no rig
+npm run gate           # the full gate (starts the sandbox rig if it is not up)
+npm run gate:check     # deploy readiness only: clean tree, pushed, HEAD message, what ships, the commands
+```
+
+- **The registry** is `sporta-web/ops/release/gate.config.json` (every real `test:*` suite with its needs, timeout,
+  `minOk`, parse strategy, trigger globs; the scripts that are not gate suites are under `not_in_gate` with the reason).
+- **Known failures** are `ops/release/known-failures.json`: suites that fail identically at the baseline. A known
+  failure matches by exit code, count AND failing check names, so it cannot hide a new one. **When a known failure is
+  fixed (the gate prints FIXED) or the owner accepts a new one, edit `known-failures.json` in the same commit.**
+- **The baseline file** is `ops/release/live-baseline.json`: what is live, per area and add-on file. The person who
+  deploys updates it in the commit that records the deploy; `--changed` and the readiness diff read it.
+- **The readiness output** says what the release contains as `--only` scopes, what needs the owner's attention (backend
+  change: independent review + live schema diff; migration files; cron files; `.htaccess` with its PHP; config keys) and
+  prints `node scripts/vps-deploy.mjs compose --ref <sha> --only ...` (read-only plan) and the apply template with the
+  SHA twice. Read the plan's "live bytes -> release bytes" line; success is the job log saying `DEPLOY_OK`.
+- Verdicts: PASS, KNOWN, FLAKE (failed, then passed on the automatic rerun), FIXED, REGRESSION, SKIPPED. Exit 1 only on
+  REGRESSION. Full documentation: `sporta-web/ops/release/README.md`; the gate's own suite: `npm run test:release-gate`.
+
+Deploying remains the owner's explicit "deploy", started by a person through the Hostinger connector with
+`scripts/vps-deploy.mjs` (plan first, apply with the commit SHA twice).

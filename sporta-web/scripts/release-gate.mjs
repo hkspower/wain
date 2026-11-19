@@ -32,6 +32,7 @@
 // EXIT CODE: 0 = no regression (GATE GREEN); 1 = at least one REGRESSION; 2 = the gate itself could not run (bad option,
 // the rig would not come up); 3 = --deploy-check alone and the tree is NOT ready.
 import { spawn } from 'node:child_process'
+import { scriptClosure } from './lib/release-gate-deps.mjs'
 import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
@@ -53,7 +54,10 @@ export function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--quick') o.quick = true
-    else if (a === '--only') o.only = need(++i, '--only').split(',').map((s) => s.trim().replace(/^test:/, '')).filter(Boolean)
+    else if (a === '--only') {
+      o.only = need(++i, '--only').split(',').map((s) => s.trim().replace(/^test:/, '')).filter(Boolean)
+      if (!o.only.length) throw new Error('--only names no suite (an empty list would run nothing and read as green)')
+    }
     else if (a === '--changed') o.changed = true
     else if (a.startsWith('--changed=')) { o.changed = true; o.changedRef = a.slice(10) }
     else if (a === '--since') o.since = need(++i, '--since')
@@ -98,9 +102,30 @@ function runSync(cmd, args, cwd) {
 }
 const git = async (cwd, ...args) => { const r = await runSync('git', args, cwd); return { ...r, out: r.out.trim() } }
 
+// F5: every live suite process group, so Ctrl-C / kill / a crash of the gate cannot leave suites, browsers or rig servers
+// running into the next gate (they share the rig's database and fixed ports).
+const LIVE = new Set()
+let shuttingDown = false
+export function killAll(sig) { for (const pid of LIVE) { try { process.kill(-pid, sig) } catch { /* gone */ } } }
+function installSignalHandlers() {
+  const stop = (name, code) => () => {
+    if (shuttingDown) return
+    shuttingDown = true
+    process.stderr.write(`\nrelease-gate: ${name}: stopping ${LIVE.size} running suite(s)\n`)
+    killAll('SIGTERM')
+    setTimeout(() => { killAll('SIGKILL'); process.exit(code) }, 5000).unref()
+    setInterval(() => { if (!LIVE.size) process.exit(code) }, 100) // kept referenced: the exit must come from here, not from a drained loop
+  }
+  process.on('SIGINT', stop('interrupted (SIGINT)', 130))
+  process.on('SIGTERM', stop('terminated (SIGTERM)', 143))
+  process.on('uncaughtException', (e) => { process.stderr.write(`release-gate: uncaught ${e?.stack ?? e}\n`); killAll('SIGKILL'); process.exit(2) })
+  process.on('exit', () => killAll('SIGKILL'))
+}
+
 // One suite run: a shell, its own process group (so a timeout kills the browsers it started), output to a log file.
 function runSuite(command, cwd, logFile, timeoutSec) {
   logSpawn('sh', ['-c', command])
+  if (shuttingDown) return new Promise(() => {}) // interrupted: never start another suite
   return new Promise((resolve) => {
     const t0 = Date.now()
     const stream = fs.createWriteStream(logFile)
@@ -108,10 +133,12 @@ function runSuite(command, cwd, logFile, timeoutSec) {
     const child = spawn('sh', ['-c', command], { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' } })
     child.stdout.pipe(stream, { end: false })
     child.stderr.pipe(stream, { end: false })
+    if (child.pid) LIVE.add(child.pid)
     const kill = (sig) => { try { process.kill(-child.pid, sig) } catch { /* already gone */ } }
     const timer = setTimeout(() => { timedOut = true; kill('SIGTERM'); setTimeout(() => kill('SIGKILL'), 5000).unref() }, timeoutSec * 1000)
     const done = (code, err) => {
       clearTimeout(timer)
+      if (child.pid) LIVE.delete(child.pid)
       if (err) stream.write(`\n[gate] could not start: ${err}\n`)
       stream.end(() => {
         let text = ''
@@ -152,7 +179,7 @@ export function scriptOfSuite(webDir) {
   try { scripts = JSON.parse(fs.readFileSync(path.join(webDir, 'package.json'), 'utf8')).scripts ?? {} } catch { /* a temp tree has none */ }
   return (name) => {
     const m = String(scripts[`test:${name}`] ?? '').match(/(?:node|php) (scripts\/[^ ]+)/)
-    return m ? m[1] : null
+    return m ? scriptClosure(webDir, m[1]) : null // F4: the script and every local file it imports
   }
 }
 
@@ -191,6 +218,14 @@ const inPool = (s) => !isRig(s) && s.parallelSafe === true
 // ------------------------------------------------------------------ the rig
 async function ensureRig(registry, o, webDir, say) {
   const rig = registry.rig ?? {}
+  // F12: the rate_limit clear and the database check use the default local client. If the environment points that client at
+  // another host, a "delete from rate_limit" would hit a database that is not the sandbox: refuse before anything runs.
+  const remote = ['MYSQL_HOST', 'MARIADB_HOST', 'MYSQL_TCP_PORT', 'MARIADB_TCP_PORT'].filter((k) => process.env[k])
+  if (remote.length && !registry.rig?.allowRemoteClient) {
+    const e = new Error(`${remote.join(', ')} is set: the gate's database client (mariadb sporta) would not be the local sandbox. Unset it and run again`)
+    e.exitCode = 2
+    throw e
+  }
   const check = async () => {
     for (const p of rig.ports ?? []) if (!(await tcpUp(p))) return `port ${p} is not answering`
     if (rig.dbCheck?.length) {
@@ -237,7 +272,7 @@ export async function runGate(o, io = {}) {
   }
 
   if (o.deployCheck) {
-    result.readiness = await readiness(o, webDir, data, out)
+    result.readiness = await readiness(o, webDir, data, out, readGateRecord(webDir, head))
     result.verdict = result.readiness.ready ? 'READY' : 'NOT READY'
     result.finished = new Date().toISOString()
     if (o.json) fs.writeFileSync(o.json, JSON.stringify(result, null, 2))
@@ -254,10 +289,20 @@ export async function runGate(o, io = {}) {
   }
   const scriptOf = scriptOfSuite(webDir)
   const selected = select(registry, o, changedFiles, scriptOf)
-  if (!selected.length) out('no suite selected: nothing to run')
+  if (!selected.length) {
+    out('no suite selected: nothing to run')
+    out('NOTHING WAS RUN: this is not a green gate and not a release gate')
+    result.verdict = 'NOTHING_RUN'
+    result.partial = ['no suite was selected']
+    result.finished = new Date().toISOString()
+    if (o.json) fs.writeFileSync(o.json, JSON.stringify(result, null, 2))
+    // --changed with nothing to run is a legitimate answer (exit 0); any other empty selection means the options are wrong
+    return { code: o.changed ? 0 : 2, result }
+  }
 
-  const outdir = path.resolve(o.outdir ?? path.join(webDir, '.gate', utcStamp(startedAt)))
+  const outdir = path.resolve(o.outdir ?? path.join(webDir, '.gate', `${utcStamp(startedAt)}-${process.pid}`))
   fs.mkdirSync(outdir, { recursive: true })
+  if (!o.outdir) pruneRuns(path.join(webDir, '.gate'), 10, outdir) // F10: keep the newest runs only
   result.outdir = outdir
   out(`gate: ${selected.length} suite(s), logs in ${path.relative(webDir, outdir) || outdir}, HEAD ${head.slice(0, 8)} on ${branch}`)
 
@@ -360,7 +405,7 @@ export async function runGate(o, io = {}) {
   out(mdTable(result.suites.map((x) => [x.name, x.ok ?? '-', x.fail, x.exit === null ? (x.verdict === 'SKIPPED' ? '-' : 'timeout') : x.exit, x.seconds, x.verdict]), ['suite', 'ok', 'FAIL', 'exit', 'seconds', 'verdict']))
   out('')
   out(`totals: ${Object.entries(result.totals).map(([k, v]) => `${v} ${k}`).join(', ')}; ${result.suites.reduce((a, x) => a + (x.ok ?? 0), 0)} ok lines in all`)
-  for (const x of result.suites.filter((y) => y.verdict === 'FIXED')) out(`FIXED  ${x.name}: a recorded known failure now passes. Remove it from ops/release/known-failures.json (same commit).`)
+  for (const x of result.suites.filter((y) => y.verdict === 'FIXED')) out(`FIXED  ${x.name}: a recorded known failure now passes; remove it from ops/release/known-failures.json (same commit).`)
   for (const x of result.suites.filter((y) => y.verdict === 'FLAKE')) out(`FLAKE  ${x.name}: ${x.note}`)
   for (const x of result.suites.filter((y) => y.verdict === 'KNOWN' && y.note)) out(`KNOWN  ${x.name}: ${x.note}`)
   for (const x of result.suites.filter((y) => y.verdict === 'SKIPPED')) out(`SKIPPED ${x.name}: ${x.note}`)
@@ -381,10 +426,47 @@ export async function runGate(o, io = {}) {
   result.durationSec = Math.round((Date.now() - startedAt.getTime()) / 1000)
   out(`(${result.durationSec}s; logs in ${path.relative(webDir, outdir) || outdir})`)
 
+  // F1: only a run of EVERYTHING the registry measures, with nothing skipped, is a release gate
+  const partial = []
+  if (o.only) partial.push('--only')
+  if (o.quick) partial.push('--quick')
+  if (o.changed) partial.push('--changed')
+  if (result.skipped.length) partial.push(`${result.skipped.length} suite(s) SKIPPED`)
+  if (mutated('partial-run')) partial.length = 0
+  result.partial = partial
+  result.full = result.verdict === 'GREEN' && partial.length === 0
+  if (result.verdict === 'GREEN' && !result.full) out(`PARTIAL: not a release gate (${partial.join(', ')}): the whole gate (npm run gate) has to run, with nothing skipped, before anything is READY`)
+  if (result.full) writeGateRecord(webDir, result)
+
   // (e) readiness, only after a green run
-  if (result.verdict === 'GREEN') result.readiness = await readiness(o, webDir, data, out)
+  if (result.verdict === 'GREEN') result.readiness = await readiness(o, webDir, data, out, result.full ? { ok: true } : { ok: false, why: `this run was partial (${partial.join(', ')}): a release needs the whole gate (npm run gate) green for this HEAD` })
   if (o.json) fs.writeFileSync(o.json, JSON.stringify(result, null, 2))
   return { code: result.verdict === 'RED' ? 1 : 0, result }
+}
+
+// ------------------------------------------------------------------ the gate record (F1)
+// A FULL green run leaves .gate/last-full.json (HEAD + verdict). --deploy-check trusts nothing else: READY needs a full gate
+// that was green for exactly this HEAD (the tree being clean is a separate blocker).
+function writeGateRecord(webDir, result) {
+  try {
+    fs.mkdirSync(path.join(webDir, '.gate'), { recursive: true })
+    fs.writeFileSync(path.join(webDir, '.gate', 'last-full.json'), JSON.stringify({ schema: 1, head: result.head, branch: result.branch, verdict: result.verdict, full: true, finished: result.finished, suites: result.suites.length, totals: result.totals }, null, 2))
+  } catch { /* a read-only checkout: --deploy-check will then say there is no record */ }
+}
+function readGateRecord(webDir, head) {
+  let rec = null
+  try { rec = JSON.parse(fs.readFileSync(path.join(webDir, '.gate', 'last-full.json'), 'utf8')) } catch { /* none */ }
+  if (!rec) return { ok: false, why: 'no full gate record (.gate/last-full.json): run the whole gate (npm run gate) for this HEAD first' }
+  if (rec.verdict !== 'GREEN' || rec.full !== true) return { ok: false, why: `the last gate record is not a full green run (${rec.verdict}${rec.full ? '' : ', partial'})` }
+  if (rec.head !== head) return { ok: false, why: `the last full gate was green for ${String(rec.head).slice(0, 8)}, not for HEAD ${head.slice(0, 8)}: run the whole gate (npm run gate) again` }
+  return { ok: true }
+}
+function pruneRuns(dir, keep, current) {
+  try {
+    const runs = fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => path.join(dir, d.name))
+      .map((f) => ({ f, t: fs.statSync(f).mtimeMs })).sort((a, b) => b.t - a.t)
+    for (const r of runs.slice(keep)) if (r.f !== current) fs.rmSync(r.f, { recursive: true, force: true })
+  } catch { /* housekeeping only */ }
 }
 
 // ------------------------------------------------------------------ git helpers
@@ -403,7 +485,7 @@ async function changedSince(webDir, ref) {
 }
 
 // ------------------------------------------------------------------ deploy readiness (printed, never executed)
-export async function readiness(o, webDir, data, out) {
+export async function readiness(o, webDir, data, out, gateRecord = { ok: false, why: 'no gate result was given' }) {
   const { baseline } = data
   const blockers = []
   const warnings = []
@@ -411,6 +493,9 @@ export async function readiness(o, webDir, data, out) {
   out('== DEPLOY READINESS (printed only: this gate never deploys; a deploy is the owner\'s explicit "deploy")')
   const head = (await git(webDir, 'rev-parse', 'HEAD')).out
   const branch = (await git(webDir, 'rev-parse', '--abbrev-ref', 'HEAD')).out
+
+  // 0 the gate itself (F1): a partial, quick, changed-only or skipping run is not a release gate
+  if (!gateRecord.ok && !mutated('gate-record')) blockers.push(gateRecord.why)
 
   // 1 working tree
   const st = await git(webDir, 'status', '--porcelain')
@@ -431,44 +516,46 @@ export async function readiness(o, webDir, data, out) {
     blockers.push(`HEAD's commit message says "${msg.match(/NOT READY|do not deploy/i)[0]}" (CLAUDE.md: such a commit is never shipped): ${msg.split('\n')[0].slice(0, 120)}`)
   }
 
-  // 4 what the release contains
+  // 4 what the release contains. F6/F7: every ref must be a commit here (a shallow clone has none of them) and each file is
+  // diffed against ITS OWN ref; a diff that cannot be read is a blocker, never "nothing to deploy".
   const refs = collectRefs(baseline, o.since)
   let mapped = []
   let diffText = ''
+  let diffOk = false
   const added = new Set()
   if (!refs.size) warnings.push('no live baseline (ops/release/live-baseline.json): cannot say what the release contains')
   else {
-    const byRef = new Map()
-    const files = new Set()
-    const oldest = [...refs.values()][0]
-    // every path changed since the OLDEST baseline ref, then each filtered against ITS OWN baseline ref
-    const all = await git(webDir, 'diff', '--relative', '--name-status', oldest.ref, 'HEAD', '--', '.')
-    if (all.code !== 0) warnings.push(`git diff against ${oldest.ref} failed: ${all.out.split('\n')[0]}`)
-    for (const line of all.out.split('\n').filter(Boolean)) files.add(line.split('\t').at(-1))
-    for (const f of files) {
-      const r = refFor(f, baseline, o.since)
-      if (!byRef.has(r)) byRef.set(r, [])
-      byRef.get(r).push(f)
-    }
+    diffOk = true
     const changed = []
-    for (const [ref, list] of byRef) {
-      if (ref === oldest.ref) { for (const f of list) changed.push(f); continue }
-      const d = await git(webDir, 'diff', '--relative', '--name-status', ref, 'HEAD', '--', ...list)
-      for (const line of d.out.split('\n').filter(Boolean)) changed.push(line.split('\t').at(-1))
+    const bad = []
+    for (const { ref, label } of refs.values()) {
+      const have = await git(webDir, 'cat-file', '-e', `${ref}^{commit}`)
+      if (have.code !== 0) { bad.push(`${label} ${ref.slice(0, 10)}`); continue }
+      const d = await git(webDir, 'diff', '--relative', '--name-status', ref, 'HEAD', '--', '.')
+      if (d.code !== 0) { bad.push(`${label} ${ref.slice(0, 10)} (${d.out.split('\n')[0].slice(0, 100)})`); continue }
+      const mine = []
+      for (const line of d.out.split('\n').filter(Boolean)) {
+        const [status, ...rest] = line.split('\t')
+        const f = rest.at(-1)
+        if (refFor(f, baseline, o.since) !== ref) continue
+        changed.push(f); mine.push(f)
+        if (status === 'A') added.add(f)
+      }
+      const dp = mine.filter((f) => f.startsWith('dropin/'))
+      if (dp.length) diffText += '\n' + (await git(webDir, 'diff', '--relative', ref, 'HEAD', '--', ...dp)).out
     }
-    for (const line of all.out.split('\n').filter(Boolean)) {
-      const [status, ...rest] = line.split('\t')
-      if (status === 'A') added.add(rest.at(-1))
+    if (bad.length) {
+      diffOk = false
+      blockers.push(`cannot read the diff against the live baseline (${bad.join('; ')}): the commit is missing here (shallow clone? run git fetch --unshallow) or git failed, so what the release contains is UNKNOWN`)
     }
     mapped = [...new Set(changed)].sort().map((p) => mapPath(p, baseline))
-    const dd = await git(webDir, 'diff', '--relative', oldest.ref, 'HEAD', '--', 'dropin')
-    diffText = dd.out
   }
   const sum = summariseRelease(mapped, { addedFiles: added, diffText })
   const shipping = mapped.filter((m) => m.scope)
   out(`   baseline: ${[...refs.values()].map((r) => `${r.label} ${r.ref.slice(0, 8)}`).join(', ') || 'none'}`)
   out(`   HEAD: ${head.slice(0, 8)} on ${branch}`)
-  out(`   the release contains ${shipping.length} deployable path(s) (${mapped.length - shipping.length} other changed path(s) are source, tooling or the foreign storefront and never ship):`)
+  if (diffOk) out(`   the release contains ${shipping.length} deployable path(s) (${mapped.length - shipping.length} other changed path(s) are source, tooling or the foreign storefront and never ship):`)
+  else if (refs.size) out('   the release contents are UNKNOWN (see the blocker below)')
   const groups = {}
   for (const m of shipping) (groups[m.scope] ??= []).push(m.path)
   for (const [scope, list] of Object.entries(groups)) out(`     --only ${scope.padEnd(44)} ${list.length > 3 ? `${list.length} files` : list.join(', ')}`)
@@ -478,7 +565,7 @@ export async function readiness(o, webDir, data, out) {
   }
   for (const w of warnings) out(`   note: ${w}`)
 
-  // 5 the commands, from what vps-deploy.mjs really accepts
+  // 5 the commands, from what vps-deploy.mjs really accepts. F9: they are printed only when nothing blocks.
   const accepted = vpsDeployFlags(webDir)
   const only = sum.scopes.length ? sum.scopes.sort().join(',') : null
   const missing = ['--apply', '--ref', '--confirm', '--only'].filter((f) => !accepted.flags.includes(f))
@@ -487,25 +574,28 @@ export async function readiness(o, webDir, data, out) {
     out(`!! scripts/vps-deploy.mjs does not accept ${missing.join(', ')} any more. What it accepts: ${accepted.usage || '(no usage line found)'}`)
     blockers.push(`vps-deploy.mjs no longer accepts ${missing.join(', ')}; update CLAUDE.md and this gate`)
   }
-  if (only) {
+  const commands = only && !missing.length ? { plan: `node scripts/vps-deploy.mjs compose --ref ${head} --only ${only}`, apply: `node scripts/vps-deploy.mjs compose --apply --ref ${head} --confirm ${head} --only ${only}` } : null
+  if (commands && blockers.length) {
+    out(`   (the plan and apply commands for ${head.slice(0, 8)} are withheld: NOT READY, see the blockers below)`)
+  } else if (commands) {
     out('   1) plan (read-only; changes nothing on the server; run it through the Hostinger connector, as the person who says "deploy"):')
-    out(`        node scripts/vps-deploy.mjs compose --ref ${head} --only ${only}`)
+    out(`        ${commands.plan}`)
     out('   2) read the plan: the "live bytes -> release bytes" line of every file (a shrink is a wrong base), the per-file list, health before.')
     out('   3) apply (needs the full SHA TWICE; add --allow-shrink only when a shrink in the plan is intended):')
-    out(`        node scripts/vps-deploy.mjs compose --apply --ref ${head} --confirm ${head} --only ${only}`)
+    out(`        ${commands.apply}`)
     out('   4) success is the job log saying DEPLOY_OK (and nothing else). Undo: compose --rollback <the deploy name it prints>.')
     out('   5) afterwards edit ops/release/live-baseline.json (ref, deploy name, date) in the commit that records the deploy.')
-  } else if (refs.size) {
+  } else if (refs.size && diffOk) {
     out('   nothing deployable differs from the live baseline: there is nothing to deploy.')
   }
   out('')
   const ready = blockers.length === 0
-  if (ready) out('DEPLOY READINESS: READY (the tree is clean and pushed, HEAD may be shipped; the owner still has to say "deploy")')
+  if (ready) out('DEPLOY READINESS: READY (the full gate is green for this HEAD, the tree is clean and pushed, HEAD may be shipped; the owner still has to say "deploy")')
   else {
     out(`DEPLOY READINESS: NOT READY (${blockers.length})`)
     for (const b of blockers) out(`   - ${b}`)
   }
-  return { ready, blockers, warnings, head, branch, only, attention: sum.attention, files: mapped, commands: only ? { plan: `node scripts/vps-deploy.mjs compose --ref ${head} --only ${only}`, apply: `node scripts/vps-deploy.mjs compose --apply --ref ${head} --confirm ${head} --only ${only}` } : null }
+  return { ready, blockers, warnings, head, branch, only, attention: sum.attention, files: mapped, commands: ready ? commands : null }
 }
 
 // Every distinct baseline ref, oldest first (git order is not needed: --changed only wants SOME ref that is old enough).
@@ -527,6 +617,8 @@ function refFor(file, baseline, sinceOverride) {
   if (b.api?.files?.[file]) return b.api.files[file].ref
   if (file.startsWith('dropin/')) return b.api?.ref ?? b.ref
   if (b.addons?.files?.[file]) return b.addons.files[file].ref
+  // F8: the repo holds only the readable source of the admin add-on; live it ships as the loader + the .full.js pair, recorded under the .full.js name
+  if (file === 'public/sporta-admin-brands.js' && b.addons?.files?.['public/sporta-admin-brands.full.js']) return b.addons.files['public/sporta-admin-brands.full.js'].ref
   if (file.startsWith('public/')) return b.addons?.default?.ref ?? b.ref
   return b.ref
 }
@@ -560,6 +652,7 @@ if (isMain) {
   let o
   try { o = parseArgs(process.argv.slice(2)) } catch (e) { console.error(e.message); process.exit(2) }
   if (o.help) { console.log(HELP); process.exit(0) }
+  if (!mutated('signals')) installSignalHandlers()
   try {
     if (o.list) { printList(o, o.root ? path.resolve(o.root) : WEB); process.exit(0) }
     const { code } = await runGate(o)

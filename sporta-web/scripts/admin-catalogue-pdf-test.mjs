@@ -49,9 +49,11 @@ function makeShop(o = {}) {
     if (req.method() !== 'GET') st.posts.push(req.method() + ' ' + u.pathname)
     st.calls.push(u.pathname + u.search)
     const send = (status, body, type = 'text/html; charset=utf-8', headers = {}) => route.fulfill({ status, body, headers: { 'content-type': type, ...headers } })
+    if (u.pathname === '/api/admin.php') return send(404, '{"error":"not_found"}', 'application/json')   // this suite is the API-without-settings case; the settings have their own suite
     if (u.pathname === '/api/api.php') {
       const r = u.searchParams.get('r')
       if (st.fault[r]) return send(st.fault[r], '{"error":"x"}', 'application/json')
+      if (r === 'catalogue') return send(404, '{"error":"not_found"}', 'application/json')   // an older API: the engine falls back to the three public routes
       return send(200, JSON.stringify(r === 'products' ? st.data.products : r === 'stock' ? st.data.stock : r === 'brands' ? st.data.brands : []), 'application/json')
     }
     if (u.pathname === '/fixture.js') return send(200, FIXTURE_JS + `;window.fx.screens=${JSON.stringify(SCREENS)}`, 'text/javascript')
@@ -109,12 +111,14 @@ head('the live catalogue and the download')
   is(await dlg.getAttribute('aria-modal') === 'true' && await dlg.getAttribute('aria-labelledby') === 'scp-title' && await pg.locator('#scp-title').count() === 1, 'a modal dialog, labelled by its title')
   is(shop.st.calls.filter((c) => c.includes('sporta-catalogue')).length === 1, 'the engine is loaded once, when the dialog opens')
   const reads = shop.st.calls.filter((c) => c.startsWith('/api/api.php'))
-  is(reads.length === 3 && ['products', 'stock', 'brands'].every((k) => reads.some((c) => c.includes('r=' + k))), 'the catalogue is read with three GETs: products, stock, brands', reads.join(' '))
+  is(reads.length >= 3 && ['products', 'stock', 'brands'].every((k) => reads.some((c) => c.includes('r=' + k))) && reads.every((c) => /r=(catalogue|products|stock|brands)\b/.test(c)), 'the catalogue is read with public GETs only: the catalogue route, then products, stock, brands on an older API', reads.join(' '))
+  is(shop.st.calls.some((c) => c.startsWith('/api/admin.php?r=catalogue_settings')), 'the settings are read from the admin route when the dialog opens')
   const sum = await pg.textContent(`${R} .scp-sum`)
   is(/Products: 19 · On sale: 2 · Sold out: 1/.test(sum), 'the summary counts the live shop (19 products, 2 on sale, 1 sold out)', sum)
   is(await pg.locator('[data-scp="lang-en"]').isChecked() && !(await pg.locator('[data-scp="lang-ar"]').isChecked()), 'the file language starts as the admin’s own (English)')
+  const before = shop.st.calls.filter((c) => c.startsWith('/api/api.php')).length
   await pg.click('[data-scp="refresh"]'); await ready(pg)
-  is(shop.st.calls.filter((c) => c.startsWith('/api/api.php')).length === 6, '"Read again" reads the shop again')
+  is(shop.st.calls.filter((c) => c.startsWith('/api/api.php')).length > before, '"Read again" reads the shop again')
   // English file
   const dl = pg.waitForEvent('download'); await pg.click('[data-scp="download"]')
   const busy = await pg.evaluate(() => ({ s: document.querySelector('[data-scp="status"]').textContent, dis: document.querySelector('[data-scp="download"]').disabled, rad: document.querySelector('[data-scp="lang-ar"]').disabled, rf: document.querySelector('[data-scp="refresh"]').disabled }))
@@ -135,11 +139,13 @@ head('the live catalogue and the download')
   is(/^Sporta-Catalogue-AR-/.test(d3.suggestedFilename()) && info(f3).Title === 'كتالوج المنتجات – Sporta' && urlsOf(f3).filter((u) => /\/product\//.test(u)).every((u) => !u.includes('lang=en')), 'the Arabic file: Arabic name, Arabic title, links without ?lang=en', d3.suggestedFilename())
   // addresses
   await ready(pg)
+  is(/not on the server yet/.test(await pg.textContent('[data-scp="panel"]')), 'the API without the settings route: the Content tab says so and the download above still works')
+  await pg.click('[data-scp="tab-share"]')
   const link = pg.locator(`${R} a.scp-link`)
   is(await link.count() === 1 && await link.getAttribute('href') === 'https://www.sporta.com.kw/catalogue' && await link.getAttribute('target') === '_blank' && /noopener/.test(await link.getAttribute('rel')), 'the public Catalogue page is a plain new-tab link, rel noopener noreferrer')
   const want = { page: 'https://www.sporta.com.kw/catalogue', pdfAr: 'https://www.sporta.com.kw/catalogue?pdf=ar', pdfEn: 'https://www.sporta.com.kw/catalogue?pdf=en' }
   for (const [k, v] of Object.entries(want)) {
-    await pg.click(`[data-scp="copy-${k}"]`); await pg.waitForFunction((t) => document.querySelector(`[data-scp="copy-${k}"]`).textContent === 'Copied', null, { timeout: 4000 }).catch(() => {})
+    await pg.click(`[data-scp="copy-${k}"]`); await pg.waitForFunction((k2) => document.querySelector(`[data-scp="copy-${k2}"]`).textContent === 'Copied', k, { timeout: 4000 }).catch(() => {})
     is(await pg.evaluate(() => navigator.clipboard.readText()) === v, `copy puts exactly ${v} on the clipboard`)
   }
   is(shop.st.posts.length === 0 && shop.st.offHost.length === 0, 'READ ONLY: nothing but GET requests, none to another host', JSON.stringify([shop.st.posts, shop.st.offHost]))
@@ -165,16 +171,16 @@ head('a failing read, a phone, Arabic')
 {
   const { pg } = await open({}, { w: 390, h: 844, ar: true })
   await pg.click('[data-sporta-cpdf-open]'); await pg.waitForSelector(R); await ready(pg)
-  const m = await pg.evaluate(() => ({ sw: document.querySelector('[data-scp-root] .scp-dlg').scrollWidth - document.querySelector('[data-scp-root] .scp-dlg').clientWidth, pageSw: document.documentElement.scrollWidth - document.documentElement.clientWidth, h: [...document.querySelectorAll('[data-scp-root] button, [data-scp-root] input[type=radio], [data-scp-root] .scp-radio')].map((e) => Math.round(e.getBoundingClientRect().height)) }))
+  const m = await pg.evaluate(() => ({ sw: document.querySelector('[data-scp-root] .scp-scroll').scrollWidth - document.querySelector('[data-scp-root] .scp-scroll').clientWidth, pageSw: document.documentElement.scrollWidth - document.documentElement.clientWidth, h: [...document.querySelectorAll('[data-scp-root] button, [data-scp-root] input[type=radio], [data-scp-root] .scp-radio')].filter((e) => e.getClientRects().length).map((e) => Math.round(e.getBoundingClientRect().height)) }))
   is(m.sw <= 0 && m.pageSw <= 0, 'no sideways scroll at 390 px (Arabic)', JSON.stringify(m))
-  is(m.h.length >= 8 && m.h.every((x) => x >= 44 || x === 20), 'every control is at least 44 px tall (the radio box sits in a 44 px label)', m.h.join(','))
+  is(m.h.length >= 6 && m.h.every((x) => x >= 44 || x === 20), 'every control is at least 44 px tall (the radio box sits in a 44 px label)', m.h.join(','))
 }
 
 head('mutations')
 const MUT = [
   ['without the download call', BRANDS_JS.replace("S.build = { state: 'done', name: res.name, bytes: res.bytes, res: res }; E.download(res)", "S.build = { state: 'done', name: res.name, bytes: res.bytes, res: res }"), async (pg) => { const w = pg.waitForEvent('download', { timeout: 6000 }).then(() => true, () => false); await pg.click('[data-scp="download"]'); return await w }],
   ['with a wrong engine address', BRANDS_JS.replace("s.src = '/sporta-catalogue.js'; s.async = true\n      s.onload = function () { if (window.SportaCatalogue) ok(", "s.src = '/sporta-catalogue-x.js'; s.async = true\n      s.onload = function () { if (window.SportaCatalogue) ok("), async (pg) => /Products: 19/.test(await pg.textContent(`${R} .scp-sum`).catch(() => ''))],
-  ['with the file language ignored', BRANDS_JS.replace('lang: S.fileLang, signal: ctl', "lang: 'en', signal: ctl"), async (pg) => { await pg.click('[data-scp="lang-ar"]'); const w = pg.waitForEvent('download'); await pg.click('[data-scp="download"]'); return /AR-/.test((await w).suggestedFilename()) }],
+  ['with the file language ignored', BRANDS_JS.replace('lang: S.fileLang, prices: S.optPrices', "lang: 'en', prices: S.optPrices"), async (pg) => { await pg.click('[data-scp="lang-ar"]'); const w = pg.waitForEvent('download'); await pg.click('[data-scp="download"]'); return /AR-/.test((await w).suggestedFilename()) }],
   ['with the copy cut', BRANDS_JS.replace("navigator.clipboard.writeText(text).then(function () { done(true) }, function () { done(false) }); return", "done(false); return"), async (pg) => { await pg.click('[data-scp="copy-pdfAr"]'); await pg.waitForTimeout(300); return (await pg.evaluate(() => navigator.clipboard.readText())) === 'https://www.sporta.com.kw/catalogue?pdf=ar' }],
 ]
 for (const [label, text, check] of MUT) {

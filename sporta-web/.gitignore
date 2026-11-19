@@ -37,3 +37,6 @@ sporta-google-sessions/
 
 # Test-rig photo placeholders (scripts/make-test-photos.mjs): never committed.
 dropin/images/
+
+# The release gate (scripts/release-gate.mjs): per-run logs and results
+/.gate/

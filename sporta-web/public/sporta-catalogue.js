@@ -837,7 +837,7 @@
   var CSS = [
     '#sporta-catalogue{display:block}',
     '.scat{max-width:80rem;margin:0 auto;padding:3rem 1rem 4rem;overflow-anchor:auto}',
-    '.scat-head{display:grid;gap:.75rem;justify-items:center;text-align:center}',
+    '.scat-head{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;justify-items:center;text-align:center}',
     '.scat-status{display:flex;flex-wrap:wrap;gap:.25rem 1rem;justify-content:center;margin:.25rem 0 0;font-size:.875rem;font-weight:600}',
     '.scat-dot{display:inline-block;width:.625rem;height:.625rem;margin-inline-end:.4rem;border-radius:50%;background:#ff7b17;vertical-align:baseline}',
     '.scat-actions,.scat-share{display:flex;flex-wrap:wrap;gap:.75rem;justify-content:center;margin-top:.25rem}',
@@ -847,7 +847,8 @@
     '.scat-note{margin:.25rem 0 0;font-size:.875rem;min-height:1.3em;display:flex;flex-wrap:wrap;gap:.25rem .75rem;justify-content:center;align-items:center}',
     '.scat-note a,.scat-note button{min-height:44px;display:inline-flex;align-items:center;color:inherit;font:inherit;font-weight:700;text-decoration:underline;background:none;border:0;padding:0 .5rem;cursor:pointer}',
     '.scat-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}',
-    '.scat-tools{display:grid;gap:.75rem;margin:2rem 0 1rem;justify-items:center}',
+    '.scat-tools{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;margin:2rem 0 1rem}',
+    '.scat-cap{margin:.5rem 0 -.25rem;text-align:center;font-size:.8125rem;font-weight:700;opacity:.8}',
     '.scat-chips{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center}',
     '.scat-chip{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;min-width:44px;padding:.4rem 1rem;border:1px solid #171a1e;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-weight:700;font-size:.875rem;cursor:pointer}',
     '.scat-chip[aria-pressed="true"]{background:#ff7b17;border-color:#ff7b17;color:#171a1e}',
@@ -857,8 +858,9 @@
     '.scat-field{display:grid;gap:.25rem;font-size:.8125rem;font-weight:700;text-align:center}',
     '.scat-input{min-height:44px;padding:.4rem .9rem;border:1px solid #171a1e;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;max-width:100%}',
     '.scat-num{width:7rem}',
-    '.scat-search{min-width:min(100%,16rem)}',
+    '.scat-search{flex:1 1 16rem;min-width:0;max-width:24rem}',
     '.scat-count{margin:.25rem 0 0;text-align:center;font-weight:700;font-size:.875rem;min-height:1.3em}',
+    '@media (max-width:639px){.scat-actions .btn,.scat-share .btn{flex:1 1 calc(50% - .75rem);padding-inline:.5rem}.scat-field{flex:1 1 calc(50% - .75rem)}.scat-num,.scat-field select{width:100%}.scat-chip{flex:0 1 auto}}',
     '.scat-foot{margin:2rem 0 0;text-align:center;font-size:.9375rem}',
     '.scat-grid{display:grid;gap:1rem;grid-template-columns:repeat(2,minmax(0,1fr));margin:0;padding:0;list-style:none}',
     '@media (min-width:768px){.scat-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}',
@@ -968,7 +970,8 @@
     var clearBtn = mkBtn('btn-ghost', 'clear', 'x'); clearBtn.hidden = true
     ;[tSale, tStock, fMin.box, fMax.box, sortW, search, clearBtn].forEach(function (n) { fields.appendChild(n) })
     var count = el('p', 'scat-count'); count.setAttribute('role', 'status'); count.setAttribute('aria-live', 'polite'); count.setAttribute('data-scat', 'count')
-    tools.appendChild(catBox); tools.appendChild(brandBox); tools.appendChild(fields); tools.appendChild(count)
+    var capCat = el('p', 'scat-cap'), capBrand = el('p', 'scat-cap'); capCat.setAttribute('aria-hidden', 'true'); capBrand.setAttribute('aria-hidden', 'true')
+    tools.appendChild(capCat); tools.appendChild(catBox); tools.appendChild(capBrand); tools.appendChild(brandBox); tools.appendChild(fields); tools.appendChild(count)
     var body = el('div'); body.setAttribute('data-scat', 'body')
     var foot = el('p', 'scat-foot'); foot.setAttribute('data-scat', 'footnote'); foot.hidden = true
     var live = el('p', 'scat-sr'); live.setAttribute('role', 'status'); live.setAttribute('aria-live', 'polite'); live.setAttribute('data-scat', 'live')
@@ -1011,7 +1014,7 @@
       if (lead.textContent !== li) lead.textContent = li
       var nt = s['note_' + l]; foot.textContent = nt || ''; foot.hidden = !nt
       search.placeholder = T(l, 'search'); search.setAttribute('aria-label', T(l, 'search'))
-      catBox.setAttribute('aria-label', T(l, 'cats')); brandBox.setAttribute('aria-label', T(l, 'brands'))
+      catBox.setAttribute('aria-label', T(l, 'cats')); brandBox.setAttribute('aria-label', T(l, 'brands')); capCat.textContent = T(l, 'cats'); capBrand.textContent = T(l, 'brands')
       tSale.textContent = T(l, 'onSale'); tStock.textContent = T(l, 'inStock')
       fMin.box._cap.textContent = T(l, 'min'); fMax.box._cap.textContent = T(l, 'max'); sortCap.textContent = T(l, 'sort')
       againLink.textContent = T(l, 'again'); cancelBtn.textContent = T(l, 'cancel'); label(clearBtn, T(l, 'clear'))
@@ -1076,7 +1079,7 @@
       })
       syncChips(catBox, cs, function (k) { S.view.cat = k === 'all' ? '' : k; viewChanged() })
       var showBrands = s.show_brand && S.brands.length > 0
-      brandBox.hidden = !showBrands
+      brandBox.hidden = capBrand.hidden = !showBrands
       var bs = []
       if (showBrands) {
         bs.push({ key: 'all', attr: 'data-scat-brand', text: T(l, 'all') + ' (' + forBrand.length + ')', pressed: !v.brand })

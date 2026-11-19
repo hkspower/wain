@@ -56,8 +56,8 @@ export function triggeredSuites(registry, changed, scriptOf = () => null) {
   const picked = new Set()
   for (const s of registry.suites) {
     const globs = [...expandTriggers(s.triggers, groups)]
-    const own = scriptOf(s.name)
-    if (own) globs.push(own)
+    const own = scriptOf(s.name) // a script path, or the script plus the local files it imports
+    if (own) globs.push(...[].concat(own))
     if (changed.some((f) => matchesAny(f, globs))) picked.add(s.name)
   }
   for (const g of registry.globalTriggers ?? []) {
@@ -136,7 +136,7 @@ export function classifyAttempt(reg, known, run) {
     return { verdict: 'PASS', reasons }
   }
   if (known) {
-    const why = matchKnown(known.expect ?? {}, run)
+    const why = matchKnown(known.expect ?? {}, run, reg)
     if (why === null) return { verdict: 'KNOWN', reasons: knownNotes(known.expect ?? {}, run) }
     return { verdict: 'REGRESSION', reasons: [`fails, and not as recorded in known-failures.json: ${why}`] }
   }
@@ -147,7 +147,13 @@ export function classifyAttempt(reg, known, run) {
 }
 
 // null = the failure is exactly the recorded one (or a subset of it); otherwise the reason it is not.
-function matchKnown(expect, run) {
+function matchKnown(expect, run, reg = {}) {
+  // A crash is not a recorded failure. A suite that exits non-zero with NO FAIL line is only KNOWN when the entry records
+  // the crash text (expect.contains); otherwise a syntax error or a missing file would hide inside the recorded count.
+  if (run.fail === 0 && run.exit !== 0 && !expect.contains && !mutated('known-crash')) return `exit code ${run.exit} with no FAIL line (the entry records ${expect.fail ?? 0} failing check(s), not a crash)`
+  // A failing suite must still have RUN its checks: the ok count may not fall below the recorded minimum (entry first, then registry).
+  const minOk = expect.minOk ?? reg.minOk ?? 0
+  if (minOk > 0 && (run.ok ?? 0) < minOk && !mutated('known-min-ok')) return `ok count ${run.ok ?? 0} is below the recorded minimum ${minOk} (checks disappeared)`
   const wantExit = expect.exit
   if (wantExit !== undefined && run.exit !== wantExit && !mutated('known-exit')) return `exit code ${run.exit}, recorded ${wantExit}`
   if (expect.contains && !run.text.includes(expect.contains) && !mutated('known-contains')) return `the output no longer contains "${expect.contains}"`

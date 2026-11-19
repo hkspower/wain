@@ -21,14 +21,15 @@
           "[import] sporta-web/scripts/profiles-screen-test.mjs",
           "[import] sporta-web/scripts/sw-precache.mjs",
           "[php-require] sporta-web/scripts/fixtures/pool-probe.php"
-        ]
+        ],
+        "minOk": 6910
       }
     },
     {
       "suite": "unknown-files",
       "since": "2026-11-19",
       "reason": "the real-tree checks list files added since ops/known-files.json was written (seo-draft, the keyword CSV, .mcp.json, mcp/); same four at the baseline",
-      "evidence": "4 FAIL — 300 checks passed",
+      "evidence": "4 FAIL \u2014 300 checks passed",
       "expect": {
         "exit": 1,
         "fail": 4,
@@ -37,14 +38,15 @@
           "no unexplained HIGH finding",
           "every blocking finding is documented in ops/known-files.json",
           "every non-optional rule in the manifest still matches a file"
-        ]
+        ],
+        "minOk": 300
       }
     },
     {
       "suite": "xss-config",
       "since": "2026-11-19",
       "reason": "the seo head renderer on the rig; the same three failures at the baseline (and the suite then stops with a stack trace)",
-      "evidence": "FAIL the embedded sporta-seo-data block parses as JSON  — unparseable",
+      "evidence": "FAIL the embedded sporta-seo-data block parses as JSON  \u2014 unparseable",
       "expect": {
         "exit": 1,
         "fail": 3,
@@ -79,7 +81,8 @@
         "names": [
           "with delivery in 24 hours, 14-day returns (Arabic plural)",
           "English: the same facts, and the brand / category / #Kuwait #Sporta hashtags"
-        ]
+        ],
+        "minOk": 235
       }
     },
     {
@@ -92,7 +95,8 @@
         "fail": 1,
         "names": [
           "reopening does not read again (the loaded setup is kept)"
-        ]
+        ],
+        "minOk": 87
       }
     },
     {
@@ -105,7 +109,8 @@
         "fail": 28,
         "names": [
           "the bar is the last element in the body (last tab stop)"
-        ]
+        ],
+        "minOk": 812
       }
     },
     {
@@ -139,7 +144,8 @@
           "C section aborted",
           "E section aborted",
           "G3b boot.js (a blocking script) did not grow"
-        ]
+        ],
+        "minOk": 56
       }
     },
     {
@@ -165,7 +171,8 @@
         "fail": 1,
         "names": [
           "the suite stopped: page.click"
-        ]
+        ],
+        "minOk": 90
       }
     },
     {
@@ -178,7 +185,8 @@
         "fail": 8,
         "names": [
           "a missing photo shows no alt text"
-        ]
+        ],
+        "minOk": 1289
       }
     },
     {
@@ -191,7 +199,8 @@
         "fail": 1,
         "names": [
           "the MOBILE-1112 block is the last block of the file"
-        ]
+        ],
+        "minOk": 665
       }
     },
     {
@@ -204,7 +213,8 @@
         "fail": 1,
         "names": [
           "the MOBILE-1112B block sits before MOBILE-1112"
-        ]
+        ],
+        "minOk": 323
       }
     },
     {
@@ -229,7 +239,8 @@
         "names": [
           "[5] one radius, .75rem, on boxed buttons",
           "[7] New product / New promotion / SEO health"
-        ]
+        ],
+        "minOk": 31
       }
     },
     {
@@ -250,7 +261,7 @@
       "suite": "vps-deploy",
       "since": "2026-11-19",
       "reason": "needs dist/ (run npm run release first) and the rig: \"missing dist/api/store.php - run npm run release and npm run sandbox first\"",
-      "evidence": "missing .../dist/api/store.php — run npm run release and npm run sandbox first",
+      "evidence": "missing .../dist/api/store.php \u2014 run npm run release and npm run sandbox first",
       "expect": {
         "exit": 1,
         "fail": 0,
@@ -280,7 +291,8 @@
         "fail": 1,
         "names": [
           "all 23 add-on files answer an empty 304"
-        ]
+        ],
+        "minOk": 120
       }
     },
     {
@@ -306,7 +318,8 @@
         "fail": 1,
         "names": [
           "the add-on file still ends with the block"
-        ]
+        ],
+        "minOk": 18
       }
     }
   ]

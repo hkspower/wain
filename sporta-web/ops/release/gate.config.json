@@ -13,6 +13,7 @@
     ],
     "dbCheck": [
       "mariadb",
+      "--protocol=socket",
       "sporta",
       "-e",
       "select 1"
@@ -24,6 +25,7 @@
     ],
     "clearRateLimit": [
       "mariadb",
+      "--protocol=socket",
       "sporta",
       "-e",
       "delete from rate_limit"
@@ -3192,10 +3194,11 @@
     },
     {
       "name": "release-gate",
+      "command": "node scripts/release-gate-test.mjs",
       "needs": "none",
       "parallelSafe": true,
       "timeoutSec": 300,
-      "minOk": 1,
+      "minOk": 169,
       "parse": "auto",
       "measuredSec": 20,
       "quick": true,
