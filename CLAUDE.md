@@ -6717,3 +6717,11 @@ Asked as «fix api», then «Update wain.php/media.php», then «run it for me»
 - **Every container on the VPS restarted at about 09:26 UTC**, the other sites included. The helper's own container exited with status 255, and the Hostinger Docker manager answered «Temporary Docker Manager issue» for about two minutes. Another session's project, `qrep-reboot`, had exited two minutes earlier; its name suggests that was the cause, but this was not proved. All five `apache` containers came back healthy or running.
 - **The helper project `wain-endpoint-look` is deleted.**
 - **`storage/admin.secret` does not exist on the VPS**, so `/admin` stays locked (`admin_unset`), as it was before.
+
+## The live assets compared — 19 November (nothing written)
+
+«update assest», answered as «Live site files on VPS». `scripts/vps/update-assets.sh` (manifest `scripts/vps/assets.manifest`: `brand/`, `find/`, `home/` without the landmark stand-ins, `og/`, `og.jpg`, `icon.svg`, `apple-icon.png`; 66 files) ran look-only on the VPS through the same throwaway helper project, which was deleted afterwards.
+
+- **62 of 66 are already byte-identical on `www`; none differs.** The other 4 are this repository's home hero (`home/hero-7f6c3666ee-*`), which the live site does not use: the owner's pages use their own `hero-837b9f4417-*`. Writing them would add unused files and a rebuild for no visible change, so nothing was written and wain was not rebuilt.
+- **33 files of the owner's sit in those folders** (`find/index.html`, `home/cafe-*`, `home/hosts-*`, `home/lifestyle-*` and others). The script never deletes, so they were not touched.
+- The folder matched the running site apart from the manifest's paths.
