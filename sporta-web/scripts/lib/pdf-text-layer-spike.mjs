@@ -22,9 +22,10 @@
  *   - Every glyph is 1000 units wide (DW 1000); horizontal scaling (Tz) makes an item's run exactly as wide as the text
  *     the page drew, so the viewer's selection box sits over the drawn words.
  *
- * ORDER (the part with evidence, see the self-test): `mode` is 'logical' | 'visual' | 'actualtext'.
+ * ORDER (the part with evidence, see the self-test): `mode` is 'logical' | 'visual' | 'words' | 'actualtext'.
  *   logical    - the codes are written in logical (typing) order, left to right in glyph space.
  *   visual     - a right-to-left run is written reversed, as a real PDF producer that shapes text writes it.
+ *   words      - one Tj per word, words in logical order, each right-to-left word reversed, boxes laid out right to left.
  *   actualtext - logical codes inside a /Span << /ActualText >> BDC ... EMC marked-content sequence.
  * Which one extractors read back correctly is measured by `node scripts/lib/pdf-text-layer-spike.mjs` (poppler; pdf.js
  * optionally, `PDFJS_DIR=<dir with pdfjs-dist installed>`), and `DEFAULT_MODE` is what that run found.
@@ -32,7 +33,12 @@
 
 var DW = 1000
 var FONT_RES = 'SpGl'
-export var DEFAULT_MODE = 'actualtext'
+var RTL_RE = /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufefc]/
+// a letter (or its mark) of a right-to-left script: Hebrew, Arabic, Syriac... minus the Arabic-Indic digits and separators (U+0660-0669, 066B-066C, 06F0-06F9)
+var RTL_LETTER = '[\\u0590-\\u05ff\\u0610-\\u065f\\u066e-\\u06ef\\u06fa-\\u08ff\\ufb1d-\\ufdff\\ufe70-\\ufefc]'
+var RTL_LETTERS = new RegExp('^' + RTL_LETTER)
+var TOKEN_RE = new RegExp(RTL_LETTER + '+ ?|(?:(?!' + RTL_LETTER + ')\\S)+ ?| ', 'g')   // a run (letters, or everything else that is not a space) plus the space after it
+export var DEFAULT_MODE = 'words'
 
 // ------------------------------------------------------------------------------------------------ small helpers
 function u16(n) { return [(n >> 8) & 255, n & 255] }
@@ -168,17 +174,44 @@ export function fontObjects(chars, first) {
 export function textOps(items, enc, geo, mode) {
   mode = mode || DEFAULT_MODE
   var out = ['BT', '3 Tr'], i, n = 0
+  function codesOf(cs) {
+    var codes = '', j
+    for (j = 0; j < cs.length; j++) { var c = enc.code(cs[j]); if (c === undefined) throw new Error('text layer: character not registered (call prepare first)'); codes += hex4(c) }
+    return codes
+  }
+  function show(cs, size, w, x, y) {
+    var tz = 100 * w / (cs.length * size)                     // glyph advance = DW/1000 * size * Tz/100
+    return '/' + FONT_RES + ' ' + f2(size) + ' Tf ' + f2(tz) + ' Tz 1 0 0 1 ' + f2(x) + ' ' + f2(y) + ' Tm <' + codesOf(cs) + '> Tj'
+  }
   for (i = 0; i < (items || []).length; i++) {
     var it = items[i], txt = clean(it && it.text)
     if (!txt) continue
     var size = Number(it.size) * geo.sc, w = Number(it.w) * geo.sc, x = Number(it.x) * geo.sc, y = geo.PHpt - Number(it.y) * geo.sc
     var cs = characters(txt)
     if (!(size > 0) || !(w > 0) || !isFinite(x) || !isFinite(y)) continue
+    if (mode === 'words' && RTL_RE.test(txt)) {
+      // TOKENS: the text is cut into runs of right-to-left LETTERS (with their marks), runs of everything else that is not a space
+      // (Latin words, digits of either kind, punctuation) and spaces. One Tj per token (spaces are only gaps), tokens in LOGICAL order
+      // in the stream, laid out across the item's box in the item's base direction (right to left for rtl); a run of Arabic letters is
+      // written reversed (visual order, the way a shaping producer writes it). Measured: poppler re-reverses exactly those runs and
+      // pdf.js does too, so both read the logical text back. Digits and punctuation are never reversed.
+      var toks = txt.match(TOKEN_RE) || [], total = cs.length, cum = 0, ti
+      for (ti = 0; ti < toks.length; ti++) {
+        var core = toks[ti].replace(/ $/, ''), sp = core.length !== toks[ti].length, tc = characters(core), nTok = tc.length + (sp ? 1 : 0), tw = w * nTok / total
+        var tx = it.dir === 'rtl' ? x + w - w * cum / total - tw : x + w * cum / total
+        cum += nTok
+        if (!core) continue
+        // the space that follows a token travels WITH it (some readers only insert a word break from a space in the text, not from a gap):
+        // visually it is at the token's far end, i.e. first in a reversed right-to-left run and last in an ordinary one
+        var rtlRun = RTL_LETTERS.test(core.charAt(0)), run = rtlRun ? tc.slice().reverse() : tc
+        if (sp) run = rtlRun ? [' '].concat(run) : run.concat([' '])
+        out.push(show(run, size, tw, tx, y))
+      }
+      n++
+      continue
+    }
     if (mode === 'visual' && it.dir === 'rtl') cs = cs.slice().reverse()
-    var codes = '', j
-    for (j = 0; j < cs.length; j++) { var c = enc.code(cs[j]); if (c === undefined) throw new Error('text layer: character not registered (call prepare first)'); codes += hex4(c) }
-    var tz = 100 * w / (cs.length * size)                     // glyph advance = DW/1000 * size * Tz/100
-    var body = '/' + FONT_RES + ' ' + f2(size) + ' Tf ' + f2(tz) + ' Tz 1 0 0 1 ' + f2(x) + ' ' + f2(y) + ' Tm <' + codes + '> Tj'
+    var body = show(cs, size, w, x, y)
     if (mode === 'actualtext') out.push('/Span << /ActualText <FEFF' + utf16hex(txt) + '> >> BDC ' + body + ' EMC')
     else out.push(body)
     n++
@@ -298,7 +331,7 @@ async function selfTest() {
   var pages = pagesText.map(function (t, i) { return { jpeg: jpegs[i], text: t } })
 
   var results = {}
-  var variants = ['none', 'logical', 'visual', 'actualtext']
+  var variants = ['none', 'logical', 'visual', 'words', 'actualtext'], modes = variants.slice(1)
   variants.forEach(function (v) {
     var layer = null
     if (v !== 'none') { layer = createTextLayer({ mode: v }); layer.prepare(pages) }
@@ -315,10 +348,10 @@ async function selfTest() {
   var enc = createEncoder(); enc.add('aب𝒜a'); check('encoder: one code per distinct character, surrogate pair kept whole', enc.size() === 3 && enc.chars()[3] === '𝒜')
   var cmap = toUnicodeCMap(enc.chars()); check('ToUnicode writes UTF-16BE (surrogates for a non-BMP character)', /<0003> <D835DC9C>/.test(cmap), cmap.split('\n').filter(function (l) { return /^<0003>/.test(l) })[0])
   var big = createEncoder(); var s = ''; for (var q = 0x4e00; q < 0x4e00 + 250; q++) s += String.fromCharCode(q); big.add(s)
-  check('ToUnicode splits bfchar blocks at 100', (toUnicodeCMap(big.chars()).match(/beginbfchar/g) || []).length === 5, '250 chars -> ' + (toUnicodeCMap(big.chars()).match(/beginbfchar/g) || []).length + ' blocks (incl. endbfchar excluded)')
+  check('ToUnicode splits bfchar blocks at 100', (toUnicodeCMap(big.chars()).match(/beginbfchar/g) || []).length === 3, '250 chars -> ' + (toUnicodeCMap(big.chars()).match(/beginbfchar/g) || []).length + ' blocks')
 
   console.log('\n[2] structure')
-  var withL = results.actualtext
+  var withL = results.words
   if (have('pdfinfo')) {
     var info = run('pdfinfo', [withL.file]); check('pdfinfo reads 2 pages, no syntax error', /Pages:\s+2/.test(info.out) && !/Error|Warning/i.test(info.err), info.err.trim().slice(0, 200))
   }
@@ -340,52 +373,60 @@ async function selfTest() {
     check('pdftoppm renders ' + v + ' without a message', r.code === 0 && r.err.trim() === '', r.err.trim().slice(0, 200))
     shas[v] = [1, 2].map(function (n) { return md5(fs.readFileSync(base + '-' + n + '.png')) })
   })
-  variants.slice(1).forEach(function (v) { check('pages rendered with the layer (' + v + ') are pixel-identical to the PDF without it', shas[v][0] === shas.none[0] && shas[v][1] === shas.none[1], shas[v].join(',') + ' vs ' + shas.none.join(',')) })
-  // sanity: the comparison can fail. Same layer but render mode 0 (visible) must change pixels.
-  var visible = Buffer.from(results.logical.bytes).toString('latin1').replace('3 Tr', '0 Tr')
-  var vf = path.join(dir, 'visible.pdf'); fs.writeFileSync(vf, Buffer.from(visible, 'latin1'))
-  run('pdftoppm', ['-r', '110', '-f', '1', '-l', '1', '-png', vf, path.join(dir, 'px-visible')])
-  var vsha = md5(fs.readFileSync(path.join(dir, 'px-visible-1.png')))
-  check('mutation: the same text with render mode 0 DOES change the pixels (the check can fail)', vsha !== shas.none[0])
+  modes.forEach(function (v) { check('pages rendered with the layer (' + v + ') are pixel-identical to the PDF without it', shas[v][0] === shas.none[0] && shas[v][1] === shas.none[1], shas[v].join(',') + ' vs ' + shas.none.join(',')) })
+  // sanity: the comparison can fail. The same PDF with page 1's picture swapped for page 2's JPEG must differ.
+  var swapped = assemble([{ jpeg: jpegs[1], text: pagesText[0] }, pages[1]], (function () { var l = createTextLayer({ mode: 'logical' }); l.prepare(pages); return l })())
+  var sf = path.join(dir, 'swapped.pdf'); fs.writeFileSync(sf, swapped)
+  run('pdftoppm', ['-r', '110', '-f', '1', '-l', '1', '-png', sf, path.join(dir, 'px-swapped')])
+  check('mutation: a different page picture DOES change the checksum (the pixel check can fail)', md5(fs.readFileSync(path.join(dir, 'px-swapped-1.png'))) !== shas.none[0])
+  // the glyphs are empty, so even render mode 0 paints nothing: the layer is invisible twice over
+  var vis = Buffer.from(results.logical.bytes).toString('latin1').replace('3 Tr', '0 Tr'), vff = path.join(dir, 'visible.pdf'); fs.writeFileSync(vff, Buffer.from(vis, 'latin1'))
+  run('pdftoppm', ['-r', '110', '-f', '1', '-l', '1', '-png', vff, path.join(dir, 'px-visible')])
+  check('defence in depth: even render mode 0 paints nothing (the glyphs are empty)', md5(fs.readFileSync(path.join(dir, 'px-visible-1.png'))) === shas.none[0])
 
   console.log('\n[4] text extraction (poppler)')
   var want = ['Navy Sweatshirt', 'Vanquish', 'KWD 14.250', 'S M L XL 2XL', 'Tekno Shorts - Black', 'NBA']
+  var strip = function (t) { return t.replace(/[\u202a-\u202e\u200e\u200f\u2066-\u2069]/g, '') }   // poppler wraps right-to-left runs in bidi marks
   var ex = {}
   variants.forEach(function (v) {
     ex[v] = {
-      raw: run('pdftotext', ['-raw', '-enc', 'UTF-8', results[v].file, '-']).out,
-      layout: run('pdftotext', ['-layout', '-enc', 'UTF-8', results[v].file, '-']).out
+      raw: strip(run('pdftotext', ['-raw', '-enc', 'UTF-8', results[v].file, '-']).out),
+      rawFlat: strip(run('pdftotext', ['-raw', '-enc', 'UTF-8', results[v].file, '-']).out).replace(/\s+/g, ' '),
+      layout: strip(run('pdftotext', ['-layout', '-enc', 'UTF-8', results[v].file, '-']).out)
     }
   })
   check('no layer -> pdftotext finds nothing (the baseline of the problem)', ex.none.raw.replace(/\s+/g, '') === '')
-  ;['logical', 'visual', 'actualtext'].forEach(function (v) {
+  modes.forEach(function (v) {
     ;['raw', 'layout'].forEach(function (m) {
       var t = ex[v][m], hasAll = want.every(function (w) { return t.indexOf(w) >= 0 })
       check(v + '/' + m + ': English items extracted', hasAll, want.filter(function (w) { return t.indexOf(w) < 0 }).join('|'))
     })
   })
   var arWant = [AR1, AR2, AR3, AR4, ARP, '٢٥٫٠٠٠ د.ك', 'مرحبا']
-  console.log('       Arabic items read back in LOGICAL order (the typing order) by pdftotext -raw:')
-  ;['logical', 'visual', 'actualtext'].forEach(function (v) {
-    var t = ex[v].raw, hits = arWant.filter(function (w) { return t.indexOf(w) >= 0 })
-    console.log('         ' + v.padEnd(11) + hits.length + '/' + arWant.length + (hits.length < arWant.length ? '   missing: ' + arWant.filter(function (w) { return t.indexOf(w) < 0 }).join(' | ') : ''))
-    results[v].arabicHits = hits.length
+  console.log('       Arabic items read back whole and in LOGICAL order (bidi marks stripped), of ' + arWant.length + ':')
+  modes.forEach(function (v) {
+    ;['raw', 'rawFlat', 'layout'].forEach(function (m) {
+      var hits = arWant.filter(function (w) { return ex[v][m].indexOf(w) >= 0 })
+      console.log('         pdftotext -' + m.padEnd(8) + v.padEnd(11) + hits.length + '/' + arWant.length + (hits.length < arWant.length ? '   missing: ' + arWant.filter(function (w) { return ex[v][m].indexOf(w) < 0 }).join(' | ') : ''))
+      results[v]['ar_' + m] = hits.length
+    })
   })
-  check('actualtext: every Arabic item comes back whole and in logical order (raw)', results.actualtext.arabicHits === arWant.length)
-  check('actualtext: every Arabic item comes back whole and in logical order (layout)', arWant.every(function (w) { return ex.actualtext.layout.indexOf(w) >= 0 }))
-  check('actualtext: the non-BMP character survives', ex.actualtext.raw.indexOf('𝒜') >= 0)
-  check('the chosen DEFAULT_MODE is the best mode measured here', results[DEFAULT_MODE].arabicHits === Math.max(results.logical.arabicHits, results.visual.arabicHits, results.actualtext.arabicHits))
+  console.log('       (raw puts each Tj on its own line, so the line breaks are collapsed in the rawFlat row)')
+  check('words mode: every Arabic item comes back whole and in logical order in -raw (line breaks collapsed)', results.words.ar_rawFlat === arWant.length)
+  check('words mode: every Arabic item comes back whole and in logical order in -layout', results.words.ar_layout === arWant.length)
+  check('words mode: the non-BMP character survives', ex.words.raw.indexOf('𝒜') >= 0)
+  check('the chosen DEFAULT_MODE is not worse than any other mode measured here (raw + layout)', modes.every(function (m) { return results[DEFAULT_MODE].ar_rawFlat + results[DEFAULT_MODE].ar_layout >= results[m].ar_rawFlat + results[m].ar_layout }))
   // search: a pdftotext-based find of a product word, as a viewer's search box would do
-  check('search: the Arabic word "رياضي" and the English word "Sweatshirt" are findable', ex.actualtext.raw.indexOf('رياضي') >= 0 && ex.actualtext.raw.indexOf('Sweatshirt') >= 0)
+  check('search: the Arabic word "رياضي" and the English word "Sweatshirt" are findable', ex.words.raw.indexOf('رياضي') >= 0 && ex.words.raw.indexOf('Sweatshirt') >= 0)
   // a bbox check: the extracted word boxes lie over the drawn area (selection sits where the text would be)
-  var bb = run('pdftotext', ['-bbox', withL.file, '-']).out
+  var bb = run('pdftotext', ['-bbox', results.words.file, '-']).out
   var wordRe = /<word xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)" yMax="([\d.]+)">Navy<\/word>/, bm = wordRe.exec(bb)
   var sc = PWpt / PW, expX = (80 + 380) * sc, expYtop = (700 + 30) * sc - 26 * sc
   check('selection box: the word "Navy" starts at the item\'s x (+-2pt) and sits near its baseline', !!bm && Math.abs(parseFloat(bm[1]) - expX) < 2 && Math.abs(parseFloat(bm[4]) - 700 * sc - 30 * sc) < 12, bm ? bm.slice(1).join(',') + ' vs x=' + expX.toFixed(1) : 'no word')
 
   console.log('\n[5] size')
   var plainSize = results.none.bytes.length
-  variants.slice(1).forEach(function (v) { console.log('       ' + v.padEnd(11) + results[v].bytes.length + ' bytes (+' + (results[v].bytes.length - plainSize) + ' over the image-only file, 24 items on 2 pages)') })
+  modes.forEach(function (v) { console.log('       ' + v.padEnd(11) + results[v].bytes.length + ' bytes (+' + (results[v].bytes.length - plainSize) + ' over the image-only file, 24 items on 2 pages)') })
   // overhead per 100 items: build N items of mixed text on one page; per-item cost = d(bytes)/d(items) with the font fixed
   function sizeFor(n, mode, comp) {
     var items = [], i
@@ -396,7 +437,7 @@ async function selfTest() {
     return comp ? content.length : content.length
   }
   var base0 = assemble([{ jpeg: jpegs[0], text: [] }], null).length
-  ;['logical', 'actualtext'].forEach(function (m) {
+  ;['logical', 'words', 'actualtext'].forEach(function (m) {
     var a = sizeFor(100, m), b = sizeFor(400, m), fixed = sizeFor(8, m) - base0
     var per100 = (b - a) / 3
     // what Flate would do to the content stream (the engine's writer has no Flate today; CompressionStream('deflate') is available in browsers)
@@ -408,14 +449,14 @@ async function selfTest() {
   var layer100 = (function () {
     var items = [], samples = [AR1, 'Navy Sweatshirt', ARP, 'KWD 14.250', ARS, AR2, 'Tekno Shorts - Black', 'S M L XL 2XL']
     for (var i = 0; i < 100; i++) { var t = samples[i % samples.length]; items.push({ text: t, x: 80 + (i % 3) * 380, y: 100 + (i % 40) * 36, w: t.length * 14, h: 24, size: 22, dir: /[؀-ۿ]/.test(t) ? 'rtl' : 'ltr' }) }
-    var pg = [{ jpeg: jpegs[0], text: items }], l = createTextLayer({ mode: 'actualtext' }); l.prepare(pg); return l.forPage(pg[0], { sc: PWpt / PW, PHpt: PHpt, alloc: (function (n) { return function () { return n++ } })(10) })
+    var pg = [{ jpeg: jpegs[0], text: items }], l = createTextLayer({ mode: DEFAULT_MODE }); l.prepare(pg); return l.forPage(pg[0], { sc: PWpt / PW, PHpt: PHpt, alloc: (function (n) { return function () { return n++ } })(10) })
   })()
   var raw100 = Buffer.from(layer100.content, 'latin1')
-  console.log('       100-item content stream (actualtext): ' + raw100.length + ' bytes raw, ' + zlib.deflateSync(raw100).length + ' bytes with Flate (' + Math.round(100 * zlib.deflateSync(raw100).length / raw100.length) + '%)')
+  console.log('       100-item content stream (' + DEFAULT_MODE + '): ' + raw100.length + ' bytes raw, ' + zlib.deflateSync(raw100).length + ' bytes with Flate (' + Math.round(100 * zlib.deflateSync(raw100).length / raw100.length) + '%)')
   var catSize = 32 * 4 // ~32 products x (name, brand, price, sizes)
-  console.log('       a 32-product catalogue is about ' + catSize + ' items: +' + Math.round(results.actualtext.fixed + results.actualtext.per100 * catSize / 100) + ' bytes uncompressed on a ~2-4 MB file of JPEGs')
-  check('overhead per 100 items is under 20 kB uncompressed (the JPEG pages are ~2-4 MB)', results.actualtext.per100 < 20000, results.actualtext.per100.toFixed(0))
-  check('fixed cost of the font is under 4 kB', results.actualtext.fixed < 4000, String(results.actualtext.fixed))
+  console.log('       a 32-product catalogue is about ' + catSize + ' items: +' + Math.round(results[DEFAULT_MODE].fixed + results[DEFAULT_MODE].per100 * catSize / 100) + ' bytes uncompressed on a ~2-4 MB file of JPEGs')
+  check('overhead per 100 items is under 20 kB uncompressed (the JPEG pages are ~2-4 MB)', results[DEFAULT_MODE].per100 < 20000, results[DEFAULT_MODE].per100.toFixed(0))
+  check('fixed cost of the font is under 4 kB', results[DEFAULT_MODE].fixed < 4000, String(results[DEFAULT_MODE].fixed))
 
   console.log('\n[6] guards')
   var geo = { sc: PWpt / PW, PHpt: PHpt }, e2 = createEncoder(); e2.add('ab')
@@ -429,11 +470,10 @@ async function selfTest() {
   var emptyLayer = createTextLayer({}); emptyLayer.prepare([{ text: [] }])
   check('a page with no text returns null (nothing added to it)', emptyLayer.forPage({ text: [] }, { sc: 1, PHpt: 1, alloc: function () { return 9 } }) === null)
   // mutation: the ToUnicode map is what makes text readable: wipe it and pdftotext no longer returns the English words
-  var broken = Buffer.from(results.actualtext.bytes).toString('latin1').replace(/beginbfchar/g, 'beginXXchar')
+  var broken = Buffer.from(results[DEFAULT_MODE].bytes).toString('latin1').replace(/beginbfchar/g, 'beginXXchar')
   var bf = path.join(dir, 'broken.pdf'); fs.writeFileSync(bf, Buffer.from(broken, 'latin1'))
   var bt = run('pdftotext', ['-raw', bf, '-']).out
-  check('mutation: with the ToUnicode map broken, Arabic is no longer extracted whole from the glyph codes (ActualText alone is what keeps it)', true)
-  console.log('       (with ToUnicode broken, pdftotext -raw still finds "Navy Sweatshirt": ' + (bt.indexOf('Navy Sweatshirt') >= 0) + ')')
+  check('mutation: with the ToUnicode map broken, the default mode loses the words too', bt.indexOf('Navy Sweatshirt') < 0)
   var noAct = Buffer.from(results.logical.bytes).toString('latin1').replace(/beginbfchar/g, 'beginXXchar')
   var nf = path.join(dir, 'broken2.pdf'); fs.writeFileSync(nf, Buffer.from(noAct, 'latin1'))
   check('mutation: logical mode with a broken ToUnicode loses the words (so ToUnicode is what the check depends on)', run('pdftotext', ['-raw', nf, '-']).out.indexOf('Navy Sweatshirt') < 0)
@@ -443,16 +483,21 @@ async function selfTest() {
   if (pj && fs.existsSync(path.join(pj, 'node_modules', 'pdfjs-dist'))) {
     try {
       var lib = await import(path.join(pj, 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.mjs'))
-      for (var vi = 0; vi < 3; vi++) {
-        var vname = ['logical', 'visual', 'actualtext'][vi]
+      for (var vi = 0; vi < modes.length; vi++) {
+        var vname = modes[vi]
         var doc = await lib.getDocument({ data: new Uint8Array(results[vname].bytes), useSystemFonts: false, verbosity: 0 }).promise
         var all = ''
-        for (var pn = 1; pn <= doc.numPages; pn++) { var pg2 = await doc.getPage(pn); var tc = await pg2.getTextContent(); all += tc.items.map(function (i) { return i.str }).join('\n') + '\n' }
+        for (var pn = 1; pn <= doc.numPages; pn++) { var pg2 = await doc.getPage(pn); var tc = await pg2.getTextContent(); all += tc.items.map(function (i) { return i.str }).join('') + '\n' }
         var hits = arWant.filter(function (w) { return all.indexOf(w) >= 0 }).length, eng = want.every(function (w) { return all.indexOf(w) >= 0 })
-        console.log('       pdf.js getTextContent ' + vname.padEnd(11) + 'English all: ' + eng + ', Arabic whole+logical: ' + hits + '/' + arWant.length)
+        var flat = all.replace(/\s+/g, ''), hitsNoSpace = arWant.filter(function (w) { return flat.indexOf(w.replace(/\s+/g, '')) >= 0 }).length
+        console.log('       pdf.js getTextContent ' + vname.padEnd(11) + 'English all: ' + eng + ', Arabic whole+logical with spaces: ' + hits + '/' + arWant.length + ', ignoring spaces: ' + hitsNoSpace + '/' + arWant.length)
+        var namesNoSpace = [AR1, AR2, AR3, AR4, 'مرحبا'].filter(function (w) { return flat.indexOf(w.replace(/\s+/g, '')) >= 0 }).length
+        results[vname].pdfjsNoSpace = hitsNoSpace; results[vname].pdfjsNames = namesNoSpace
         results[vname].pdfjsHits = hits; results[vname].pdfjsEnglish = eng
       }
       check('pdf.js reads the English items of the default mode', results[DEFAULT_MODE].pdfjsEnglish)
+      check('pdf.js reads the 5 Arabic names / brand / mixed items of the default mode in logical order, ignoring the space it drops between Arabic words', results[DEFAULT_MODE].pdfjsNames === 5, results[DEFAULT_MODE].pdfjsNames + '/5')
+      console.log('       known pdf.js limits (reported, not asserted): it drops the space between two Arabic words, and it re-orders an Arabic currency tail "د.ك" next to a number to "ك.د" (poppler reads it right)')
     } catch (e) { console.log('       pdf.js run failed: ' + e.message) }
   } else console.log('       pdf.js not run (set PDFJS_DIR to a directory where `npm i pdfjs-dist` was run, OUTSIDE the repo)')
   console.log('       Chrome PDFium and Acrobat cannot be run here: UNVERIFIED (see the notes in the header and the report).')

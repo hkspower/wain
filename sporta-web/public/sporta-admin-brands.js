@@ -19704,7 +19704,7 @@
   var TM = window.__sportaLiveTiming || {}
   var EVERY = TM.every || 30000, QUIET = TM.quiet != null ? TM.quiet : 15000, TICK = TM.tick || 5000, MAX_READS = 4, KEY = 'sporta_admin_live'
   // routes that are never polled: the session, the gateways and payment status, exports and files, the database centre, the assistant, images, health probes
-  var DENY = /(^|_)(me|google|session|passcode|totp|mfa|recovery|login|logout|password|export|download|csv|backup|db|xbrl|reconcile|knet|tpay|cbk|payment|assistant|voice|tts|ai|image|logo|icon|upload|health|scan|probe|cache|inventory|stock|variants|ahed|cost|catalogue)(_|$)/i
+  var DENY = /(^|_)(me|google|session|passcode|totp|mfa|recovery|login|logout|password|export|download|csv|backup|db|xbrl|reconcile|knet|tpay|cbk|payment|assistant|voice|tts|ai|image|logo|icon|upload|health|scan|probe|cache|catalogue|inventory|stock|variants|ahed|cost)(_|$)/i
   // (checked against the real route names in admin.php: `stock` is not one, the stock list is `variants`; `ahed_cost` carries purchase costs. A read whose body is over
   // 256 kB is never polled either (MAXBODY: the brands list carries inline logos), whatever its name.)
   // screens refreshed by themselves (by their header text, English or Arabic); every other screen is an editor and only offers the button
