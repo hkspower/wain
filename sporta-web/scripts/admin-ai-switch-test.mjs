@@ -65,8 +65,10 @@ check('placed after the Settings screen header', /closest\('\.admin-page-header'
 check('the switch is a real switch control (role switch, aria-checked)',
   /setAttribute\('role', 'switch'\)/.test(block) && /aria-checked/.test(block))
 
-// ---- the file as a whole still ends in the right place
-check('the add-on file still ends with the block', src.trimEnd().endsWith('ADMIN SPORTA AI SWITCH - end ========================================= */'))
+// ---- the block is whole inside the file. It used to be the LAST block of the add-on (the check was endsWith); later screens are appended after it by design
+// (live data, site icon, CRM interests, SEO live check ...), so what is asserted now is that its end marker is there, exactly once, and that nothing was cut.
+check('the add-on file carries the block\'s end marker, once',
+  src.split('ADMIN SPORTA AI SWITCH - end ========================================= */').length === 2)
 
 console.log(`\n${ok} ok, ${fail} FAIL`)
 process.exit(fail ? 1 : 0)

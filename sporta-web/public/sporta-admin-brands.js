@@ -18522,6 +18522,8 @@
     '.sic-copy{flex:1 1 16rem;min-width:0}.sic-title{margin:0;font-size:1.125rem;font-weight:700;color:var(--sic-text)}.sic p{margin:.25rem 0 0;color:var(--sic-text)}.sic .sic-muted{color:var(--sic-muted)}',
     '.sic-actions{display:flex;flex-wrap:wrap;gap:.5rem}',
     '.sic-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--sic-edge);border-radius:.75rem;background:var(--sic-bg);color:var(--sic-text);font:inherit;font-weight:600;cursor:pointer;text-align:center}',
+    // The admin's own `.admin-shell .admin-page :where(button, .btn)` sets .7rem and out-ranks a one-class rule: the shared button radius is .75rem (test:admin-buttons [5]).
+    '.admin-shell .admin-page .sic-btn{border-radius:.75rem}',
     '.sic-btn:hover:not(:disabled){background:var(--sic-soft);border-color:var(--sic-text)}.sic-btn:disabled{opacity:.6;cursor:default}',
     '.sic-btn--primary{background:var(--sic-action);border-color:var(--sic-action);color:var(--sic-on-action)}.sic-btn--primary:hover:not(:disabled){background:var(--sic-action-hover);border-color:var(--sic-action-hover)}',
     '.sic-btn:focus-visible{outline:3px solid var(--sic-focus);outline-offset:2px}',
@@ -19583,6 +19585,8 @@
     '.slc-head{display:flex;flex-wrap:wrap;align-items:flex-start;gap:1rem}.slc-copy{flex:1 1 18rem;min-width:0}.slc-title{margin:0;font-size:1.125rem;font-weight:700;color:var(--slc-text)}.slc p{margin:.25rem 0 0;color:var(--slc-text)}.slc .slc-muted{color:var(--slc-muted)}',
     '.slc-actions{display:flex;flex-wrap:wrap;gap:.5rem}',
     '.slc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--slc-edge);border-radius:.75rem;background:var(--slc-bg);color:var(--slc-text);font:inherit;font-weight:600;cursor:pointer;text-align:center}',
+    // The admin's own `.admin-shell .admin-page :where(button, .btn)` sets .7rem and out-ranks a one-class rule: the shared button radius is .75rem (test:admin-buttons [5]).
+    '.admin-shell .admin-page .slc-btn{border-radius:.75rem}',
     '.slc-btn:hover:not(:disabled){background:var(--slc-soft);border-color:var(--slc-text)}.slc-btn:disabled{opacity:.6;cursor:default}',
     '.slc-btn--primary{background:var(--slc-action);border-color:var(--slc-action);color:var(--slc-on-action)}.slc-btn--primary:hover:not(:disabled){background:var(--slc-action-hover);border-color:var(--slc-action-hover)}',
     '.slc-btn:focus-visible,.slc-sum:focus-visible,.slc-only input:focus-visible{outline:3px solid var(--slc-focus);outline-offset:2px}',
