@@ -362,6 +362,18 @@ try {
     ok("an unknown order is 404", gone.status === 404);
     const notAdmin = await call("order_set_status", { id: o2.id, status: "collected" });
     ok("order_set_status without the admin header is refused", notAdmin.status === 403);
+
+    /* A race: the customer cancels while the shop is about to mark the same
+       order ready. Both writes are serialised, so whichever lands second wins.
+       The shop's write must not revive a cancelled order, or the customer is
+       told it is off and the kitchen makes it. */
+    const o3 = order();
+    await call("order_place", o3);
+    await call("order_cancel", { id: o3.id, token: o3.track_token });
+    const revive = await call("order_set_status", { id: o3.id, status: "ready" }, { admin: true });
+    const st3 = await call("order_status", { id: o3.id, token: o3.track_token });
+    ok("the shop cannot revive a cancelled order: refused, and it stays cancelled",
+       revive.status === 409 && st3.json?.order?.status === "cancelled", j({ http: revive.status, body: revive.json, status: st3.json?.order?.status }));
   }
 
   console.log("\n── the queue ──");

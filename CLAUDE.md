@@ -6757,3 +6757,11 @@ The `wain` container was rebuilt alone. The live checks, run from the VPS throug
 **The first attempt failed its own check and restored itself.** The ping check looked for `"ok": true` with a space, and the API answers compact JSON. The script put the backup back byte for byte and rebuilt the container, which left the live site as it was. The pattern now accepts both spellings, and the script was tested against a stub site, including the restore path.
 
 The helper project `wain-htaccess-fix` was deleted and confirmed gone. Nothing else in the owner's file or folder changed.
+
+## The order-status race — 19 November (in the repository; not deployed)
+
+A customer's cancel and the shop's status change are serialised by the same `orders` transaction, so the row can't be corrupted. But `order_set_status` read the status and wrote whatever the shop chose, so a shop write after a cancel put the order back to `ready`. The customer was told it was off while the kitchen made it. `wain-api.php` now refuses any shop change to a cancelled order inside the transaction and answers 409 `closed`. `tests/wain-api.test.mjs` has the check, which failed before the fix (250 passed, 1 failed) and passes after (251 of 251).
+
+Checked and sound: the queue number and the one-ticket-per-phone check are under the `queue` lock; the rate counters hold `flock` across their read and write; votes, submissions and place saves run in transactions; the TTS cache has a striped lock.
+
+Not changed, low severity: a double tap on «join the queue» sends the same ticket id twice, and the second answer is `duplicate`, shown as an error that points to «دوري» even though the first press made the ticket. The place save is last-write-wins between two admins. The `flock` result on the counters isn't checked. `test:backend` failed with React #418 when the board also refreshed on refusal, so that refresh is not in this change; the board's poll picks the new status up on its next pass.

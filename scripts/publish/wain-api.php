@@ -1920,6 +1920,10 @@ try {
         $done = $db->tx('orders', function (Db $d) use ($id, $status) {
             $r = $d->one('SELECT status FROM orders WHERE id = ?', [$id]);
             if ($r === null) return false;
+            /* A cancelled order stays cancelled. The customer cancelled it under
+               this same lock, so reviving it here would tell them it is off while
+               the kitchen makes it. Refused in the transaction, not checked first. */
+            if ($r['status'] === 'cancelled') return 'cancelled';
             $now = nowIso();
             $stamp = ['ready' => 'ready_at', 'collected' => 'collected_at', 'cancelled' => 'cancelled_at'][$status] ?? null;
             if ($r['status'] !== $status && $stamp !== null) {
@@ -1929,7 +1933,8 @@ try {
             }
             return true;
         });
-        if (!$done) $fail(404, 'not_found');
+        if ($done === false) $fail(404, 'not_found');
+        if ($done === 'cancelled') $fail(409, 'closed');
         $ok(['id' => $id, 'status' => $status], ['id' => substr($id, 0, 8)]);
     }
 
