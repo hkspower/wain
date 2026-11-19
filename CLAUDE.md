@@ -1273,6 +1273,81 @@ Back -> browser Forward / Back, direct visit, language switch, modified click, p
 or Firefox (only Chromium here). Release scope when the owner says "deploy": `--only boot.js,sporta-product-fix.css,sporta-features.js` (the live bytes of the
 three files are commit `e5224bea`'s, so the release carries exactly this diff).
 
+**Built 2026-11-19, NOT deployed (owner: "remove sporta ai icons from topbar put account profile icons"): TOPBAR ACCOUNT 1120.** The top bar no longer shows
+the Sporta AI button; an account icon (a person, a real link to /account) stands in its place beside the clock. Add-on files only, no API, no migration.
+(1) `sporta-shadows.css` section TOPBAR ACCOUNT 1120, right after TOPBAR ICONS 1120: `[tacc-1]` `.storefront-root .app-header .navbar-ai { display: none !important }`
+(the compiled button stays in the page and React keeps rendering it, the assistant's code and its panel are untouched: **bringing the AI icon back is deleting
+[tacc-1]**), `[tacc-2]` the link's box (2.75rem square, so 44 px, 46 px on a desktop, same height as the language and bag buttons), `[tacc-3]` the 20 px person with
+the 1.5 px stroke of the other top-bar icons, `[tacc-4]` hover / `aria-current` in the logo orange (with `!important`: MONO-1112 paints everything inside the header white
+with `!important`, this selector is the heavier). The keyboard ring is NOT the link's own: it is an `a` inside `.navbar-main`, so the menu row's rule ([menu-5] of
+`sporta-bag-touch.css`: 3 px, the bright orange, 1 px off the box) draws it, like on the logo, the language and the bag button (a ring of its own was 2 px and failed `test:menu-layout`). (2) `sporta-features.js` block TOPBAR ACCOUNT (before CATALOGUE-1118): makes
+`a.navbar-account[href="/account"]` (the person of `brand/iconset/user.svg` drawn with DOM calls; label Account / حسابي from `<html lang>`; `aria-current="page"` on
+/account) as the child of `.navbar-tools` right after the AI button (the cluster is `flex-direction: row-reverse`: the clock stands at the far left, the link where the AI
+icon stood, measured at 64 px / 44 px wide on a 390 px phone); a plain click presses the menu's own Account link (`.navbar-secondary a[href="/account"]`), so the router
+opens /account with no reload and keeps its history index; a Ctrl / Meta / Shift / Alt / middle click is left to the browser; one link only, put back if the cluster is
+replaced (a body observer and a `lang` observer: they cover each other, because the build re-sets `<html lang>` on every render). No request, no storage. Header height
+and every other control's position are unchanged (126 px at 390, 145 px at 1280). The product page has no header (PRODUCT BACK 1120), so neither icon is shown there.
+The assistant can no longer be opened by a visitor; suites that opened its panel through the launcher now press the hidden button by script (`ai-panel-test.mjs`,
+`mobile-1112b-test.mjs`), `icons-polish-test.mjs` no longer hovers the hidden AI icon (its ids stay in the lists for the day it is brought back; its registry `minOk` went
+1758 -> 1690 with a note), `iconset-test.mjs` asserts the "assistant" glyph is on NO page (the same pattern as the zoom badge's "zoom"; bringing the AI icon back makes it fail on
+purpose) and the menu-layout fixture (`scripts/fixtures/menu-layout.mjs`, `scripts/lib/menu-layout-page.mjs`, `scripts/menu-layout-test.mjs`) now has the account link in the
+brand row and no visible AI button (tap targets, overlaps, tab order, ring, the link stands inside the tool cluster right of the clock). Proof:
+`npm run test:topbar-account-1120` (187 checks on the real compiled storefront: six pages x 390 / 1280 px x ar / en, SPA click without reload, modifier and middle clicks,
+keyboard ring (3 px, the row's) and Enter, hover, React re-render by the language toggle, removed and duplicated link, the product page, the hidden button still opens the
+panel, 14 mutants, among them a thinner ring of the link's own). Not seen in a real phone browser. Release scope when the owner says "deploy": `--only sporta-shadows.css,sporta-features.js` (plus any other add-on of the same release).
+
+**Built 2026-11-19, NOT deployed (owner: "full inprove register and user profile"): ACCOUNT 1120.** What the server already did for /account and the compiled
+page ignored, plus the password rule that was stated but never measured. Add-on files only (`sporta-features.js`, `sporta-shadows.css`, `birthday.js`), no API,
+no migration, no new file in `public/`. (1) E-MAIL VERIFICATION (block ACCOUNT 1120, appended at the end of `sporta-features.js`): `customer.php?r=me` answers
+`email_verified`, registration mails a link, the link lands on `/account?verified=1|0` and `verify_resend` allows three an hour, yet the compiled page shows none
+of it (a customer could not tell the link was never opened, could not ask for another, and opened the link onto a bare form). The block asks `me` itself (GET, the
+compiled client's `X-Sporta-Customer` header, `credentials: include`, no-store; nothing of the page's fetch is wrapped) and draws nothing until the server has
+answered, then: an UNVERIFIED address gets a banner under the welcome card ("Verify your email address", the address in a left-to-right span, "Resend link"), a
+VERIFIED one a small "Verified" chip under the address. **The ask is made EARLY (`preAsk`): as soon as the block runs on `/account`, before the compiled page has
+drawn the dashboard** (it draws after its own `me`), so the banner / chip is put in the same frame as the dashboard. Asked after the paint (the first build) the
+banner pushed the orders down by its own height: measured on the real compiled storefront at 390 px, layout shift 0.056 (no block) -> 0.196 with an unverified
+address, 0.152 with a verified one; with the early ask 0.001 / 0.041 (the block adds none). Cost: one more cheap `me` GET per visit to /account (a signed-out visitor
+gets `null` back, the same call the page makes; the server's own limit is 120 a minute), at most one early ask per 30 s, the answer used once, for the address it
+names, and for a minute; if the dashboard is drawn while the early answer is still on its way the block waits for it (nothing is asked twice), and falls back to
+asking after the paint only when the early ask failed. An answer about another address (the customer signed in elsewhere meanwhile) draws nothing. "Resend link"
+is one POST (`{}`), aria-disabled (not disabled: keyboard focus stays) and dimmed while a request is out and for a minute after a send ("Send again"; the
+server's own limit stays the authority), with a sentence for each answer: sent (the address), the mail did not go, 429 `too_many_attempts` with the server's
+`retry_after` in minutes (Arabic: دقيقة واحدة / دقيقتين / ٣-١٠ دقائق / ١١+ دقيقة), 503 `verification_unavailable`, 401 (sign-in expired), no connection, and
+`already` (the banner goes, the chip comes). A notice under the page title for `?verified=1` ("Your email address is verified." + "Sign in to continue" link to
+`/account?mode=login` when signed out, "Thank you!" when signed in) and `?verified=0` ("expired or already used", signed out: a link to sign in and ask for a new
+one; signed in and unverified: "You can ask for a new one below."), in the page's own notice / error look; `?verified=2` or no value: nothing. Sign out removes
+every node; another customer starts clean. (2) PASSWORD METERS: `#customer-password` (only with `autocomplete=new-password`: register, never the sign-in box),
+`#customer-new-password` and `#customer-confirm-password` (reset form and the dashboard's "Password and security") get a 4 px meter under the box: "7 of 12
+characters" (Arabic-Indic digits, "٧ من ١٢ حرفًا"), the logo orange while short, the ink and "Long enough" at 12; the confirm box says "Passwords match" / "do
+not match yet" and re-checks when the NEW box changes. Counted in code points like the compiled rule (12 emoji = long enough, 11 = 11 of 12). ONE polite live
+region per meter says only the moment it becomes true ("Long enough" / "Passwords match"); the count and "do not match yet" are silent. The block reads the boxes'
+values to count and compare them and never stores, sends or logs one (the suite asserts the typed password leaves the page only in the page's own register
+request). The compiled hint text is untouched. (3) POLISH (the scan of register, sign in, forgot, reset and the dashboard at 320-1280 px, ar + en, light + dark
+found only tap targets, 21-25 px lines): the order cards' links (Track order, View invoice, Return or exchange) are 44 px; the "Track a guest order" link in the
+orders header and the Terms / Privacy links inside the register sentence grow their hit area by padding with a matching negative margin (no word and no line
+moves: the suite compares text positions and heights with the rule cut; "Terms" is a 39 px word, so it also gets 3 px each side); the birthday panel's button said
+"Save" next to the details form's "Save details": now "Save birthday" / "حفظ تاريخ الميلاد" (`birthday.js`). The scan reads clean after. Look = `sporta-shadows.css`
+section ACCOUNT 1120 (`[av-1..7]`, between REGCONTACT and ALIGN-1111; the ICON SET stays last; no section name begins `/* ==== ICONS`): the banner is the page's
+own notice look as a grid (envelope from the icon set's `--sig-envelope`, title, line, a 44 px outlined button, the status line), the chip a pill with
+`--sig-check`, brand oranges only (#B34D00 for small text on the light ground, the logo orange on the dark one). DARK THEME (`[av-7]`, measured with the real
+account stylesheet): the compiled notice look has no dark twin (its ground stays #fff6f0 while the ink turns light), so the first banner's line read 1.13:1 and
+its title 2.43:1; the banner and the chip take the dark orange tint the build's own dark rules use (#3b281f) and read at 5.4:1; the ?verified notice keeps the
+compiled pale notice / error look on purpose (the page's own sign-in errors wear it, 5.3:1). Proof: `npm run test:account-1120` (172 checks, ~320 s, the real
+compiled Account chunk + the live stylesheet kept as `scripts/fixtures/account/Account-DqFbZs-H.css` because the capture lacks it (the real 7.7 kB file: without
+it the page answers "could not load"), a fake customer API that tells the block's asks from the page's by the Content-Type header only the page sends, ar + en,
+390 / 1280 px, 320 px with a very long address, both themes; nothing drawn before the answer is in, the banner / chip already in the first frame that shows the
+dashboard (a ResizeObserver reads every changed frame before paint), two reads of `me` in all, every answer of `verify_resend`, the notices, the meters on register /
+sign-in / reset / change password, a new account lands with its banner, sign out, another customer, no node or request on /shop and /, no password in any request
+of ours; 27 mutants, each CSS rule `[av-1..7]` and each script rule cut in turn goes red, each green on the real files; every script cut is made INSIDE this block
+because the file has other blocks with identical lines). Registered in `ops/release/gate.config.json` (needs browser, not parallel-safe, minOk 172). Neighbours
+green: test:js-guard 46, test:account-form 49, test:register-contact 157, test:center-text 133, test:colours-1118 15, test:arabic (words-colours does not visit
+/account; iconset and icons-polish were not run: the section only uses the set's own `--sig-envelope` / `--sig-check`). Known and NOT from this: `test:file-names` (28 failing lines, none in these files; the one this block had, `/customer.php` in a
+string literal, is fixed by writing the file name without its leading slash) and `test:unknown-files` (4) fail as before. Not seen in a real phone browser, Safari or
+Firefox (only Chromium here); no real mail was sent, the resend was proven against a fake API (the live server's mail path is the baseline's). Not built (ideas): a
+Show / Hide switch on the reset and change-password boxes (the register box has none either), a verified badge on the order cards. Release scope when the owner says
+"deploy": `--only sporta-features.js,sporta-shadows.css,birthday.js` (the live bytes of `sporta-features.js` and `sporta-shadows.css` are the release baseline's, so
+check the plan's byte line shows no shrink; `birthday.js` is one label).
+
 Rules learned this session (apply):
 - `sporta-web/dropin/php-store/install.mysql.sql` is GENERATED. Never hand-edit it: add a part to `PARTS` in `scripts/make-install-sql.mjs`, then run that script. Then regenerate `dbcenter-manifest.php` (`node scripts/make-dbcenter-manifest.mjs`) and record the column in `sporta-web/ops/db/expected-schema.json`.
 - New columns: append with no `AFTER` clause, so every database ends with the same column order and the recorded positions do not shift.
