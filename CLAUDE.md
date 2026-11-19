@@ -606,6 +606,23 @@
      no migration; the live file is the repo's `bfa628e1` version, so the plan's bytes should differ by this section only). Proof: `npm run test:no-zoom-badge`
      (30, the real compiled product page, ar + en, 390 / 1280 px, two mutants red); `test:images-viewer` 669, `test:magic-zoom` 49, `test:product-shape-1119` 48
      green; the other neighbouring suites are listed in the commit that follows if they were run. Not yet seen on the live site.
+     **Built 2026-11-19, NOT deployed (owner: "make zoom full image view pro"): VIEWER PRO / PRO-1119.** The full-screen product photo viewer
+     (the IMAGE VIEWER block of `sporta-features.js` + the new section VIEWER PRO 1119 of `sporta-shadows.css`, right after VIEWER-1112; ships as
+     BOTH files, no API, no migration) already had zoom, pinch, wheel, pan, swipe, previous / next and the zoom bar; it now has: (1) a FILMSTRIP of the
+     product's photos along the bottom (several photos only): clones of the page's own small thumbnails (no src written, no new file), 3.5rem (44px
+     floor), current one ringed in the logo orange #FF7B17 + `aria-current`, a tap goes there through the PAGE's own thumbnail button (so React keeps the
+     index; the lightbox shows the same one), fades away and leaves the tab order while zoomed; the photo is given room above and below it (SYMMETRIC, so
+     the block's zoom maths still centres on the box) and the counter moves up beside the buttons; a short screen (max-height 559px) gives no room and
+     the thumbnails are 2.75rem. (2) A STAND-IN: while the full-size original downloads, the small copy the page's stage already shows (only one that
+     has finished loading, same origin) is painted behind the spinner as a CSS variable background; the original replaces it in place. (3) A FLING: a
+     pan released with speed glides on (325 ms time constant), stops at the edge, is caught by a touch / click, none with reduced motion. (4) KEYS:
+     zoomed, the arrow keys move the photo (Shift: 240px) so a keyboard user can reach all of it (the other photos: Home / End, the buttons, the strip,
+     or 0 then an arrow); Home / End go to the first / last photo; a trackpad pinch (ctrl + wheel) zooms in fine steps and a line-mode wheel is scaled.
+     (5) A 160-200 ms fade-in when it opens (the `scale` property, so the zoom's own transform is untouched; none with reduced motion). Not done: an
+     EXIT animation (React unmounts the lightbox at once), preloading the neighbours' originals (bytes), a 1:1 pixel mode. The page's root font size
+     scales with the viewport (3.5rem = 58.9px at 1280), so every size check is in rem. Proof: `npm run test:viewer-pro` (216, the live gallery
+     harness: four photos, one, nine, a phone on its side, ar + en, 390 / 1280, reduced motion, six mutants red) and `test:images-viewer` (669; its
+     control count is now 11 = 7 + the four thumbnails). Not yet seen on the live site or with real photos.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
