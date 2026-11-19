@@ -2607,6 +2607,10 @@ function raceCut(): { w: number; h: number } | null {
             goldRims: tune.goldRims,
             rims: tune.rims,
             livery: tune.livery,
+            // The layout the car is sold with. Left out, the menu and the
+            // showroom built the Black Demon with four wheels at one radius
+            // while the race and the shop built it with three.
+            trike: tune.trike,
             face: tune.face,
             tyreSticker: tune.tyreSticker,
             engineCover: tune.engineCover ?? undefined,

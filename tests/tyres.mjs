@@ -72,6 +72,7 @@ const fleet = await page.evaluate(async () => {
     const g = window.__grnBuildCar({
       body: 0x888888, accent: 0x007a3d, style: car.bodyStyle ?? "sedan",
       raceKit: car.kit === "attack", lengthM: car.lengthM, spoiler: false, stickers: false,
+      trike: car.trike,
     });
     g.updateMatrixWorld(true);
     const w = (g.userData.wheels ?? [])[0];
@@ -99,7 +100,10 @@ const fleet = await page.evaluate(async () => {
     out.push({
       name: car.name,
       recorded: +(g.userData.wheelR ?? 0).toFixed(5),
-      measured: +maxR.toFixed(5),
+      // wheelR is the FLEET's wheel on this car; a wheel that was built
+      // at a multiplier (the Black Demon's nose tyre, 0.86) is measured
+      // back to it, or the three-wheeler reads 14% out for being what it is.
+      measured: +(maxR / ((w.userData.rMul ?? 1))).toFixed(5),
     });
     g.traverse((o) => o.geometry && o.geometry.dispose?.());
   }

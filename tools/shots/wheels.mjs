@@ -66,8 +66,9 @@ await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnBuildCar, null, { timeout: 240000 });
 await page.waitForTimeout(1500);
 
-const fleet = await page.evaluate(async () => {
+const { rows: fleet, skipped } = await page.evaluate(async () => {
   const THREE = window.__grnThree;
+  const skipped = [];
   const cars = window.__grnCars ?? [];
   const out = [];
   for (const car of cars) {
@@ -78,6 +79,11 @@ const fleet = await page.evaluate(async () => {
     // must fail loudly, not measure the wrong shell.
     const style = car.style ?? car.bodyStyle;
     if (!style) throw new Error(`${car.id} has no style — the wrong shell would be measured`);
+    // A delta has no wheelbase, track or arch gap of the kind this tool
+    // judges: its one front tyre is small, its two rear ones stand taller
+    // than the body behind them and are cut into it. It is measured on
+    // its own, in tests/demon.mjs, not against a fleet that has four.
+    if (car.trike) { skipped.push(car.id); continue; }
     const g = window.__grnBuildCar({
       body: parseInt(String(car.color).replace("#", ""), 16),
       accent: 0x007a3d,
@@ -278,8 +284,9 @@ const fleet = await page.evaluate(async () => {
       wheelR: g.userData.wheelR ? +g.userData.wheelR.toFixed(4) : null,
     });
   }
-  return out;
+  return { rows: out, skipped };
 });
+if (skipped.length) console.log(`skipped: ${skipped.join(", ")} (three wheels, none of these bands apply: tests/demon.mjs measures it)\n`);
 
 // ---- The bands, from real cars.
 const BANDS = {
