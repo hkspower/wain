@@ -24,6 +24,11 @@
 //             rims gets gold rims — which is the bug the one-place
 //             wheel rule was extracted to fix, and it is here because a
 //             refactor nobody tried to break is a comment.
+//   three     Three wheels, the nose one in view, and the rear pair 1.4
+//             times the fleet's tyre, in proportion, standing in holes
+//             cut for them, each with its own brake and its own rate of
+//             roll — measured against the same body built with four
+//             ordinary wheels in the same page.
 import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
 
@@ -614,6 +619,183 @@ console.log(`calipers   ${seen.calipers}, ${seen.near} beside a wheel  ` +
 console.log(`plate      ${seen.frontPlates} on the nose  ` +
   check(seen.frontPlates === 0, "a front plate hangs where the front wheel stands"));
 check(seen.wheelbase > 3.0, `the wheelbase is ${seen.wheelbase}: the front axle did not move to the nose`);
+
+// ---- 8. The rear tyres: big, in proportion, in a hole cut for them ---
+//
+// The car is a delta: one small steering tyre at the nose and two big
+// driving ones at the back, 1.4 times the fleet's wheel (0.95 m across,
+// taller than the body behind them). Everything that goes with that is
+// measured against the SAME body built with four ordinary wheels in the
+// same page, so a number here is "how much bigger than the fleet's wheel",
+// not a figure copied out of the source it is meant to be checking:
+//
+//   size      rear 1.4x and front 0.86x the fleet's tyre, in width as well
+//             as diameter (this was 0.24 m wide on a 0.81 m tyre: the
+//             length fit's width correction overwrote the multiplier)
+//   ground    all three stand on the road
+//   fitment   the rear tyre's OUTER wall is where the fleet's is, not 80 mm
+//             further out because it grew sideways
+//   hole      no vertex of the body is inside either rear tyre: the shell
+//             is cut for it, not pierced by it
+//   brakes    three calipers that are really there, one inside each wheel
+//             (the nose wheel's was cut to nothing by its own opening)
+//   shadow    the contact shadow is not the four-wheeler's, which is a
+//             silhouette's cached material that the Zeta 300 GTR shares
+const rear = await page.evaluate(async (id) => {
+  const THREE = window.__grnThree;
+  const car = window.__grnShowroom.car(id);
+  const mk = (trike) => window.__grnBuildCar({
+    body: car.color, style: car.style, kit: car.kit, raceKit: car.kit === "attack",
+    lengthM: car.lengthM, rims: car.rims, livery: car.livery, trike,
+  });
+  const settle = async (g) => {
+    const t0 = performance.now();
+    const pending = () => {
+      const v = g.userData.shellSwap ?? {};
+      let n = v.body ? 0 : 1;
+      g.traverse((o) => {
+        if (o.isMesh && o.userData.wheelPart === "tire" && (o.parent?.userData.spokes ?? 0) > 0 && !o.geometry.userData.authored) n++;
+      });
+      return n;
+    };
+    while (pending() && performance.now() - t0 < 90000) await new Promise((r) => setTimeout(r, 200));
+    g.updateMatrixWorld(true);
+  };
+  const g = mk(true);
+  const twin = mk(false);
+  await settle(g);
+  await settle(twin);
+  const tyre = (w) => {
+    const b = new THREE.Box3();
+    w.traverse((o) => { if (o.isMesh && o.userData.wheelPart === "tire") b.expandByObject(o); });
+    return b;
+  };
+  const m = (b) => ({ dia: b.max.y - b.min.y, width: b.max.x - b.min.x, bottom: b.min.y, outer: Math.max(Math.abs(b.min.x), Math.abs(b.max.x)),
+    cx: (b.min.x + b.max.x) / 2, cy: (b.min.y + b.max.y) / 2, cz: (b.min.z + b.max.z) / 2 });
+  const wheels = g.userData.wheels.map((w) => m(tyre(w)));
+  const fleet = m(tyre(twin.userData.wheels[2]));
+  // The body shell's vertices inside each rear tyre's own cylinder.
+  let body = null;
+  g.traverse((o) => { if (o.isMesh && o.userData.shell === "body") body = o; });
+  const pa = body.geometry.getAttribute("position");
+  const v = new THREE.Vector3();
+  const inside = [];
+  for (const w of wheels.slice(1)) {
+    let n = 0;
+    for (let i = 0; i < pa.count; i++) {
+      v.fromBufferAttribute(pa, i).applyMatrix4(body.matrixWorld);
+      if (Math.abs(v.x - w.cx) < w.width / 2 * 0.99 && Math.hypot(v.y - w.cy, v.z - w.cz) < w.dia / 2 * 0.995) n++;
+    }
+    inside.push(n);
+  }
+  // The flares over the openings: each stays under the body's own top skin
+  // at the wheel (a hoop over the tyre's crown would stand in the air above
+  // the car, behind a tyre that is already taller than the body), and each
+  // is a real flare, as proud of the flank as every other car's.
+  let deckTop = 0;
+  for (let i = 0; i < pa.count; i++) {
+    v.fromBufferAttribute(pa, i).applyMatrix4(body.matrixWorld);
+    if (Math.abs(v.z - wheels[1].cz) < 0.5 && Math.abs(Math.abs(v.x) - Math.abs(wheels[1].cx)) < 0.3) deckTop = Math.max(deckTop, v.y);
+  }
+  const flares = [];
+  g.traverse((o) => {
+    if (!o.isMesh || !o.userData.archFlare) return;
+    const b = new THREE.Box3().setFromObject(o);
+    if (b.max.z < 0) flares.push({ top: b.max.y, out: Math.max(Math.abs(b.min.x), Math.abs(b.max.x)) });
+  });
+  const flareOut = flares.length ? Math.max(...flares.map((f) => f.out)) : 0;
+  const twinFlareOut = (() => {
+    let m = 0;
+    twin.traverse((o) => {
+      if (!o.isMesh || !o.userData.archFlare) return;
+      const b = new THREE.Box3().setFromObject(o);
+      if (b.max.z < 0) m = Math.max(m, Math.abs(b.min.x), Math.abs(b.max.x));
+    });
+    return m;
+  })();
+  // Calipers: the ones with triangles in them, and where they are.
+  const cals = [];
+  g.traverse((o) => { if (o.isMesh && /^caliper/.test(o.material?.name ?? "")) cals.push(o); });
+  const drawn = cals.filter((c) => c.geometry.getAttribute("position").count > 0);
+  const homes = drawn.map((c) => {
+    const p = c.getWorldPosition(new THREE.Vector3());
+    return wheels.some((w) => Math.hypot(p.y - w.cy, p.z - w.cz) < w.dia / 2 && Math.abs(p.x - w.cx) < w.width / 2);
+  });
+  return {
+    wheels, fleet, inside,
+    deckTop, flares, flareOut, twinFlareOut,
+    calipers: cals.length, drawn: drawn.length, homes: homes.filter(Boolean).length,
+    ownShadow: g.userData.contact.material !== twin.userData.contact.material &&
+      g.userData.contact.material.map !== twin.userData.contact.material.map,
+  };
+}, DEMON);
+
+{
+  const [f, r1, r2] = rear.wheels;
+  const fl = rear.fleet;
+  const ratio = (a, b) => a / b;
+  const rs = [ratio(r1.dia, fl.dia), ratio(r2.dia, fl.dia)];
+  const ws = [ratio(r1.width, fl.width), ratio(r2.width, fl.width)];
+  console.log(`rear size  ${rs.map((x) => x.toFixed(2)).join(" / ")}x the fleet's tyre across, ${ws.map((x) => x.toFixed(2)).join(" / ")}x wide  ` +
+    check(rs.every((x) => Math.abs(x - 1.4) < 0.02) && ws.every((x) => Math.abs(x - 1.4) < 0.03),
+      `the rear tyres are ${rs.map((x) => x.toFixed(2))}x across and ${ws.map((x) => x.toFixed(2))}x wide, not 1.4x both ways`));
+  console.log(`front size ${ratio(f.dia, fl.dia).toFixed(2)}x across, ${ratio(f.width, fl.width).toFixed(2)}x wide  ` +
+    check(Math.abs(ratio(f.dia, fl.dia) - 0.86) < 0.02 && Math.abs(ratio(f.width, fl.width) - 0.86) < 0.03,
+      `the nose tyre is ${ratio(f.dia, fl.dia).toFixed(2)}x across and ${ratio(f.width, fl.width).toFixed(2)}x wide, not 0.86x both ways`));
+  const worstGround = Math.max(...rear.wheels.map((w) => Math.abs(w.bottom)));
+  console.log(`ground     the lowest tyre is ${(worstGround * 1000).toFixed(1)} mm off the road  ` +
+    check(worstGround < 0.004, `a tyre is ${(worstGround * 1000).toFixed(0)} mm off the road: the hub was not raised with the tyre`));
+  const poke = Math.max(r1.outer, r2.outer) - fl.outer;
+  console.log(`fitment    rear outer wall ${(poke * 1000).toFixed(1)} mm past the fleet's  ` +
+    check(Math.abs(poke) < 0.006, `the rear tyres stand ${(poke * 1000).toFixed(0)} mm past where a standard wheel's outer wall is — they grew outward, not inward`));
+  console.log(`hole       body vertices inside the rear tyres: ${rear.inside.join(", ")}  ` +
+    check(rear.inside.every((n) => n === 0), `${rear.inside} body vertices stand inside the rear tyres: the shell is pierced, not cut`));
+  const flareHigh = Math.max(0, ...rear.flares.map((f) => f.top - rear.deckTop));
+  // One mesh a side (two pieces in it, either side of the opening). Allowed
+  // 15 mm over the deck: it tapers to nothing there, and its tube has a
+  // thickness the deck height is measured to the centre of.
+  console.log(`flares     ${rear.flares.length} over the rear openings, ${(flareHigh * 1000).toFixed(0)} mm above the deck at most, ` +
+    `${((rear.flareOut - rear.twinFlareOut) * 1000).toFixed(0)} mm out past the fleet's  ` +
+    check(rear.flares.length === 2 && flareHigh < 0.015,
+      `${rear.flares.length} flares over the rear openings (want one a side), standing ${(flareHigh * 1000).toFixed(0)} mm above the deck: a hoop in the air over the tyre`) + " " +
+    check(Math.abs(rear.flareOut - rear.twinFlareOut) < 0.01,
+      `the rear flares reach ${((rear.flareOut - rear.twinFlareOut) * 1000).toFixed(0)} mm past a standard car's: the flare is not the flare every other car wears`));
+  console.log(`brakes     ${rear.drawn} of ${rear.calipers} calipers drawn, ${rear.homes} inside a tyre  ` +
+    check(rear.calipers === 3 && rear.drawn === 3 && rear.homes === 3,
+      `${rear.drawn} of ${rear.calipers} calipers have any triangles and ${rear.homes} are inside a tyre: one is cut away or floating`));
+  console.log(`shadow     ${rear.ownShadow ? "its own, three patches" : "shared with a four-wheeler"}  ` +
+    check(rear.ownShadow, "the trike's contact shadow is the four-wheeler's: phantom patches at the old front axle and none under the nose tyre"));
+}
+
+// The menu's own car: built with the layout it is sold with, and rolling
+// each tyre at its own radius. Seeded as the player's car so this runs the
+// real RaceClient path (it left `trike` out, and the menu built the Demon
+// with four wheels the race and the shop had three of).
+{
+  await page.goto("http://localhost:3000/race", { waitUntil: "networkidle" });
+  await page.evaluate((id) => {
+    localStorage.clear();
+    localStorage.setItem("gulf-road-nights-onboarded", "2");
+    localStorage.setItem("gulf-road-nights-coach", "3");
+    localStorage.setItem("gulf-road-nights-garage", JSON.stringify({ kd: 0, cars: [id], car: id, builds: {} }));
+  }, DEMON);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForFunction(() => !!window.__grnAttract && window.__grnAttract.cars.length > 0, null, { timeout: 120000 });
+  const menu = await page.evaluate(async () => {
+    const c = window.__grnAttract.cars[0];
+    const w = c.userData.wheels;
+    const a = w.map((x) => x.rotation.x);
+    await new Promise((r) => setTimeout(r, 2000));
+    const b = w.map((x) => x.rotation.x);
+    return { count: w.length, turned: w.map((x, i) => b[i] - a[i]) };
+  });
+  const [t0, t1, t2] = menu.turned;
+  const k = t2 / t0;
+  console.log(`menu       ${menu.count} wheels, rears turn ${k.toFixed(2)}x the front's rate  ` +
+    check(menu.count === 3, `the menu's Black Demon has ${menu.count} wheels`) + " " +
+    check(Math.abs(k - 0.86 / 1.4) < 0.04 && Math.abs(t1 / t2 - 1) < 0.02,
+      `the rear tyres turn ${k.toFixed(2)}x as fast as the front one (want ${(0.86 / 1.4).toFixed(2)}): a tyre ${(1.4 / 0.86).toFixed(2)}x the size turning at the small one's rate skates`));
+}
 
 await browser.close();
 if (fail.length) {

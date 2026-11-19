@@ -865,9 +865,11 @@ export const CARS: CarModel[] = [
     rims: "black",
     livery: "demon",
     // THREE WHEELS. One on the centreline steering, two at the back
-    // driving and a fifth bigger than the front one. Nothing else in the
-    // game is shaped like this, which is the point of the car you cannot
-    // buy until everything else is already yours.
+    // driving. The rear pair are 1.4 times the fleet's wheel (0.475 m
+    // rolling, 0.95 m across) and the front one 0.86 times it (0.29 m):
+    // the rears stand taller than the body behind them. Nothing else in
+    // the game is shaped like this, which is the point of the car you
+    // cannot buy until everything else is already yours.
     trike: true,
     desc: "Rear-drive, blown 5.7, and the fastest thing on the corniche. Black paint, black glass, black wheels and the horned mark on all four sides. The showroom will not sell it until the Zeta 300 GTR is already yours.",
     factoryBuild: [

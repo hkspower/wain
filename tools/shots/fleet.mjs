@@ -70,6 +70,9 @@ const fleet = await page.evaluate(async () => {
       // them a wing, a splitter, skirts and twenty-eight rivets.
       kit: car.kit,
       lengthM: car.lengthM,
+      // Three wheels where the car has three: the Black Demon was counted
+      // as a four-wheeler, with parts it does not carry.
+      trike: car.trike,
       spoiler: false,
       // Not bought — but the sport and attack kits come wearing a livery
       // of their own, which is the state the showroom sells them in.
@@ -117,6 +120,10 @@ const fleet = await page.evaluate(async () => {
       // because the arch sat 165 mm too high, which put its centroid
       // outside the disc by accident.
       if (b.o.userData.archLip || b.o.userData.archWell || b.o.userData.archFlare) continue;
+      // A part cut around the front wheel of a three-wheeler (the grille,
+      // the nose panels) has a bounding box centred on the hole it was cut
+      // with, which is the wheel's own place: it is beside the tyre, not in it.
+      if (b.o.geometry?.userData?.carved) continue;
       const c = b.bb.getCenter(new THREE.Vector3());
       for (const w of wheels) {
         const dy = c.y - w.c.y;
@@ -162,6 +169,7 @@ const fleet = await page.evaluate(async () => {
       driverParts: g.userData.driver
         ? ["head", "arms", "legs", "wheel", "pedals"].filter((k) => !!g.userData.driver[k]).length
         : 0,
+      trike: !!car.trike,
       archWells: boxes.filter((b) => b.o.userData.archWell).length,
       archLips: boxes.filter((b) => b.o.userData.archLip).length,
       inWheel,
@@ -255,8 +263,10 @@ for (const c of fleet) {
 
 const problems = [];
 for (const c of fleet) {
-  if (c.wheels !== 4) problems.push(`${c.name}: ${c.wheels} wheels`);
-  if (c.archWells !== 4 || c.archLips !== 4)
+  if (c.wheels !== (c.trike ? 3 : 4)) problems.push(`${c.name}: ${c.wheels} wheels`);
+  // A delta's rear tyres stand in openings cut through the body (and a
+  // flare each), not in the painted wells and lips of a four-wheeler.
+  if (!c.trike && (c.archWells !== 4 || c.archLips !== 4))
     problems.push(`${c.name}: ${c.archWells} arch wells and ${c.archLips} lips, expected 4 and 4`);
   if (!c.driver || c.driverParts < 5)
     problems.push(`${c.name}: driver has ${c.driverParts} of 5 rigged parts`);

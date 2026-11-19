@@ -900,8 +900,8 @@ const CRACKLE_STRENGTH = 0.45;
 /**
  * Roll the wheels.
  *
- * The rate is the real one, omega = v / r against the tire's own 0.36 m
- * radius, but a wheel is not always doing v / r. Two cases matter and
+ * The rate is the real one, omega = v / r against the tire's own radius
+ * (car.userData.wheelR, which createCar records per car), but a wheel is not always doing v / r. Two cases matter and
  * both are things the player is deliberately causing:
  *
  *   `lock` — a wheel past the tire's limit under braking has stopped

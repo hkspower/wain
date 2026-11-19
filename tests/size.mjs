@@ -105,6 +105,9 @@ const cars = await page.evaluate(async () => {
       kit: car.kit,
       raceKit: car.kit === "attack",
       lengthM: car.lengthM,
+      // The layout the car is sold with: the Black Demon is a delta, and
+      // this audit built it with four wheels like the rest.
+      trike: car.trike,
     });
     g.updateMatrixWorld(true);
     const paint = g.userData.bodyMat;

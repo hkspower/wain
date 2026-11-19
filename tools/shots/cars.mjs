@@ -1,7 +1,8 @@
 // A showroom card for every car in the game.
 //
 //   npm run dev            # in another shell
-//   npm run shots:cars
+//   npm run shots:cars                         # every car
+//   node tools/shots/cars.mjs --only=black-demon   # just that card
 //
 // Renders each car on the menu's own turntable — the same showroom
 // lighting, environment map and paint the player sees before a race —
@@ -23,6 +24,9 @@ const OUT = "press/cars";
 // the card's proportions are what centre the car, rather than a special
 // capture mode bolted onto the menu.
 const W = +(process.argv.find((a) => a.startsWith("--w="))?.slice(4) ?? 820);
+// --only=black-demon,falcon-720 shoots just those cards (and leaves cars.json
+// alone), for the day one car changed and the other sixteen did not.
+const ONLY = (process.argv.find((a) => a.startsWith("--only="))?.slice(7) ?? "").split(",").filter(Boolean);
 const H = Math.round(W / 1.1);
 
 const C = [
@@ -155,10 +159,11 @@ const shot = async (car) => {
 
 const index = [];
 for (const car of cars.cars) {
+  if (ONLY.length && !ONLY.includes(car.id)) continue;
   const path = await shot(car);
   index.push({ ...car, image: `${car.id}.png` });
   console.log(`  ${car.name.padEnd(20)} ${String(car.topSpeedKmh).padStart(3)} km/h  ${path}`);
 }
-writeFileSync(`${OUT}/cars.json`, JSON.stringify(index, null, 2) + "\n");
-console.log(`\n${index.length} cars written to ${OUT}/ at ${W}x${H}`);
+if (!ONLY.length) writeFileSync(`${OUT}/cars.json`, JSON.stringify(index, null, 2) + "\n");
+console.log(`\n${index.length} cars written to ${OUT}/ at ${W}x${H}${ONLY.length ? " (cars.json left as it was)" : ""}`);
 await browser.close();

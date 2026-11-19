@@ -590,14 +590,19 @@ export function buildAttract(
      *  first thing anybody sees. */
     driver: DriverRig | null;
     /** World radius of a driven wheel, so it turns at road speed rather
-     *  than at a rate that merely looks busy. */
+     *  than at a rate that merely looks busy. The first wheel's. */
     wheelR: number;
+    /** Each wheel's own, in the order of `wheels`. A three-wheeler's tyres
+     *  are not one size, and a tyre that turns at the first one's rate
+     *  rolls its own circumference by the wrong amount: the Black Demon's
+     *  rears, 1.4 times the front's, would skate. */
+    wheelRs: number[];
   }
   const makeRig = (x: number): Rig => {
     const holder = new THREE.Group();
     holder.position.x = x;
     table.add(holder);
-    return { holder, car: null, wheels: [], driver: null, wheelR: 0.33 };
+    return { holder, car: null, wheels: [], driver: null, wheelR: 0.33, wheelRs: [] };
   };
   // Side by side: 3.4 m between centre lines, which is a lane.
   const near = makeRig(rolling ? PLAYER_X : 0);
@@ -642,13 +647,13 @@ export function buildAttract(
     // Measured off the built wheel, not assumed: the silhouettes carry
     // different scale factors, so the same tyre is a different size on
     // each of them.
-    const w = rig.wheels[0];
-    if (w) {
-      built.updateMatrixWorld(true);
+    built.updateMatrixWorld(true);
+    rig.wheelRs = rig.wheels.map((w) => {
       const box = new THREE.Box3().setFromObject(w);
       const r = (box.max.y - box.min.y) / 2;
-      if (r > 0.05) rig.wheelR = r;
-    }
+      return r > 0.05 ? r : rig.wheelR;
+    });
+    if (rig.wheelRs[0]) rig.wheelR = rig.wheelRs[0];
     rig.holder.add(built);
   };
   /** Scratch for the drivers' look target. One per scene, not one per
@@ -1279,7 +1284,7 @@ export function buildAttract(
       const plan = rig.car?.userData.wheelPlan as { front: number } | undefined;
       const frontN = plan?.front ?? 2;
       rig.wheels.forEach((w, i) => {
-        w.rotation.x += (ROLL_SPEED / rig.wheelR) * dt;
+        w.rotation.x += (ROLL_SPEED / (rig.wheelRs[i] ?? rig.wheelR)) * dt;
         if (i < frontN) w.rotation.y = steerWheel;
       });
       // The chaser's brake lamps, as it loses the lead.

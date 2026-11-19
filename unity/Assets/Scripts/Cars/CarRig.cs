@@ -117,7 +117,7 @@ namespace NightRacer.Cars
 
         /// <summary>Roll every wheel through <paramref name="metres"/> of
         /// road, each at its own radius (the trike's front wheel is 0.29 m,
-        /// its rears 0.41).</summary>
+        /// its rears 0.475).</summary>
         public void Roll(float metres)
         {
             for (int i = 0; i < Wheels.Length; i++)
