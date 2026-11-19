@@ -270,7 +270,7 @@ function store_catalogue_product(array $row, array $load): array {
         'pct_off' => $eff['on_sale'] && $list > 0 ? (int)round(($list - $price) / $list * 100) : 0,
         'on_sale' => (bool)$eff['on_sale'],
         'featured' => (bool)$row['featured'], 'pinned' => false,
-        'in_stock' => $inStock, 'sizes' => $sizes,
+        'in_stock' => $inStock, 'stock_known' => $sizes !== [], 'sizes' => $sizes,
         'image' => $main, 'image_small' => $main === null ? null : store_catalogue_small_copy($main), 'images' => $photos,
     ];
 }
@@ -465,8 +465,10 @@ function store_catalogue_jsonld(array $payload, string $lang, string $name, stri
         $item = ['@type' => 'Product', 'name' => $pname, 'url' => $url];
         if ($p['image'] !== null) $item['image'] = STORE_CATALOGUE_ORIGIN . $p['image'];
         if ($showPrices) {
-            $item['offers'] = ['@type' => 'Offer', 'url' => $url, 'priceCurrency' => 'KWD', 'price' => number_format((float)$p['price'], 3, '.', ''),
-                'availability' => $p['in_stock'] ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'];
+            $offer = ['@type' => 'Offer', 'url' => $url, 'priceCurrency' => 'KWD', 'price' => number_format((float)$p['price'], 3, '.', '')];
+            // Availability is claimed only when the shop knows the stock (CLAUDE.md: never state a stock fact the shop does not have).
+            if (!empty($p['stock_known'])) $offer['availability'] = $p['in_stock'] ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock';
+            $item['offers'] = $offer;
         }
         $items[] = ['@type' => 'ListItem', 'position' => $i + 1, 'item' => $item];
     }
@@ -474,6 +476,6 @@ function store_catalogue_jsonld(array $payload, string $lang, string $name, stri
         '@context' => 'https://schema.org', '@type' => 'CollectionPage',
         'name' => $name, 'description' => $description,
         'url' => STORE_CATALOGUE_ORIGIN . '/catalogue' . $suffix, 'inLanguage' => $ar ? 'ar' : 'en',
-        'mainEntity' => ['@type' => 'ItemList', 'numberOfItems' => count($items), 'itemListElement' => $items],
+        'mainEntity' => ['@type' => 'ItemList', 'numberOfItems' => count($payload['products'] ?? []), 'itemListElement' => $items],
     ];
 }

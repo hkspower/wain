@@ -303,7 +303,7 @@ head('NO SECRETS: nothing but the contract\'s keys')
     top: ['revision', 'generated_at', 'count', 'settings', 'categories', 'brands', 'products'],
     settings: ['title_ar', 'title_en', 'intro_ar', 'intro_en', 'note_ar', 'note_en', 'show_prices', 'show_sold_out', 'show_sizes', 'show_brand', 'cover', 'per_page'],
     category: ['slug', 'name_ar', 'name_en', 'count'], brand: ['slug', 'name_ar', 'name_en', 'logo', 'count'],
-    product: ['slug', 'name_ar', 'name_en', 'category', 'brand', 'price', 'list_price', 'pct_off', 'on_sale', 'featured', 'pinned', 'in_stock', 'sizes', 'image', 'image_small', 'images'],
+    product: ['slug', 'name_ar', 'name_en', 'category', 'brand', 'price', 'list_price', 'pct_off', 'on_sale', 'featured', 'pinned', 'in_stock', 'stock_known', 'sizes', 'image', 'image_small', 'images'],
     size: ['size', 'in_stock'],
   }
   const same = (got, want) => JSON.stringify([...got].sort()) === JSON.stringify([...want].sort())
@@ -534,7 +534,7 @@ head('JSON-LD: what a crawler reads without a script')
   await sql(`insert into product_variants (sku, slug, size, stock) values ${bulk.map((s) => `('SKU-B-${s}', '${s}', 'M', 1)`).join(',')}`)
   for (const s of bulk) photo(`${s}.jpg`)
   const big = await cat(), bigLd = ldOf(await seoPage('/catalogue?lang=en'))
-  is(big.count === LISTED.length + 205 && bigLd.json.mainEntity.itemListElement.length === 100 && bigLd.json.mainEntity.numberOfItems === 100, 'with 216 products the route lists all and the structured data stops at 100', `${big.count} / ${bigLd.json.mainEntity.itemListElement.length}`)
+  is(big.count === LISTED.length + 205 && bigLd.json.mainEntity.itemListElement.length === 100 && bigLd.json.mainEntity.numberOfItems === big.count, 'with 216 products the route lists all, the structured data stops at 100 items, and numberOfItems is the full count (216)', `${big.count} / ${bigLd.json.mainEntity.itemListElement.length}`)
   is(bigLd.json.mainEntity.itemListElement.map((i) => i.item.url.replace('https://www.sporta.com.kw/product/', '').replace('?lang=en', '')).join() === slugs(big).slice(0, 100).join(), 'and they are the first 100 of the route\'s order')
   const two = await save({ pinned_slugs: bulk.slice(0, 200) }), three = await save({ pinned_slugs: bulk.slice(0, 201) })
   is(two.status === 200 && two.body.settings.pinned_slugs.length === 200 && three.status === 400 && three.body.error === 'invalid_pinned_slugs', 'a list of 200 slugs is saved, 201 is refused (the limit is 200 each)', `${two.status} ${three.status} ${three.body?.error}`)
