@@ -108,7 +108,7 @@ check "/data/places.json is gzipped for a browser that accepts it" sh -c \
 check "/explore/ carries no X-Powered-By" sh -c \
   "h=\$(curl -sS -m 30 -o /dev/null -D - https://www.wainkw.com/explore/) && ! printf '%s' \"\$h\" | tr -d '\r' | grep -qi '^x-powered-by'"
 check "the API still answers its ping" sh -c \
-  "curl -sS -m 30 'https://www.wainkw.com/api/wain.php?a=ping' | grep -q '\"ok\": true'"
+  "curl -sS -m 30 'https://www.wainkw.com/api/wain.php?a=ping' | grep -Eq '\"ok\": ?true'"
 
 if [ "$fail" -eq 0 ]; then
   echo "== live site checks passed: $fail failed"
