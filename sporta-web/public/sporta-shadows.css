@@ -820,6 +820,94 @@ html[data-sporta-viewer-lock="gutter"] { scrollbar-gutter: stable; }
 .catalog-product-lightbox[data-sporta-plate] .sporta-viewer-zoombar { display: none; }
 /* ==== end VIEWER-1112 */
 
+/* ==== VIEWER PRO 1119 (2026-11-19, owner: "make zoom full image view pro"; script: sporta-features.js IMAGE VIEWER, PRO-1119; proof: npm run test:viewer-pro) ====
+ * What the viewer of VIEWER-1112 gains: a filmstrip of the product's photos, a stand-in photo while the original downloads,
+ * and a short fade when it opens. Every rule is keyed on an attribute or class only the viewer block writes (data-sporta-strip,
+ * data-sporta-loading, sporta-viewer-*), so nothing changes until it has run. The filmstrip's room is SYMMETRIC (top and bottom
+ * the same) so the photo stays centred in the box and the block's zoom maths needs no offset; the counter moves up beside the
+ * buttons into the top room. The orange of the current thumbnail is the logo's #FF7B17 (the colour rule of the shop). */
+/* [vp-1] the viewer opens with a short fade, the photo settles in (the `scale` property, so the zoom's own transform is untouched) */
+@keyframes sporta-viewer-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sporta-viewer-settle { from { opacity: 0; scale: 0.97; } to { opacity: 1; scale: 1; } }
+.catalog-product-lightbox[data-sporta-viewer] { animation: sporta-viewer-fade 0.16s ease-out; }
+.catalog-product-lightbox[data-sporta-viewer] > img { animation: sporta-viewer-settle 0.2s ease-out; }
+/* [vp-2] room for the filmstrip, top and bottom alike; the counter goes up into the top room, level with the buttons */
+.catalog-product-lightbox[data-sporta-strip] { padding-block: calc(5.25rem + env(safe-area-inset-bottom, 0px)); }
+.catalog-product-lightbox[data-sporta-strip] > p:not(.sporta-viewer-hint) {
+  top: 1.75rem;
+  bottom: auto;
+  line-height: 1.25rem;
+}
+/* [vp-3] the filmstrip: a glass pill along the bottom, the thumbnails 56px (a 44px floor with room), one ring on the current */
+.catalog-product-lightbox .sporta-viewer-strip {
+  position: absolute;
+  bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  translate: -50% 0;
+  z-index: 2;
+  display: flex;
+  gap: 0.5rem;
+  max-width: calc(100% - 2rem);
+  padding: 0.375rem;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-x;
+  scrollbar-width: none;
+  border-radius: 1rem;
+  background-color: rgb(255 255 255 / 0.12);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: opacity 0.18s ease, visibility 0s;
+}
+.catalog-product-lightbox .sporta-viewer-strip::-webkit-scrollbar { display: none; }
+.catalog-product-lightbox .sporta-viewer-thumb {
+  flex: none;
+  width: 3.5rem;
+  height: 3.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background-color: rgb(255 255 255 / 0.1);
+  opacity: 0.6;
+  cursor: pointer;
+  outline-offset: 2px;
+  transition: opacity 0.15s ease;
+}
+.catalog-product-lightbox .sporta-viewer-thumb:hover { opacity: 0.95; }
+.catalog-product-lightbox .sporta-viewer-thumb[aria-current="true"] { opacity: 1; outline: 2px solid var(--brand-bright, #ff7b17); }
+.catalog-product-lightbox .sporta-viewer-thumb:focus-visible { opacity: 1; outline: 2px solid #fff; }
+.catalog-product-lightbox .sporta-viewer-thumb > img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+/* zoomed in, the photo is the subject: the strip fades away (and leaves the tab order), the zoom bar drops to its place */
+.catalog-product-lightbox[data-sporta-zoomed] .sporta-viewer-strip { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.18s ease, visibility 0s 0.18s; }
+.catalog-product-lightbox[data-sporta-strip] .sporta-viewer-zoombar { bottom: calc(6.25rem + env(safe-area-inset-bottom, 0px)); }
+.catalog-product-lightbox[data-sporta-strip][data-sporta-zoomed] .sporta-viewer-zoombar { bottom: max(1.5rem, env(safe-area-inset-bottom, 0px)); }
+/* [vp-4] a short screen (a phone on its side): no room to give; the strip is smaller and floats over the photo's foot */
+@media (max-height: 559px) {
+  .catalog-product-lightbox[data-sporta-strip] { padding-block: 1rem; }
+  .catalog-product-lightbox[data-sporta-strip] > p:not(.sporta-viewer-hint) { top: auto; bottom: 1.5rem; }
+  .catalog-product-lightbox .sporta-viewer-strip { bottom: 0.5rem; padding: 0.25rem; gap: 0.375rem; }
+  .catalog-product-lightbox .sporta-viewer-thumb { width: 2.75rem; height: 2.75rem; border-radius: 0.625rem; }
+  .catalog-product-lightbox[data-sporta-strip] .sporta-viewer-zoombar { bottom: 4.25rem; }
+}
+/* [vp-5] the stand-in: while the original downloads, the small copy the page already shows fills the photo's own box */
+.catalog-product-lightbox[data-sporta-loading]::before {
+  content: "";
+  position: absolute;
+  inset: 1rem;
+  background: var(--sporta-viewer-ph, none) center / contain no-repeat;
+  pointer-events: none;
+}
+.catalog-product-lightbox[data-sporta-strip][data-sporta-loading]::before { inset-block: calc(5.25rem + env(safe-area-inset-bottom, 0px)); }
+@media (max-height: 559px) { .catalog-product-lightbox[data-sporta-strip][data-sporta-loading]::before { inset-block: 1rem; } }
+@media (prefers-reduced-motion: reduce) {
+  .catalog-product-lightbox[data-sporta-viewer],
+  .catalog-product-lightbox[data-sporta-viewer] > img { animation: none; }
+  .catalog-product-lightbox .sporta-viewer-strip,
+  .catalog-product-lightbox .sporta-viewer-thumb { transition: none; }
+}
+/* ==== end VIEWER PRO 1119 */
+
 /* ==== PRICE-1112: modern prices (2026-11-16, owner: "make prices style modern style") =============================
  * The price is React's own text run ("KWD 5.000"), so the currency cannot be set apart from the amount in CSS. The page
  * already sets a price in the extra-bold display face, so what changes is the SALE STATE, which the build marks with an

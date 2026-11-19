@@ -2490,13 +2490,28 @@
  *     width; the gutter is kept (scrollbar-gutter, VIEWER-1112 in sporta-shadows.css). Touches on the viewer never scroll
  *     the page (touch-action: none, overscroll contained).
  *   - a spinner while the full-size original downloads.
+ *   - PRO-1119 (owner, 2026-11-19: "make zoom full image view pro"; styles: VIEWER PRO 1119 in sporta-shadows.css):
+ *       . a FILMSTRIP of the product's photos along the bottom (several photos only): the page's own thumbnails cloned
+ *         (the same small copies the page already holds, so no new file), the current one ringed in the logo orange; a
+ *         tap jumps there through the page's own thumbnail button (React keeps the index); it fades away while zoomed. The
+ *         photo is given room above it (symmetric, so the zoom maths still centres on the box) and the counter moves up
+ *         beside the buttons.
+ *       . the photo shows at once: while the full-size original downloads the small copy the page already shows (read
+ *         from the stage, only when it has loaded, so no new request) is drawn behind the spinner and the original
+ *         replaces it.
+ *       . a fling: a pan released with speed glides on and stops at the edge (a finger or the mouse on the photo catches
+ *         it); not with reduced motion.
+ *       . keys: while zoomed the arrow keys move the photo (Shift: further) so a keyboard user can reach every part of
+ *         it; Home / End go to the first / last photo; a trackpad pinch (ctrl + wheel) zooms in fine steps.
+ *       . the viewer opens with a short fade (no fade with reduced motion).
  *   - the "no photo" plate: the stage showing it no longer opens a viewer (nor the hover lens) and is marked
  *     aria-disabled, the zoom badge is hidden; a photo that fails inside the viewer (the build swaps in the plate) cannot
  *     be zoomed.
  * Only attributes are written on the build's elements (data-sporta-*, aria-*, inline transform on the lightbox photo);
  * the added controls are appended last inside the lightbox, so React's own children keep their places. Moving between
  * photos goes through the build's own keyboard handler (a synthetic arrow key on document), closing through its X, so
- * the gallery, the counter and the photo stay React's. No request, no src written, nothing on /backends. Leading ";"
+ * the gallery, the counter and the photo stay React's. No src written, no request of its own (the one use of a URL is the
+ * placeholder above, a copy the page has already loaded), nothing on /backends. Leading ";"
  * because this file is several IIFEs back to back. */
 ;(function () {
   'use strict'
@@ -2507,11 +2522,12 @@
     var BOX = '.catalog-product-lightbox', STAGE = '.catalog-gallery-stage'
     var PLATE = /product-photo-unavailable/
     var MAX = 4, DBL = 2.5, STEP = 1.5   // STEP: one press of + / - (the zoom bar and the keys)
+    var ARROWS = { ArrowRight: [-1, 0], ArrowLeft: [1, 0], ArrowDown: [0, -1], ArrowUp: [0, 1] }   // a zoomed photo moves opposite the view
     var TXT = {
-      en: { prev: 'Previous photo', next: 'Next photo', zin: 'Zoom in', zout: 'Zoom out', reset: 'Reset zoom', group: 'Zoom',
-        hint: 'Full-screen photo. To zoom, pinch, double-tap or press + and -; drag a zoomed photo to move it. Swipe sideways or use the arrow keys for the other photos. Swipe down or press Escape to close.' },
-      ar: { prev: 'الصورة السابقة', next: 'الصورة التالية', zin: 'تكبير', zout: 'تصغير', reset: 'إعادة الضبط', group: 'التكبير',
-        hint: 'صورة بملء الشاشة. للتكبير باعد بين إصبعين أو انقر مرتين أو اضغط + أو -، واسحب الصورة المكبّرة لتحريكها. للصور الأخرى اسحب جانبًا أو استخدم مفاتيح الأسهم. للإغلاق اسحب إلى الأسفل أو اضغط Escape.' }
+      en: { prev: 'Previous photo', next: 'Next photo', zin: 'Zoom in', zout: 'Zoom out', reset: 'Reset zoom', group: 'Zoom', photos: 'Photos',
+        hint: 'Full-screen photo. To zoom, pinch, double-tap or press + and -; drag a zoomed photo to move it. Swipe sideways or use the arrow keys for the other photos; while the photo is zoomed the arrow keys move it, and Home and End go to the first and last photo. Swipe down or press Escape to close.' },
+      ar: { prev: 'الصورة السابقة', next: 'الصورة التالية', zin: 'تكبير', zout: 'تصغير', reset: 'إعادة الضبط', group: 'التكبير', photos: 'الصور',
+        hint: 'صورة بملء الشاشة. للتكبير باعد بين إصبعين أو انقر مرتين أو اضغط + أو -، واسحب الصورة المكبّرة لتحريكها. للصور الأخرى اسحب جانبًا أو استخدم مفاتيح الأسهم؛ وعندما تكون الصورة مكبّرة تحرّكها مفاتيح الأسهم، ويذهب Home وEnd إلى أول صورة وآخر صورة. للإغلاق اسحب إلى الأسفل أو اضغط Escape.' }
     }
     var html = document.documentElement
     var txt = function () { return TXT[/^ar/i.test(html.getAttribute('lang') || '') ? 'ar' : 'en'] }
@@ -2610,6 +2626,7 @@
     // zoom to scale ns keeping the screen point (px, py) still; the photo is centred in the box
     var zoomAt = function (ns, px, py, anim) {
       if (!V || plateIn()) return
+      stopFling()
       var r = V.box.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2
       if (px == null) { px = cx; py = cy }
       ns = clamp(ns, 1, MAX)
@@ -2618,11 +2635,12 @@
       if (ns === 1) { V.x = 0; V.y = 0 }
       bound(); apply(anim)
     }
-    var reset = function (anim) { if (!V) return; V.s = 1; V.x = 0; V.y = 0; V.box.style.removeProperty('background-color'); apply(anim) }
+    var reset = function (anim) { if (!V) return; stopFling(); V.s = 1; V.x = 0; V.y = 0; V.box.style.removeProperty('background-color'); apply(anim) }
     var loading = function () {
       if (!V) return
       if (V.img.complete && V.img.naturalWidth) V.box.removeAttribute('data-sporta-loading'); else if (!V.img.complete) V.box.setAttribute('data-sporta-loading', '1'); else V.box.removeAttribute('data-sporta-loading')
       if (plateIn()) { V.box.setAttribute('data-sporta-plate', '1'); reset(false) } else V.box.removeAttribute('data-sporta-plate')
+      placeholder()
     }
     var mk = function (cls, label) {
       var b = document.createElement('button')
@@ -2635,11 +2653,101 @@
       if (p && p.getAttribute('aria-live') !== 'polite') { p.setAttribute('aria-live', 'polite'); p.setAttribute('aria-atomic', 'true') }
     }
 
+    // ---- PRO-1119: the filmstrip, the placeholder, the fling ------------------------------------------------------------
+    // The page's own thumbnail buttons (the build's gallery state is React's): aria-current marks the photo on show, and a
+    // click on one is the build's own "go to photo n", which the lightbox follows (it shows the same index).
+    var pageThumbs = function () { return document.querySelectorAll('.catalog-gallery-thumbs > button') }
+    var curIndex = function () {
+      var t = pageThumbs()
+      for (var i = 0; i < t.length; i++) if (t[i].getAttribute('aria-current') === 'true') return i
+      return 0
+    }
+    var jump = function (n) {
+      var t = pageThumbs()
+      if (!V || !t[n] || n === curIndex()) return
+      reset(false); t[n].click()
+    }
+    var refreshStrip = function () {
+      if (!V || !V.thumbs) return
+      var at = curIndex()
+      for (var i = 0; i < V.thumbs.length; i++) {
+        var on = i === at ? 'true' : 'false'
+        if (V.thumbs[i].getAttribute('aria-current') !== on) V.thumbs[i].setAttribute('aria-current', on)
+      }
+      // keep the current thumbnail in view of a strip that scrolls (many photos); the strip is its own scroller and the
+      // page behind is locked, so nothing else moves
+      var c = V.thumbs[at]
+      if (c && V.strip && V.strip.scrollWidth > V.strip.clientWidth + 1 && c.scrollIntoView) { try { c.scrollIntoView({ block: 'nearest', inline: 'nearest' }) } catch (e) {} }
+    }
+    var buildStrip = function () {
+      var th = pageThumbs()
+      if (!V || V.total < 2 || th.length !== V.total) return
+      var strip = document.createElement('div')
+      strip.className = 'sporta-viewer-strip'; strip.setAttribute('role', 'group'); strip.setAttribute('aria-label', txt().photos)
+      strip.addEventListener('click', function (e) { e.stopPropagation() })   // a press between two thumbnails is not the backdrop
+      V.thumbs = []
+      for (var i = 0; i < th.length; i++) {
+        var b = document.createElement('button')
+        b.type = 'button'; b.className = 'sporta-viewer-thumb'
+        b.setAttribute('aria-label', th[i].getAttribute('aria-label') || '')
+        var im = th[i].querySelector('img')
+        if (im) {
+          // a clone, so the same small copy the page holds (no src is written here); it must load now, not when scrolled to
+          var c = im.cloneNode(false)
+          c.removeAttribute('class'); c.removeAttribute('style'); c.setAttribute('alt', ''); c.setAttribute('loading', 'eager'); c.setAttribute('draggable', 'false')
+          b.appendChild(c)
+        }
+        b.addEventListener('click', (function (n) { return function (e) { e.stopPropagation(); jump(n) } })(i))
+        strip.appendChild(b); V.thumbs.push(b)
+      }
+      V.box.appendChild(strip)
+      V.strip = strip
+      V.box.setAttribute('data-sporta-strip', '1')
+      refreshStrip()
+    }
+    // While the original downloads, the small copy the page already shows stands in for it: the same contain-fit, so the
+    // original replaces it in place. Only a copy that has finished loading is used (a URL never loaded would be a request).
+    var placeholder = function () {
+      if (!V) return
+      if (!V.box.hasAttribute('data-sporta-loading') || plateIn()) {
+        if (V.ph) { V.box.style.removeProperty('--sporta-viewer-ph'); V.ph = '' }
+        return
+      }
+      var tr = document.querySelectorAll('.catalog-gallery-track > img'), im = tr[curIndex()] || tr[0]
+      var u = im && im.complete && im.naturalWidth && !isPlate(im) ? (im.currentSrc || im.getAttribute('src') || '') : ''
+      try { if (u && new URL(u, location.href).origin !== location.origin) u = '' } catch (e) { u = '' }
+      u = u.replace(/["'()\\\s]/g, function (ch) { return '%' + ch.charCodeAt(0).toString(16).toUpperCase() })
+      var v = u ? 'url("' + u + '")' : ''
+      if (v !== V.ph) { if (v) V.box.style.setProperty('--sporta-viewer-ph', v); else V.box.style.removeProperty('--sporta-viewer-ph'); V.ph = v }
+    }
+    // FLING: a pan released with speed glides on, slows with a 325 ms time constant and stops at the edge. A new touch, a
+    // wheel turn, a key or a new photo ends it. Not with reduced motion (the photo stops where the finger lifted).
+    var fling = 0
+    var stopFling = function () { if (fling) { cancelAnimationFrame(fling); fling = 0 } }
+    var startFling = function (vx, vy) {
+      stopFling()
+      var last = now()
+      var step = function () {
+        if (!V) { fling = 0; return }
+        var t = now(), dt = Math.min(50, Math.max(1, t - last)); last = t
+        var px = V.x, py = V.y
+        V.x += vx * dt; V.y += vy * dt; bound()
+        if (V.x === px) vx = 0
+        if (V.y === py) vy = 0
+        var k = Math.exp(-dt / 325); vx *= k; vy *= k
+        apply(false)
+        if (Math.hypot(vx, vy) < 0.02) { fling = 0; return }
+        fling = requestAnimationFrame(step)
+      }
+      fling = requestAnimationFrame(step)
+    }
+
     var dist = function (a, b) { return Math.hypot(a.x - b.x, a.y - b.y) }
     var two = function () { var k = Object.keys(P); return [P[k[0]], P[k[1]]] }
     var down = function (e) {
       if (!V || !V.box.contains(e.target) || (e.pointerType === 'mouse' && e.button !== 0)) return
-      if (e.target.closest('button')) return
+      if (e.target.closest('button, .sporta-viewer-strip, .sporta-viewer-zoombar')) return
+      stopFling()   // a touch on a gliding photo catches it
       P[e.pointerId] = { x: e.clientX, y: e.clientY }; np = Object.keys(P).length
       if (np === 2 && !plateIn()) {
         var ab = two(), mid = { x: (ab[0].x + ab[1].x) / 2, y: (ab[0].y + ab[1].y) / 2 }
@@ -2666,7 +2774,15 @@
       var dx = e.clientX - g.sx, dy = e.clientY - g.sy
       if (!g.moved && Math.hypot(dx, dy) < 8) return
       g.moved = true
-      if (V.s > 1.01) { g.mode = 'pan'; V.x = g.x0 + dx; V.y = g.y0 + dy; bound(); apply(false); return }
+      if (V.s > 1.01) {
+        g.mode = 'pan'
+        var ox = V.x, oy = V.y, tm = now()
+        V.x = g.x0 + dx; V.y = g.y0 + dy; bound(); apply(false)
+        // the release speed (px per ms), smoothed over the last few moves; read by up() for the fling
+        if (g.lt) { var dtm = Math.max(1, tm - g.lt); g.vx = g.vx == null ? (V.x - ox) / dtm : 0.6 * ((V.x - ox) / dtm) + 0.4 * g.vx; g.vy = g.vy == null ? (V.y - oy) / dtm : 0.6 * ((V.y - oy) / dtm) + 0.4 * g.vy }
+        g.lt = tm
+        return
+      }
       if (g.type === 'mouse') return   // a mouse moves between photos with the buttons and the keys
       if (!g.mode) g.mode = Math.abs(dx) > Math.abs(dy) ? 'swipe' : dy > 0 ? 'down' : 'none'
       if (g.mode === 'swipe') { V.x = V.total > 1 ? dx : dx * 0.3; V.y = 0; apply(false) }
@@ -2699,6 +2815,8 @@
         if (dy > 110 || (dy > 40 && dy / dt > 0.5)) closeBox(); else reset(true)
       } else if (g.mode === 'pan') {
         if (V.s < 1.05) reset(true)
+        // a release with speed (and not after a pause: the last move was a moment ago) glides on
+        else if (!calm() && g.lt && now() - g.lt < 90 && Math.hypot(g.vx || 0, g.vy || 0) > 0.12) startFling(g.vx || 0, g.vy || 0)
       } else if (!g.moved && g.onImg && e.target === V.img) {
         var t = now()
         if (tap && t - tap.t < 320 && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 30) {
@@ -2712,12 +2830,25 @@
       if (!V || !V.box.contains(e.target) || plateIn()) return
       if (e.target !== V.img && V.s === 1) return
       e.preventDefault()
-      zoomAt(V.s * Math.exp(-clamp(e.deltaY, -120, 120) * 0.0025), e.clientX, e.clientY, false)
+      // a line- or page-mode wheel reports lines, not pixels; a trackpad pinch arrives as ctrl + wheel in small steps
+      var d = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 300 : 1)
+      zoomAt(V.s * Math.exp(-clamp(d, -120, 120) * (e.ctrlKey ? 0.01 : 0.0025)), e.clientX, e.clientY, false)
     }
     var keys = function (e) {
       if (!V || e.__sportaViewer || !V.box.isConnected) return
       var k = e.key
-      if ((k === 'ArrowLeft' || k === 'ArrowRight') && rtl()) {
+      var pan = V.s > 1.01 && !plateIn() ? ARROWS[k] : null
+      if (pan) {
+        // zoomed, the arrows move the photo (Shift: three times as far), the way a finger would; the other photos are
+        // reached with Home / End, the buttons and the strip, or after 0 (reset)
+        e.stopPropagation(); e.preventDefault()
+        stopFling()
+        var stp = e.shiftKey ? 240 : 80
+        V.x += pan[0] * stp; V.y += pan[1] * stp; bound(); apply(true)
+      } else if ((k === 'Home' || k === 'End') && V.thumbs) {
+        e.stopPropagation(); e.preventDefault()
+        jump(k === 'Home' ? 0 : V.total - 1)
+      } else if ((k === 'ArrowLeft' || k === 'ArrowRight') && rtl()) {
         // the build's lightbox reads ArrowRight as "next" in both languages; in Arabic the next photo is to the left
         e.stopPropagation(); e.preventDefault()
         go(k === 'ArrowLeft' ? 1 : -1)
@@ -2763,9 +2894,10 @@
       bar.appendChild(V.zout); bar.appendChild(V.lvl); bar.appendChild(V.zin)
       box.appendChild(bar)
       V.bar = bar
+      buildStrip()
       level()
       html.setAttribute('data-sporta-viewer-lock', lastGap > 0 ? 'gutter' : '1')
-      V.mo = new MutationObserver(function () { if (!V) return; reset(false); loading(); counter() })
+      V.mo = new MutationObserver(function () { if (!V) return; reset(false); loading(); counter(); refreshStrip() })
       V.mo.observe(img, { attributes: true, attributeFilter: ['src'] })
       img.addEventListener('load', loading); img.addEventListener('error', loading)
       box.addEventListener('wheel', wheel, { passive: false })
@@ -2774,6 +2906,7 @@
     var closed = function () {
       if (!V) return
       V.mo.disconnect()
+      stopFling()
       V = null; P = {}; g = null; tap = null
       html.removeAttribute('data-sporta-viewer-lock')
     }
