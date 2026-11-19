@@ -51,6 +51,8 @@ try {
   writeFileSync(join(P, 'shell.php.jpg'), '<?php system($_GET[0]); ?>')
   writeFileSync(join(P, '.hidden'), 'x')
   writeFileSync(join(P, 'responsive', 'clean-320.webp'), webpVp8x(320, 400)); writeFileSync(join(P, 'responsive', 'clean-640.webp'), webpVp8x(640, 800))
+  writeFileSync(join(P, 'responsive', 'clean-800.webp'), webpVp8x(800, 1000)); writeFileSync(join(P, 'responsive', 'gone-800.webp'), webpVp8x(800, 1000))
+  writeFileSync(join(P, 'responsive', 'notes.txt'), 'x')
   const r = spawnSync(process.execPath, [new URL('./images-live-scan.mjs', import.meta.url).pathname, '--media', P], { encoding: 'utf8' })
   const t = r.stdout
   is(r.status === 0 && /IMAGES_SCAN_DONE/.test(t), 'the scan runs to its end (exit 0)', r.stderr.slice(0, 200))
@@ -60,6 +62,9 @@ try {
   is(/dotfile/.test(t) && /\.hidden/.test(t), 'a dotfile is listed')
   is(/groups: 1\b[\s\S]*clean\.jpg = copy-of-clean\.jpg|groups: 1\b[\s\S]*copy-of-clean\.jpg = clean\.jpg/.test(t), 'two identical files under two names are one group')
   is(/photos with both -320\.webp and -640\.webp: 1 of /.test(t), 'only the photo with both small copies is counted as having them')
+  is(/photos with an 800 px copy too: 1\b/.test(t), 'a photo with a -800.webp is counted as having its 800 px copy')
+  is(/small copies whose original is gone: 1\n\s+gone\b/.test(t) && !/clean-800|\n\s+clean\n/.test(t.split('small copies whose original')[1] || ''), 'an -800.webp whose photo exists is NOT an orphan (the false positive of the first live scan); one whose photo is gone is')
+  is(/other files in responsive\/ \(not a size the shop writes\): 1\n\s+notes\.txt/.test(t), 'a stray file in responsive/ is listed')
   is(!/[0-9]{1,3}\.[0-9]{3,}[, ]+[0-9]{1,3}\.[0-9]{3,}/.test(t), 'no coordinates are printed anywhere')
 } finally { rmSync(dir, { recursive: true, force: true }) }
 console.log(`\n${pass} passed, ${fail} failed`)

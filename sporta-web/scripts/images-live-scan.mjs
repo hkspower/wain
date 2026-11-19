@@ -158,9 +158,15 @@ async function main() {
   const noSmall = [...stems].filter((s) => !(have.has(`${s}-320.webp`) && have.has(`${s}-640.webp`)))
   out(`  photos with both -320.webp and -640.webp: ${stems.size - noSmall.length} of ${stems.size}`)
   out(`  photos missing a small copy: ${noSmall.length}` + noSmall.slice(0, 30).map((s) => `\n    ${s}`).join(''))
-  const respStems = resp.files.map((f) => f.name.replace(/-(320|640)\.webp$/, '')).filter((s, i, a) => a.indexOf(s) === i)
+  // -800.webp is the third size the shop's variant job writes (the product page's main photo); it is a small copy too, not an orphan. The first live
+  // scan (2026-11-19) counted 33 of them as "original is gone" because only -320 and -640 were stripped here: a false positive of this tool.
+  out(`  photos with an 800 px copy too: ${[...stems].filter((s) => have.has(`${s}-800.webp`)).length}`)
+  const respStems = resp.files.filter((f) => /-(320|640|800)\.webp$/.test(f.name)).map((f) => f.name.replace(/-(320|640|800)\.webp$/, '')).filter((s, i, a) => a.indexOf(s) === i)
   const orphanSmall = respStems.filter((s) => !stems.has(s))
   out(`  small copies whose original is gone: ${orphanSmall.length}` + orphanSmall.slice(0, 15).map((s) => `\n    ${s}`).join(''))
+  // scanFiles() sets aside what is not an image under `odd` (a .txt, a dotfile, a link); variants.txt is the one the shop writes there on purpose
+  const otherResp = resp.odd.filter((s) => !s.startsWith('variants.txt:')).concat(resp.files.filter((f) => !/-(320|640|800)\.webp$/.test(f.name)).map((f) => `${f.name}: ${f.kind} not a size the shop writes`))
+  if (otherResp.length) out(`  other files in responsive/ (not a size the shop writes): ${otherResp.length}` + otherResp.slice(0, 10).map((s) => `\n    ${s}`).join(''))
   out('  variants.txt (the list the storefront reads): ' + (have.has('variants.txt') || existsSync(join(media, 'responsive', 'variants.txt')) ? 'present' : 'ABSENT'))
 
   const cfg = arg('config')
