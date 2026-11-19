@@ -699,6 +699,12 @@
      `.admin-shell .admin-page :where(button, .btn)` rule out-ranks a one-class selector (rules `.admin-shell .admin-page .sic-btn` / `.slc-btn` in `sporta-admin-brands.js`; `test:admin-buttons` [5] passes now, [7] still
      fails exactly as it did at the baseline: the catalogue header's New product / Add sizes buttons). Three stale suite expectations updated: `test:admin-ai-switch` (its block is no longer the LAST block of the admin
      file), `test:knet-via-cbk` (its 8-character order numbers were refused since the 10-character rule of 2026-11-18), `test:icons-polish` (the three feature icons may move 3.6 px: the centred group reflows).
+     **Deployed 2026-11-19 13:16 UTC (owner: "make fit sizes topbar icons", then "deploy"): `deploy-20261119T131648Z-4aca56a`, DEPLOY_OK** (undo
+     `compose --rollback deploy-20261119T131648Z-4aca56a`; `--only sporta-shadows.css`, 1 replaced, 0 added; plan and apply both from commit `4aca56ae`).
+     TOPBAR ICONS 1120 in `sporta-shadows.css`: the AI sparkle, the language globe and the bag are 20 px with a 1.5 px stroke (they were 19, 14 and 22 px with
+     1.5, 1.5 and 1.75 px strokes). Plan showed live 136,099 -> release 136,930 bytes, no shrink; health before and after identical. `test:icons-polish` expectations
+     for those three icons updated to the new spec (1758 ok). Not yet looked at on a real phone.
+     Pending, NOT deployed: the catalogue V2 work, the release gate and the full-scan report commit are in the tree; nothing from them is live.
      Suites that fail identically at the baseline and are NOT from this work: file-names 21, unknown-files 4, xss-config 3, vps-preflight 1, admin-social 2, admin-shipping 1, admin-ai-switch (until the update above),
      admin-save 28, abandoned-ui, race-client, admin-trim-release, site-content (page.click timeout), storefront-polish 8, mobile-1112*, sog-1112, fonts-used (page timing under load), vps-deploy (needs `dist/`).
      Load makes the browser suites flake (the box ran at load 10-19 while four lanes shared 4 CPUs): admin-cbk-merge, admin-knet-compact, admin-footer and the multi-replica rate-limit comparison each failed once under load and
