@@ -6744,3 +6744,16 @@ Asked as «fix api», then «Update wain.php/media.php», then «run it for me»
 **Tests, agent build, in the worktree:** `test:wain-api` 250 passed, `test:media` 88, `test:tts` 74; `audit:htaccess` 0 problems; `audit:client-ip` and `audit:logs` 0 errors.
 
 **Not done, each waiting for the owner's yes:** the endpoint update on the VPS (`scripts/vps/update-endpoints.sh`, look-only first, then `CONFIRM=yes`), which needs the pinned commit and the new hashes; the temporary helper container it runs in, since creating anything on the VPS needs its own yes; and the owner's `.htaccess` on `www`.
+
+## The owner's .htaccess on www — 19 November (done on the VPS, on the owner's yes)
+
+The owner's `/docker/apache/sites/wainkw.com/public_html/.htaccess` (22,096 bytes, sha256 `c3b4130a…`) listed neither JavaScript type nor JSON for compression and had no `X-Powered-By` rule. `scripts/vps/fix-live-htaccess.sh` (pinned at `9c28a659`) appended one block to the end of the file and touched nothing above it:
+
+- `AddOutputFilterByType DEFLATE text/javascript application/javascript application/json application/xml`, inside `mod_deflate`.
+- `Header always unset X-Powered-By` and `Header unset X-Powered-By`, inside `mod_headers`.
+
+The `wain` container was rebuilt alone. The live checks, run from the VPS through Traefik, all passed: `/explore/` answers 200, `/sw.js` and `/data/places.json` are gzipped for a client that accepts it, `/explore/` carries no `X-Powered-By`, and the API ping answers. The backup is `storage/htaccess-backups/htaccess.20261119T103005Z`; `htaccess.20261119T102910Z` is the same original from the first attempt.
+
+**The first attempt failed its own check and restored itself.** The ping check looked for `"ok": true` with a space, and the API answers compact JSON. The script put the backup back byte for byte and rebuilt the container, which left the live site as it was. The pattern now accepts both spellings, and the script was tested against a stub site, including the restore path.
+
+The helper project `wain-htaccess-fix` was deleted and confirmed gone. Nothing else in the owner's file or folder changed.
