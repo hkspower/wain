@@ -126,7 +126,7 @@ export function classifyAttempt(reg, known, run) {
   if (run.timedOut && !mutated('timeout')) {
     return { verdict: 'REGRESSION', reasons: [`timed out after ${reg.timeoutSec}s`] }
   }
-  const failing = run.timedOut ? false : (run.exit !== 0 || run.fail > 0)
+  const failing = run.timedOut ? false : ((run.exit !== 0 && !mutated('exit-code')) || run.fail > 0)
   if (!failing) {
     const minOk = reg.minOk ?? 0
     if (!mutated('min-ok') && minOk > 0 && (run.ok ?? 0) < minOk) {
@@ -140,7 +140,7 @@ export function classifyAttempt(reg, known, run) {
     if (why === null) return { verdict: 'KNOWN', reasons: knownNotes(known.expect ?? {}, run) }
     return { verdict: 'REGRESSION', reasons: [`fails, and not as recorded in known-failures.json: ${why}`] }
   }
-  if (run.fail === 0 && !mutated('exit-no-reason')) {
+  if (run.fail === 0) {
     return { verdict: 'REGRESSION', reasons: [`exit code ${run.exit} with no FAIL line and no recorded reason`] }
   }
   return { verdict: 'REGRESSION', reasons: [`${run.fail} new failure(s)`] }

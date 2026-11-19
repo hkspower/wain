@@ -1,0 +1,3280 @@
+{
+  "schema": 1,
+  "comment": "The release gate registry (scripts/release-gate.mjs); ops/release/README.md explains every field. One entry per test:* script that is a real suite; the rest are under not_in_gate with their reason. needs: none | rig | browser | rig+browser. parallelSafe: ran in a parallel lane on 2026-11-19 without disturbing another suite (never true for a rig suite). timeoutSec: measured seconds x 3 (min 120), rounded up to 30. minOk: the ok count seen on 2026-11-19 (checkin, jsA, jsB) or the count CLAUDE.md records; an ok count below it is a REGRESSION (checks disappeared); 0 = the suite prints no count or is a known failure. measured:false = no baseline yet: skipped unless --only or --include-unmeasured. quick: static or fast (about 45 s or less, no rig). triggers: globs relative to sporta-web/ ('@name' is a group); the suite's own script and globalTriggers always count; --changed errs on running more.",
+  "rig": {
+    "ports": [
+      8095,
+      8096,
+      8188,
+      8097,
+      8098,
+      8099,
+      8100
+    ],
+    "dbCheck": [
+      "mariadb",
+      "sporta",
+      "-e",
+      "select 1"
+    ],
+    "start": [
+      "npm",
+      "run",
+      "sandbox"
+    ],
+    "clearRateLimit": [
+      "mariadb",
+      "sporta",
+      "-e",
+      "delete from rate_limit"
+    ]
+  },
+  "groups": {
+    "php-store": [
+      "dropin/php-store/**"
+    ],
+    "php-all": [
+      "dropin/**"
+    ],
+    "htaccess": [
+      "public/.htaccess",
+      "dropin/php-store/.htaccess"
+    ],
+    "admin-addon": [
+      "public/sporta-admin-brands.js",
+      "public/sporta-admin-knet.css",
+      "public/boot.js",
+      "public/config.js",
+      "dropin/php-store/admin.php"
+    ],
+    "storefront-js": [
+      "public/sporta-{features,catalogue,footer-call,gov-autopick,checkout-a11y,clock}.js",
+      "public/birthday.js",
+      "public/boot.js",
+      "public/config.js"
+    ],
+    "storefront-css": [
+      "public/sporta-*.css"
+    ],
+    "storefront-src": [
+      "src/**",
+      "index.html",
+      "vite.config.js",
+      "tailwind.config.js",
+      "postcss.config.js"
+    ],
+    "rig": [
+      "scripts/sandbox.sh",
+      "dropin/php-store/install.mysql.sql"
+    ]
+  },
+  "globalTriggers": [
+    {
+      "globs": [
+        "scripts/lib/**",
+        "scripts/fixtures/**",
+        "package.json",
+        "package-lock.json",
+        "ops/release/gate.config.json"
+      ],
+      "suites": "all"
+    },
+    {
+      "globs": [
+        "dropin/php-store/*.mysql.sql",
+        "scripts/sandbox.sh",
+        "scripts/router-native.php"
+      ],
+      "suites": "needs:rig|rig+browser"
+    }
+  ],
+  "lanes": {
+    "quick": [
+      "file-names",
+      "file-audit",
+      "htaccess-rules",
+      "xss-htaccess",
+      "js-guard",
+      "config-rules",
+      "center-text",
+      "colours-1118",
+      "text-style",
+      "site-icon-storefront",
+      "admin-crm-phones",
+      "admin-suggested-prices",
+      "admin-light",
+      "admin-trim",
+      "shop-header",
+      "knet-ids",
+      "xss-config",
+      "sitemap-check",
+      "admin-promo-new",
+      "footer-support",
+      "admin-loader",
+      "admin-js-audit",
+      "sog-1112",
+      "json-ld",
+      "meta-1117",
+      "why-section",
+      "admin-ai-switch",
+      "admin-sizes-selector",
+      "admin-google-setup",
+      "bag-link-1118",
+      "live-stock-1118",
+      "product-brand-1118",
+      "admin-catalogue-pdf",
+      "catalogue-seo",
+      "release-gate"
+    ],
+    "static": [
+      "file-names",
+      "file-audit",
+      "htaccess-rules",
+      "js-guard",
+      "config-rules",
+      "admin-session",
+      "admin-trim-release",
+      "url-inventory",
+      "unknown-files",
+      "areas",
+      "sw-api-cache",
+      "values",
+      "vps-preflight",
+      "sitemap-check",
+      "arabic-spell",
+      "backend-pkg",
+      "preflight",
+      "apple-lib",
+      "admin-ai-switch",
+      "catalogue-seo",
+      "release-gate"
+    ],
+    "rig": [
+      "brand",
+      "order-cooldown",
+      "abandoned-orders",
+      "admin-login-alert",
+      "race-auth",
+      "race-money",
+      "admin-inventory-price",
+      "storefront-sku-size",
+      "site-icon",
+      "crm-phones",
+      "crm-interests",
+      "ahed-cost",
+      "admin-passcode",
+      "admin-passcode-race",
+      "xbrl",
+      "admin-save-smoke",
+      "inventory-checkout",
+      "contrast",
+      "native",
+      "admin-storefront",
+      "native-e2e",
+      "knet-via-cbk",
+      "checkout-methods",
+      "knet",
+      "knet-refund",
+      "tpay",
+      "config",
+      "vps-deploy",
+      "arabic",
+      "seo",
+      "assistant",
+      "assistant-admin",
+      "review",
+      "install-sql",
+      "whatsapp",
+      "variants-create",
+      "discount-badge",
+      "product-listing",
+      "multi-replica"
+    ],
+    "money": [
+      "race-money",
+      "xbrl",
+      "xbrl-ui",
+      "native",
+      "native-e2e",
+      "knet-via-cbk",
+      "knet-ids",
+      "checkout-methods",
+      "knet",
+      "knet-refund",
+      "knet-refund-ui",
+      "payment-receipt",
+      "tpay"
+    ],
+    "admin": [
+      "admin-seo-check",
+      "admin-session",
+      "admin-login-alert",
+      "admin-polish",
+      "admin-payments",
+      "admin-stock",
+      "admin-inventory-price",
+      "admin-stock-tools",
+      "admin-text-styles",
+      "admin-site-icon",
+      "admin-crm-phones",
+      "admin-crm-interests",
+      "admin-suggested-prices",
+      "admin-knet-polish",
+      "admin-rainbow",
+      "admin-light",
+      "admin-cbk-merge",
+      "admin-trim",
+      "admin-knet-compact",
+      "admin-trim-release",
+      "admin-passcode",
+      "admin-passcode-ui",
+      "admin-passcode-race",
+      "admin-app",
+      "admin-save",
+      "admin-save-smoke",
+      "admin-css-full",
+      "admin-storefront",
+      "admin-promo-new",
+      "admin-product-new",
+      "admin-seo",
+      "admin-loader",
+      "admin-login-mobile",
+      "admin-passcode-addon",
+      "admin-footer",
+      "admin-social",
+      "admin-db-center",
+      "admin-shipping",
+      "admin-js-audit",
+      "admin-iconset",
+      "admin-buttons",
+      "admin-ai-switch",
+      "admin-sizes-selector",
+      "admin-price-tools",
+      "admin-google-setup",
+      "admin-invoices",
+      "admin-catalogue-pdf",
+      "admin-live-data",
+      "admin-hidden-products"
+    ],
+    "storefront": [
+      "xss-htaccess",
+      "addons-brands",
+      "abandoned-ui",
+      "race-client",
+      "home-features",
+      "icons-polish",
+      "images-layout",
+      "images-frames",
+      "images-backdrop",
+      "images-viewer",
+      "price-style",
+      "scan-1110",
+      "center-text",
+      "colours-1118",
+      "cards-1118",
+      "cards-1119",
+      "product-shape-1119",
+      "magic-zoom",
+      "no-zoom-badge",
+      "viewer-pro",
+      "home-brands",
+      "product-names",
+      "hero-feel",
+      "icons-1118",
+      "shape-1111",
+      "brand-plate-layout",
+      "text-style",
+      "site-icon-storefront",
+      "sizes-weight",
+      "product-desc",
+      "words-colours",
+      "checkout-a11y",
+      "checkout-onepage",
+      "xbrl-ui",
+      "photo-uploader",
+      "checkout-location",
+      "checkout-ux",
+      "checkout-split",
+      "checkout-trim",
+      "about-page",
+      "gallery",
+      "grid",
+      "menu-layout",
+      "shop-header",
+      "brand-cls",
+      "sizes-screen",
+      "sizes-product",
+      "sizes-admin",
+      "addon-css-slim",
+      "cart-ux",
+      "add-to-cart-ux",
+      "links",
+      "legal",
+      "perf",
+      "a11y",
+      "images",
+      "invoice",
+      "invoice-print",
+      "ai-icon",
+      "ai-panel",
+      "quick",
+      "contrast",
+      "product",
+      "product-layout",
+      "account-form",
+      "grid-style",
+      "site-content",
+      "checkout",
+      "native-e2e",
+      "knet-ids",
+      "knet-refund-ui",
+      "payment-receipt",
+      "xss-config",
+      "arabic",
+      "seo",
+      "assistant-admin-ui",
+      "voice-ui",
+      "profiles-split",
+      "fonts-used",
+      "footer-support",
+      "cat-tiles-crop",
+      "register-contact",
+      "iconset",
+      "storefront-polish",
+      "sog-1112",
+      "mobile-1112",
+      "mobile-1112b",
+      "card-badge",
+      "json-ld",
+      "meta-1117",
+      "why-section",
+      "prices-1118",
+      "bag-link-1118",
+      "live-stock-1118",
+      "product-brand-1118",
+      "catalogue-pdf",
+      "catalogue-page"
+    ],
+    "checkout": [
+      "checkout-a11y",
+      "checkout-onepage",
+      "checkout-location",
+      "checkout-ux",
+      "checkout-split",
+      "checkout-trim",
+      "checkout",
+      "checkout-methods"
+    ],
+    "catalogue": [
+      "catalogue-pdf",
+      "catalogue-page",
+      "catalogue-seo"
+    ]
+  },
+  "suites": [
+    {
+      "name": "file-names",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 3,
+      "quick": true,
+      "triggers": [
+        "**"
+      ]
+    },
+    {
+      "name": "file-audit",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 10,
+      "quick": true,
+      "triggers": [
+        "**"
+      ]
+    },
+    {
+      "name": "htaccess-rules",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 850,
+      "parse": "auto",
+      "measuredSec": 2,
+      "quick": true,
+      "triggers": [
+        "@htaccess",
+        "@php-store"
+      ]
+    },
+    {
+      "name": "xss-htaccess",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 189,
+      "parse": "auto",
+      "measuredSec": 7,
+      "quick": true,
+      "triggers": [
+        "@htaccess",
+        "@php-store"
+      ]
+    },
+    {
+      "name": "brand",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "js-guard",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 46,
+      "parse": "auto",
+      "quick": true,
+      "measuredSec": 2,
+      "triggers": [
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "admin-seo-check",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "config-rules",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 162,
+      "parse": "auto",
+      "quick": true,
+      "measuredSec": 8,
+      "triggers": [
+        "@php-all",
+        "@rig"
+      ]
+    },
+    {
+      "name": "addons-brands",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 141,
+      "parse": "auto",
+      "measuredSec": 23,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "order-cooldown",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 19,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "abandoned-orders",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "abandoned-ui",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 210,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 67,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-session",
+      "needs": "none",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-login-alert",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "@php-store",
+        "@rig"
+      ]
+    },
+    {
+      "name": "race-auth",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "race-money",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 87,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "race-client",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 1650,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 542,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-polish",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 120,
+      "minOk": 681,
+      "parse": "auto",
+      "measuredSec": 12,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-payments",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "home-features",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 242,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "icons-polish",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 420,
+      "minOk": 1758,
+      "parse": "auto",
+      "measuredSec": 137,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "images-layout",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "images-frames",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 48,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "images-backdrop",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 1080,
+      "minOk": 337,
+      "parse": "auto",
+      "measuredSec": 360,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "images-viewer",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 1410,
+      "minOk": 669,
+      "parse": "auto",
+      "measuredSec": 462,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "price-style",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 91,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "scan-1110",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "center-text",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 133,
+      "parse": "auto",
+      "measuredSec": 21,
+      "quick": true,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "colours-1118",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 15,
+      "parse": "auto",
+      "measuredSec": 2,
+      "quick": true,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "cards-1118",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 18,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "cards-1119",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 240,
+      "minOk": 109,
+      "parse": "auto",
+      "measuredSec": 73,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "product-shape-1119",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 48,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "magic-zoom",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 390,
+      "minOk": 49,
+      "parse": "auto",
+      "measuredSec": 124,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "no-zoom-badge",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 30,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "viewer-pro",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 510,
+      "minOk": 216,
+      "parse": "auto",
+      "measuredSec": 161,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "home-brands",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 690,
+      "minOk": 144,
+      "parse": "auto",
+      "measuredSec": 222,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "product-names",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 240,
+      "minOk": 126,
+      "parse": "auto",
+      "measuredSec": 80,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "hero-feel",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 240,
+      "minOk": 62,
+      "parse": "auto",
+      "measuredSec": 75,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "icons-1118",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 10,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "shape-1111",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 14908,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-stock",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-inventory-price",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 26,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "@php-store",
+        "@rig"
+      ]
+    },
+    {
+      "name": "storefront-sku-size",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "brand-plate-layout",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 43,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-stock-tools",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 150,
+      "minOk": 85,
+      "parse": "auto",
+      "measuredSec": 41,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-text-styles",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 74,
+      "parse": "auto",
+      "measuredSec": 35,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "text-style",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 43,
+      "parse": "auto",
+      "measuredSec": 13,
+      "quick": true,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "site-icon",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 69,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "admin-site-icon",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 270,
+      "minOk": 59,
+      "parse": "auto",
+      "measuredSec": 83,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "site-icon-storefront",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 27,
+      "parse": "auto",
+      "measuredSec": 23,
+      "quick": true,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "crm-phones",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "crm-interests",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 33,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "admin-crm-phones",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 27,
+      "parse": "auto",
+      "measuredSec": 14,
+      "quick": true,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-crm-interests",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 57,
+      "parse": "auto",
+      "measuredSec": 35,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-suggested-prices",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 39,
+      "parse": "auto",
+      "measuredSec": 11,
+      "quick": true,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-knet-polish",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 157,
+      "parse": "auto",
+      "measuredSec": 35,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-rainbow",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "sizes-weight",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 3240,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 1077,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "product-desc",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "words-colours",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 351,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "checkout-a11y",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 150,
+      "minOk": 602,
+      "parse": "auto",
+      "measuredSec": 44,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "checkout-onepage",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 870,
+      "minOk": 517,
+      "parse": "auto",
+      "measuredSec": 290,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-light",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 49,
+      "parse": "auto",
+      "measuredSec": 29,
+      "quick": true,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-cbk-merge",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 29,
+      "parse": "auto",
+      "measuredSec": 40,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-trim",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 56,
+      "parse": "auto",
+      "measuredSec": 21,
+      "quick": true,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-knet-compact",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 94,
+      "parse": "auto",
+      "measuredSec": 37,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-trim-release",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 900,
+      "minOk": 0,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "ahed-cost",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "admin-passcode",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "@php-store",
+        "@rig"
+      ]
+    },
+    {
+      "name": "admin-passcode-ui",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-passcode-race",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "@php-store",
+        "@rig"
+      ]
+    },
+    {
+      "name": "admin-app",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "xbrl",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 46,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "xbrl-ui",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "photo-uploader",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 270,
+      "minOk": 263,
+      "parse": "auto",
+      "measuredSec": 82,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-save",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 1260,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 419,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-save-smoke",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 6,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "@php-store",
+        "@rig"
+      ]
+    },
+    {
+      "name": "inventory-checkout",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "checkout-location",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 330,
+      "minOk": 342,
+      "parse": "auto",
+      "measuredSec": 106,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "checkout-ux",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 510,
+      "minOk": 377,
+      "parse": "auto",
+      "measuredSec": 169,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "checkout-split",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 1800,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 298,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "checkout-trim",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 450,
+      "minOk": 211,
+      "parse": "auto",
+      "measuredSec": 146,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "about-page",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 390,
+      "minOk": 354,
+      "parse": "auto",
+      "measuredSec": 129,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "gallery",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "grid",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 0,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "menu-layout",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "shop-header",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 1000,
+      "parse": "auto",
+      "measuredSec": 5,
+      "quick": true,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "brand-cls",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 330,
+      "minOk": 120,
+      "parse": "auto",
+      "measuredSec": 109,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "sizes-screen",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 210,
+      "minOk": 100,
+      "parse": "auto",
+      "measuredSec": 62,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "sizes-product",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 270,
+      "minOk": 2572,
+      "parse": "auto",
+      "measuredSec": 86,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "sizes-admin",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 240,
+      "minOk": 77,
+      "parse": "auto",
+      "measuredSec": 79,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "addon-css-slim",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 960,
+      "minOk": 84,
+      "parse": "auto",
+      "measuredSec": 312,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "cart-ux",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 1530,
+      "minOk": 342,
+      "parse": "auto",
+      "measuredSec": 503,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "add-to-cart-ux",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 1590,
+      "minOk": 194,
+      "parse": "auto",
+      "measuredSec": 523,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "links",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "url-inventory",
+      "needs": "none",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "unknown-files",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 390,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 121,
+      "quick": false,
+      "triggers": [
+        "**"
+      ]
+    },
+    {
+      "name": "legal",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "areas",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 900,
+      "minOk": 18,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "perf",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "a11y",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "sw-api-cache",
+      "needs": "none",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "images",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "invoice",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "invoice-print",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "ai-icon",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "ai-panel",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 36,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "quick",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "contrast",
+      "needs": "rig+browser",
+      "parallelSafe": false,
+      "timeoutSec": 120,
+      "minOk": 4,
+      "parse": "auto",
+      "measuredSec": 16,
+      "quick": false,
+      "triggers": [
+        "@php-store",
+        "@storefront-src",
+        "@storefront-js",
+        "src/i18n/**",
+        "public/**"
+      ]
+    },
+    {
+      "name": "product",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "product-layout",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 98,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "account-form",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "grid-style",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 900,
+      "minOk": 284,
+      "parse": "auto",
+      "measuredSec": 291,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-css-full",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "site-content",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 180,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 58,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "checkout",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "native",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 672,
+      "parse": "auto",
+      "measuredSec": 91,
+      "quick": false,
+      "note": "run it ALONE: it fails different rate-limit checks when another process shares the rig's 127.0.0.1 counters (CLAUDE.md, 2026-11-18/19)",
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "admin-storefront",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "@php-store",
+        "@rig"
+      ]
+    },
+    {
+      "name": "native-e2e",
+      "needs": "rig+browser",
+      "parallelSafe": false,
+      "timeoutSec": 120,
+      "minOk": 26,
+      "parse": "auto",
+      "measuredSec": 19,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "knet-via-cbk",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "knet-ids",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 4,
+      "quick": true,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "checkout-methods",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "knet",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 120,
+      "minOk": 174,
+      "parse": "auto",
+      "measuredSec": 18,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "knet-refund",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 114,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "knet-refund-ui",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 450,
+      "minOk": 29,
+      "parse": "auto",
+      "measuredSec": 142,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "payment-receipt",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 510,
+      "minOk": 126,
+      "parse": "auto",
+      "measuredSec": 163,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "values",
+      "needs": "none",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "tpay",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 120,
+      "minOk": 88,
+      "parse": "auto",
+      "measuredSec": 2,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "config",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 120,
+      "minOk": 32,
+      "parse": "auto",
+      "measuredSec": 1,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig"
+      ]
+    },
+    {
+      "name": "xss-config",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 20,
+      "quick": true,
+      "triggers": [
+        "**"
+      ]
+    },
+    {
+      "name": "vps-deploy",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 120,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 1,
+      "quick": false,
+      "note": "needs dist/ (npm run release) and the rig; without dist/api/store.php it fails with \"run npm run release and npm run sandbox first\" (recorded in known-failures.json)",
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "vps-preflight",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 150,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 43,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "arabic",
+      "needs": "rig+browser",
+      "parallelSafe": false,
+      "timeoutSec": 120,
+      "minOk": 67,
+      "parse": "auto",
+      "measuredSec": 6,
+      "quick": false,
+      "triggers": [
+        "@php-store",
+        "@storefront-src",
+        "@storefront-js",
+        "src/i18n/**",
+        "public/**"
+      ]
+    },
+    {
+      "name": "seo",
+      "needs": "rig+browser",
+      "parallelSafe": false,
+      "timeoutSec": 120,
+      "minOk": 33,
+      "parse": "auto",
+      "measuredSec": 14,
+      "quick": false,
+      "triggers": [
+        "@php-store",
+        "@storefront-src",
+        "@storefront-js",
+        "src/i18n/**",
+        "public/**"
+      ]
+    },
+    {
+      "name": "sitemap-check",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 121,
+      "parse": "auto",
+      "measuredSec": 10,
+      "quick": true,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "arabic-spell",
+      "needs": "none",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "assistant",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 120,
+      "minOk": 2301,
+      "parse": "auto",
+      "measuredSec": 40,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "assistant-admin",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "assistant-admin-ui",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 150,
+      "minOk": 47,
+      "parse": "auto",
+      "measuredSec": 44,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "review",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "voice-ui",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "backend-pkg",
+      "needs": "none",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "preflight",
+      "needs": "none",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "install-sql",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 120,
+      "minOk": 11,
+      "parse": "auto",
+      "measuredSec": 2,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "whatsapp",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "profiles-split",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "fonts-used",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 1740,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 579,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-promo-new",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 9,
+      "parse": "auto",
+      "measuredSec": 6,
+      "quick": true,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "variants-create",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 34,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "admin-product-new",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 300,
+      "minOk": 199,
+      "parse": "auto",
+      "measuredSec": 91,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-seo",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 240,
+      "minOk": 301,
+      "parse": "auto",
+      "measuredSec": 74,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "footer-support",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 8,
+      "quick": true,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-loader",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 23,
+      "parse": "auto",
+      "measuredSec": 7,
+      "quick": true,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-login-mobile",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 630,
+      "minOk": 796,
+      "parse": "auto",
+      "measuredSec": 209,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-passcode-addon",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 150,
+      "minOk": 75,
+      "parse": "auto",
+      "measuredSec": 43,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "cat-tiles-crop",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-footer",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 300,
+      "minOk": 190,
+      "parse": "auto",
+      "measuredSec": 98,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-social",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 540,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 175,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-db-center",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 300,
+      "minOk": 183,
+      "parse": "auto",
+      "measuredSec": 93,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-shipping",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 240,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 71,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-js-audit",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 300,
+      "minOk": 50,
+      "parse": "auto",
+      "measuredSec": 99,
+      "quick": true,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "register-contact",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "iconset",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 420,
+      "minOk": 7627,
+      "parse": "auto",
+      "measuredSec": 133,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "storefront-polish",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 330,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 102,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "sog-1112",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 1,
+      "quick": true,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "mobile-1112",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 2730,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 905,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "mobile-1112b",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 2490,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 822,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-iconset",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 450,
+      "minOk": 7113,
+      "parse": "auto",
+      "measuredSec": 141,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-buttons",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 1350,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 441,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "apple-lib",
+      "needs": "none",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "discount-badge",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "card-badge",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 900,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "json-ld",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 23,
+      "parse": "auto",
+      "measuredSec": 1,
+      "quick": true,
+      "triggers": [
+        "@php-store",
+        "@storefront-src",
+        "@storefront-js",
+        "src/i18n/**",
+        "public/**"
+      ]
+    },
+    {
+      "name": "meta-1117",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 35,
+      "parse": "auto",
+      "measuredSec": 8,
+      "quick": true,
+      "triggers": [
+        "@php-store",
+        "@storefront-src",
+        "@storefront-js",
+        "src/i18n/**",
+        "public/**"
+      ]
+    },
+    {
+      "name": "why-section",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 6,
+      "parse": "auto",
+      "measuredSec": 2,
+      "quick": true,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-ai-switch",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 0,
+      "parse": "auto",
+      "measuredSec": 1,
+      "quick": true,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-sizes-selector",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 102,
+      "parse": "auto",
+      "measuredSec": 22,
+      "quick": true,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-price-tools",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 150,
+      "minOk": 120,
+      "parse": "auto",
+      "measuredSec": 47,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "prices-1118",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 71,
+      "parse": "auto",
+      "measuredSec": 31,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-google-setup",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 62,
+      "parse": "auto",
+      "measuredSec": 27,
+      "quick": true,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "bag-link-1118",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 17,
+      "parse": "auto",
+      "measuredSec": 21,
+      "quick": true,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "live-stock-1118",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 18,
+      "parse": "auto",
+      "measuredSec": 25,
+      "quick": true,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "product-brand-1118",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 24,
+      "parse": "auto",
+      "measuredSec": 20,
+      "quick": true,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "admin-invoices",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 87,
+      "parse": "auto",
+      "measuredSec": 31,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "catalogue-pdf",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 180,
+      "minOk": 85,
+      "parse": "auto",
+      "measuredSec": 58,
+      "quick": false,
+      "triggers": [
+        "public/sporta-catalogue.js",
+        "@admin-addon",
+        "dropin/php-store/seo-page.php",
+        "@htaccess",
+        "src/**"
+      ]
+    },
+    {
+      "name": "catalogue-page",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 450,
+      "minOk": 198,
+      "parse": "auto",
+      "measuredSec": 143,
+      "quick": false,
+      "triggers": [
+        "public/sporta-catalogue.js",
+        "@admin-addon",
+        "dropin/php-store/seo-page.php",
+        "@htaccess",
+        "src/**"
+      ]
+    },
+    {
+      "name": "admin-catalogue-pdf",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 35,
+      "parse": "auto",
+      "measuredSec": 22,
+      "quick": true,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "catalogue-seo",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 32,
+      "parse": "auto",
+      "measuredSec": 1,
+      "quick": true,
+      "triggers": [
+        "public/sporta-catalogue.js",
+        "@admin-addon",
+        "dropin/php-store/seo-page.php",
+        "@htaccess",
+        "src/**"
+      ]
+    },
+    {
+      "name": "admin-live-data",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 3600,
+      "minOk": 83,
+      "parse": "auto",
+      "measuredSec": 1500,
+      "quick": false,
+      "note": "the 2026-11-19 lane cut it at 1500 s while it was still in its mutation checks (83 checks per CLAUDE.md)",
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "product-listing",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 50,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "admin-hidden-products",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 34,
+      "parse": "auto",
+      "measuredSec": 37,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "multi-replica",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 1,
+      "parse": "auto",
+      "measured": false,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "release-gate",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 300,
+      "minOk": 1,
+      "parse": "auto",
+      "measuredSec": 20,
+      "quick": true,
+      "note": "the gate's own suite (fake suites in a temp config; no rig, no network)",
+      "triggers": [
+        "scripts/release-gate*.mjs",
+        "scripts/lib/release-gate-core.mjs",
+        "ops/release/*.json"
+      ]
+    }
+  ],
+  "not_in_gate": [
+    {
+      "name": "guest-orders",
+      "reason": "needs its own private database and flow; run by hand when guest checkout changes"
+    },
+    {
+      "name": "images-live-scan",
+      "reason": "covers the live images scanner, whose real run needs the live site (a Hostinger job); run by hand with the scanner"
+    },
+    {
+      "name": "publish",
+      "reason": "needs a real FTPS server (pyftpdlib); the FTPS route reaches only the old shared-hosting account"
+    },
+    {
+      "name": "knet-mutants",
+      "reason": "long mutation harness of the KNET dropin on the rig; run by hand when knet changes (npm run test:knet-mutants -- <mutant>)"
+    },
+    {
+      "name": "db-least-privilege",
+      "reason": "builds its own private MariaDB instance (own datadir and port); heavy, run by hand when ops/db or any SQL changes (it also fails at baseline: abandoned wiring, CLAUDE.md)"
+    },
+    {
+      "name": "db-backup",
+      "reason": "private MariaDB instance; run by hand when ops/db changes"
+    },
+    {
+      "name": "db-privacy",
+      "reason": "private MariaDB instance; run by hand when ops/db changes"
+    },
+    {
+      "name": "db-schema-diff",
+      "reason": "private MariaDB instance (three schema builds); run by hand with a migration change"
+    },
+    {
+      "name": "db-schema-live-diff",
+      "reason": "tests the live-diff tool on a private MariaDB; run by hand"
+    },
+    {
+      "name": "db-apply-migrations",
+      "reason": "private MariaDB built from the dcd2b28b install file; run by hand when the migration tool changes"
+    },
+    {
+      "name": "db-columns",
+      "reason": "private MariaDB, about five minutes, and it fails at baseline (install.mysql.sql lacks the passcode columns; CLAUDE.md)"
+    },
+    {
+      "name": "db-connect",
+      "reason": "private MariaDB instance; run by hand"
+    },
+    {
+      "name": "ftp",
+      "reason": "needs a real FTPS server (pyftpdlib)"
+    },
+    {
+      "name": "db-audit",
+      "reason": "private MariaDB instance; run by hand"
+    },
+    {
+      "name": "db-pool",
+      "reason": "private database connections; run by hand when connection code changes"
+    },
+    {
+      "name": "cat-tiles-wip",
+      "reason": "unreviewed WIP of sporta-cat-tiles.css (CLAUDE.md: do not deploy that file without a review)"
+    },
+    {
+      "name": "db-center",
+      "reason": "private MariaDB (110 checks); run by hand with the Database center"
+    }
+  ]
+}

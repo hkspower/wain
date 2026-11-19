@@ -258,6 +258,9 @@ function buildTree(patchFile) {
   writeFileSync(join(www, 'api/zz-ok.php'), "<?php\nheader('Content-Type: application/json'); echo '{\"ok\":true}';\n")
   writeFileSync(join(www, 'pay/zz-ok.php'), "<?php\nheader('Content-Type: application/json'); echo '{\"ok\":true}';\n")
   writeFileSync(join(www, 'knet/zz-ok.php'), "<?php\nheader('Content-Type: application/json'); echo '{\"ok\":true}';\n")
+  // A stand-in NAMED api.php (the api .htaccess matches the file name, and the real one needs a database): it answers the status asked for in ?code= and
+  // sets no cache header of its own, exactly like the real routes before Apache's rules run (CATALOGUE V2: the ?r=catalogue 200/304 exception).
+  put(join(www, 'api/zz/api.php'), "<?php\n$c = (int)($_GET['code'] ?? 200); http_response_code($c); if ($c !== 304) { header('Content-Type: application/json'); echo '{\"ok\":true}'; }\n".replace('$c', '\x24c'))
   writeFileSync(join(www, 'api/zz-cors.php'), "<?php\nheader('Access-Control-Allow-Origin: *'); header('Content-Type: application/json'); echo '{}';\n")
   // A stand-in for pay.php's body: the exact markup the real file prints (inline onload + a form post).
   writeFileSync(join(www, 'pay/zz-form.php'),
@@ -483,6 +486,8 @@ const DENY_SUB = ['/sub/.env', '/sub/x.log', '/sub/package.json', '/sub/notes.md
   '/knet/keystore.bin', '/knet/resource.cgn', '/knet/resource.cgz', '/pay/keystore.bin', '/api/resource.cgn', '/sub/keystore.bin', '/images/products/resource.cgz']
 // Include files and cron scripts that answer 200 over HTTP today (K-2 of the live scan, api-4).
 const DENY_INCLUDES = ['/api/profiles.php', '/api/support.php', '/api/assistant.php']
+// Fixed 2026-11-19 by name in dropin/php-store/.htaccess: plain checks, no known-defect marker.
+const DENY_INCLUDES_FIXED = ['api/catalogue.php', 'api/site-icon.php', 'api/product-listable.php']
 // A file named config*.php is never an endpoint. Outside api/ knet/ pay/ no rule names it.
 const DENY_CONFIG_ANYWHERE = ['/config.php', '/sub/config.php', '/config.inc.php']
 
@@ -681,6 +686,12 @@ async function runChecks({ www, hashes, indexHtml }) {
   const DENY_GAP_FIXED = new Set(['/config.php~', '/index.html~'])
   for (const p of DENY_GAP) { const r = await req(p); check(denied(r), `GET ${p} is not served (extension class not on the deny list)`, `${r.status} ${r.status === 200 ? short(h1(r, 'content-type')) : ''}`, DENY_GAP_FIXED.has(p) ? '' : 'htaccess-4') }
   for (const p of DENY_CONFIG_ANYWHERE) { const r = await req(p); check(r.status === 403 || r.status === 404, `GET ${p} is denied by name even if PHP is off`, `${r.status}`, 'htaccess-4') }
+  // Include files that only define functions answered 200 with an empty body until 2026-11-19 (catalogue.php, site-icon.php, product-listable.php):
+  // denied by name now, and each one must really be in the scratch tree or the check proves nothing.
+  for (const f of DENY_INCLUDES_FIXED) {
+    check(existsSync(join(www, f)), `${f} exists in the scratch tree (the deny check below is not vacuous)`)
+    const r = await req('/' + f); check(r.status === 403, `GET /${f} (an include, not an endpoint) is denied with a 403`, `${r.status}`)
+  }
   for (const p of DENY_INCLUDES) { const r = await req(p); check(r.status === 403 || r.status === 404, `GET ${p} (an include, not an endpoint) is denied`, `${r.status}`, 'htaccess-13') }
   for (const p of EVADE) { const r = await req(p); check(!(r.status === 200 && /SECRET|PHP-EXECUTED/.test(r.text)), `evasion ${short(p, 70)} does not reach the file`, `${r.status}`) }
   // Things that must keep working next to the denials.
@@ -885,6 +896,30 @@ async function runChecks({ www, hashes, indexHtml }) {
     ['/pay/zz-ok.php', /^no-store, no-cache, must-revalidate, private$/, '/pay'],
   ]
   for (const [p, re, why] of tiers) {
+    const r = await req(p)
+    const cc = hv(r, 'cache-control')
+    check(cc.length === 1 && re.test(cc[0]), `${p}: ${why}`, `${r.status} ${cc.join(' / ') || 'NO Cache-Control'}`)
+  }
+  // ?r=catalogue sends an ETag and "no-cache" (the page polls it with If-None-Match): the blanket no-store of the api folder must not swallow that on a 200
+  // or a 304, and must stay on every error and on every other route (a 304 with no-store would evict the stored copy; a 429 with no-cache could be cached).
+  const catTiers = [
+    ['/api/zz/api.php?r=catalogue', /^no-cache$/, '?r=catalogue 200: no-cache'],
+    ['/api/zz/api.php?r=catalogue&code=304', /^no-cache$/, '?r=catalogue 304: no-cache (the stored copy keeps its header)'],
+    ['/api/zz/api.php?lang=en&r=catalogue', /^no-cache$/, '?r=catalogue after another parameter'],
+    ['/api/zz/api.php?r=catalogue&v=1', /^no-cache$/, '?r=catalogue before another parameter'],
+    ['/api/zz/api.php?r=catalogue&code=429', /^no-store$/, '?r=catalogue 429 stays no-store'],
+    ['/api/zz/api.php?r=catalogue&code=405', /^no-store$/, '?r=catalogue 405 stays no-store'],
+    ['/api/zz/api.php?r=catalogue&code=500', /^no-store$/, '?r=catalogue 500 stays no-store'],
+    ['/api/zz/api.php?r=catalogue&code=503', /^no-store$/, '?r=catalogue 503 stays no-store'],
+    ['/api/zz/api.php?r=catalogues', /^no-store$/, '?r=catalogues (another route) stays no-store'],
+    ['/api/zz/api.php?r=xcatalogue', /^no-store$/, '?r=xcatalogue (another route) stays no-store'],
+    ['/api/zz/api.php?xr=catalogue', /^no-store$/, '?xr=catalogue (another parameter) stays no-store'],
+    ['/api/zz/api.php?r=products', /^no-store$/, '?r=products stays no-store'],
+    ['/api/zz/api.php?r=content', /^no-store$/, '?r=content stays no-store'],
+    ['/api/zz/api.php?r=site_icon&s=32', /^public, max-age=31536000, immutable$/, '?r=site_icon 200 keeps its year (the sibling exception is intact)'],
+    ['/api/zz/api.php?r=site_icon&code=404', /^no-store$/, '?r=site_icon 404 stays no-store'],
+  ]
+  for (const [p, re, why] of catTiers) {
     const r = await req(p)
     const cc = hv(r, 'cache-control')
     check(cc.length === 1 && re.test(cc[0]), `${p}: ${why}`, `${r.status} ${cc.join(' / ') || 'NO Cache-Control'}`)

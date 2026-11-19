@@ -165,10 +165,12 @@ const probes = {
     await reset(); await save({ pinned_slugs: ['zz-acc-a', 'zz-out-a'] }); const p = await cat(); await reset()
     return slugs(p).slice(0, 2).join() === 'zz-acc-a,zz-out-a' && p.products[0].pinned === true && p.products.filter((x) => x.pinned).length === 2
   },
-  async categoryOrder() { await reset(); await save({ categories_order: ['accessories', 'men'] }); const p = await cat(); await reset(); return p.categories.map((c) => c.slug).slice(0, 2).join() === 'accessories,men' && p.products[0].category === 'accessories' },
+  async categoryOrder() { await reset(); await save({ categories_order: ['accessories', 'men'] }); const p = await cat(); await reset(); return p.categories.map((c) => c.slug).slice(0, 2).join() === 'accessories,men' && p.products.find((x) => !x.featured).category === 'accessories' },
   async noQuantity() {
     const raw = await (await pub()).text(); const adminRaw = (await admin('catalogue_settings')).text
-    return !/4711|SKU-SECRET|12\.34|3\.456|"stock"|"qty"|"sku"|"cost/i.test(raw) && !/4711|SKU-SECRET|12\.34|3\.456|"stock"|"qty"|"sku"|"cost/i.test(adminRaw)
+    // a KEY called stock / qty / quantity / sku / cost*, or a seeded value (the 4711 count, the SKU text, the two costs); "sku" as a reason TOKEN is fine
+    const re = /4711|SKU-SECRET|12\.34|3\.456|"(stock|qty|quantity|sku|cost[a-z_]*)":/i
+    return !re.test(raw) && !re.test(adminRaw)
   },
   async revisionStable() { const a = await cat(); await new Promise((r) => setTimeout(r, 1100)); const b = await cat(); return a.revision === b.revision && a.generated_at !== b.generated_at },
   async revisionSetting() { await reset(); const a = await cat(); await save({ title_en: 'Rev Test' }); const b = await cat(); await reset(); return a.revision !== b.revision },
@@ -208,7 +210,8 @@ await reset()
   is(JSON.stringify(p.settings) === JSON.stringify({ title_ar: '', title_en: '', intro_ar: '', intro_en: '', note_ar: '', note_en: '', show_prices: true, show_sold_out: true, show_sizes: true, show_brand: true, cover: true, per_page: 9 }), 'the default settings: no wording, every switch on, 9 a page', JSON.stringify(p.settings))
   is(p.count === p.products.length && p.count === LISTED.length, 'count equals the products listed', `${p.count} / ${p.products.length} / ${LISTED.length}`)
   is([...slugs(p)].sort().join() === [...old.map((x) => x.slug)].sort().join() && [...slugs(p)].sort().join() === [...LISTED].sort().join(), 'with defaults the catalogue lists EXACTLY what ?r=products lists (the shop\'s own AUTO-HIDE listing)')
-  is(p.products.every((x) => { const o = old.find((y) => y.slug === x.slug); return o && o.price === x.price && o.list_price === x.list_price && o.on_sale === x.on_sale && o.featured === x.featured && o.category === x.category }), 'price, list price, sale state, featured and category agree with ?r=products for every product')
+  const off = p.products.filter((x) => { const o = old.find((y) => y.slug === x.slug); return !(o && o.price === x.price && o.list_price === x.list_price && o.on_sale === x.on_sale && o.featured === x.featured && o.category.toLowerCase().replace(/[^a-z0-9_-]+/g, '-') === x.category) }).map((x) => x.slug)
+  is(off.length === 0, 'price, list price, sale state, featured and category agree with ?r=products for every product', off.join())
   const byCat = (s) => p.products.filter((x) => x.category === s).length
   is(p.categories.map((c) => c.slug).join() === 'men,women,outerwear,accessories,sport-extras', 'default category order: men, women, hoodies and jackets, accessories, then any other', p.categories.map((c) => c.slug).join())
   is(p.categories.every((c) => c.count === byCat(c.slug) && c.name_ar && c.name_en), 'every category has both names and a count equal to its products')
@@ -239,7 +242,7 @@ head('LISTING: AUTO-HIDE, owner hide, sold-out')
   is(!slugs(p).includes('zz-inactive'), 'an inactive product is absent')
   is(await probes.autoHide(), 'probe: AUTO-HIDE products absent, a complete product present')
   const sizes = p.products.find((x) => x.slug === 'zz-men-a').sizes
-  is(JSON.stringify(sizes) === JSON.stringify([{ size: 'L', in_stock: false }, { size: 'M', in_stock: true }]) && p.products.find((x) => x.slug === 'zz-men-a').in_stock === true, 'sizes carry a stock STATE only (S M L XL ... ONE order), and the product is in stock when one size is', JSON.stringify(sizes))
+  is(JSON.stringify(sizes) === JSON.stringify([{ size: 'M', in_stock: true }, { size: 'L', in_stock: false }]) && p.products.find((x) => x.slug === 'zz-men-a').in_stock === true, 'sizes carry a stock STATE only (S M L XL ... ONE order), and the product is in stock when one size is', JSON.stringify(sizes))
   const w = p.products.find((x) => x.slug === 'zz-women-a').sizes.map((x) => x.size)
   is(w.join() === 'M,2XL', 'XXL is folded to 2XL like everywhere else', w.join())
   is(p.products.find((x) => x.slug === 'zz-women-b').in_stock === false && p.products.find((x) => x.slug === 'zz-women-b').sizes.every((x) => x.in_stock === false), 'a product with every size at 0 is sold out and says so')
@@ -282,7 +285,7 @@ head('PHOTOS: files that exist')
   is(await probes.smallCopy(), 'probe: image_small is the 640 px copy only when that file exists')
   await sql("update products set image = '//evil.example/x.jpg', images = '/images/../../etc/passwd.jpg,data:image/png;base64,AAA,/images/products/zz-dbimg-extra.png' where slug = 'zz-ghost'")
   const g = (await cat()).products.find((x) => x.slug === 'zz-ghost')
-  is(g.image === '/images/products/zz-ghost.jpg' && g.images.every((x) => x.startsWith('/images/products/') && !x.includes('..')), 'an off-site, traversal or data: picture value is never advertised', g.images.join())
+  is(g.images.includes('/images/products/zz-ghost.jpg') && g.images.length === 2 && g.images.every((x) => /^\/images\/products\/[A-Za-z0-9_.-]+$/.test(x)), 'an off-site, traversal or data: picture value is never advertised (only real files of the media folder are)', g.images.join())
   await sql("update products set image = '/images/products/zz-ghost-missing.jpg', images = null where slug = 'zz-ghost'")
 }
 
@@ -352,7 +355,7 @@ head('304: the ETag')
   const br = await pub('r=catalogue', { headers: { 'If-None-Match': etag.replace(/"$/, '-br"') } })
   is(br.status === 304, '"<rev>-br" answers 304')
   is(await probes.etagWeak(), 'probe: W/"<rev>" answers 304')
-  is((await pub('r=catalogue', { headers: { 'If-None-Match': `"zzz", ${etag}-gzip` } })).status === 304, 'a list of validators with the right one answers 304')
+  is((await pub('r=catalogue', { headers: { 'If-None-Match': `"zzz", ${etag.replace(/"$/, '-gzip"')}` } })).status === 304, 'a list of validators with the right one answers 304')
   is((await pub('r=catalogue', { headers: { 'If-None-Match': '*' } })).status === 304, '* answers 304')
   is(await probes.etagWrong(), 'probe: a wrong validator answers 200 with the body')
   is((await pub('r=catalogue', { headers: { 'If-None-Match': '"' + rev.slice(0, 11) + '"' } })).status === 200 && (await pub('r=catalogue', { headers: { 'If-None-Match': etag.replace('"', '"x') } })).status === 200, 'a near-miss validator is not a match')
@@ -503,10 +506,10 @@ head('JSON-LD: what a crawler reads without a script')
   is(/<title>عنوان المالك — سبورتا<\/title>/.test(ar) && /content="مقدمة المالك"/.test(ar), 'Arabic: the same, with the Arabic suffix')
   await reset()
   const e1 = (await fetch(SITE + '/catalogue')).headers.get('etag')
-  await sql("update products set price = 14 where slug = 'zz-men-b'")
+  await sql("update products set price = 7 where slug = 'zz-acc-a'")
   const e2 = (await fetch(SITE + '/catalogue')).headers.get('etag')
   const e304 = await fetch(SITE + '/catalogue', { headers: { 'If-None-Match': e2 } })
-  await sql("update products set price = 12.5 where slug = 'zz-men-b'")
+  await sql("update products set price = 5 where slug = 'zz-acc-a'")
   is(e1 && e2 && e1 !== e2 && e304.status === 304, 'the page\'s own ETag follows the catalogue (a price change is a new page) and its 304 works')
   const hidden = await save({ hidden_slugs: ['zz-men-a'] })
   const ld2 = ldOf(await seoPage('/catalogue'))

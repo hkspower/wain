@@ -41,7 +41,7 @@
  * API (window.SportaCatalogue), version 2:
  *   load({force})                  -> Promise<{ products, categories, brands, settings, revision, at, source }>
  *   buildPdf({ products, lang, prices, soldOut, view, settings, categories, brands, onProgress, signal })
- *                                  -> Promise<{ blob, name, pages, bytes, count, description }>
+ *                                  -> Promise<{ blob, name, pages, bytes, count, description, textRuns }>
  *                                  `products` are used as given (the caller applies the view); omitted = load() and applyView(view).
  *   download(result)               save the blob as a file (a[download]; opens it in a tab where the browser cannot save)
  *   pdfLink(lang, view)            https://www.sporta.com.kw/catalogue?pdf=ar|en&<view>   builds and downloads that view's PDF
@@ -85,9 +85,9 @@
       all: 'All', search: 'Search the catalogue', none: 'No product matches.', emptyShop: 'The catalogue is empty for the moment.', loading: 'Reading the live catalogue\u2026', loadFailed: 'The catalogue could not be loaded.', retry: 'Try again',
       cats: 'Categories', brands: 'Brands', onSale: 'On sale', inStock: 'In stock only', min: 'Min price', max: 'Max price', sort: 'Sort', clear: 'Clear filters',
       sortFeatured: 'Featured', sortPriceAsc: 'Price: low to high', sortPriceDesc: 'Price: high to low', sortName: 'Name',
-      shownOf: 'Showing {n} of {t} products', total: '{t} products', liveUpdated: 'The catalogue was updated.', offline: 'You are offline. The list shows the last update.',
+      shownOf: 'Showing {n} of {t} products', total: '{t} products', totalOne: '1 product', liveUpdated: 'The catalogue was updated.', offline: 'You are offline. The list shows the last update.',
       soldOut: 'Sold out', sizes: 'Sizes', oneSize: 'One size', sizeOut: 'sold out', was: 'Was', off: '{n}% off', noPhoto: 'Photo coming soon',
-      coverTitle: 'Product catalogue', coverUpdated: 'Updated {d}', contents: 'Contents', page: 'Page', count: '{n} products',
+      coverTitle: 'Product catalogue', coverUpdated: 'Updated {d}', contents: 'Contents', page: 'Page', count: '{n} products', countOne: '1 product',
       note: 'Prices in Kuwaiti dinar (KWD). Prices and sizes are always live on www.sporta.com.kw.', noteNoPrice: 'Sizes and availability are always live on www.sporta.com.kw.',
       vAll: 'All products', vSale: 'on sale', vStock: 'in stock', vQ: 'search \u201c{q}\u201d', vMin: 'from KWD {n}', vMax: 'up to KWD {n}', vRange: 'KWD {a} to {b}'
     },
@@ -433,7 +433,7 @@
   /** The live catalogue: the catalogue route, or (an older API) the three routes it replaces. force = do not share a read already under way. */
   function load(o) {
     if (inflight && !(o && o.force)) return inflight
-    var p = readCatalogue('').then(function (r) { return fromCatalogue(r.json, r.etag) }).then(null, function () { return loadLegacy() })
+    var p = readCatalogue('').then(function (r) { var x = fromCatalogue(r.json, r.etag); x.etag = r.etag; return x }).then(null, function () { return loadLegacy() })
     inflight = p
     var done = function () { if (inflight === p) inflight = null }
     p.then(done, done)
@@ -674,7 +674,7 @@
       var ry = ty + 40 + i * rowH, fs = rowH >= 70 ? 36 : rowH >= 56 ? 32 : 28
       g.beginPath(); g.moveTo(MG, ry); g.lineTo(PW - MG, ry); g.stroke()
       text(g, ar ? gr.name.ar : gr.name.en, R, ry + rowH * 0.68, fontOf('semi', fs), C.white, A)
-      text(g, T(lang, 'count', { n: gr.items.length }) + '  \u00b7  ' + T(lang, 'page') + ' ' + o.pagesOf[i], ar ? MG : PW - MG, ry + rowH * 0.66, fontOf('body', Math.round(fs * 0.78)), C.sand, ar ? 'left' : 'right')
+      text(g, (gr.items.length === 1 && lang === 'en' ? T(lang, 'countOne') : T(lang, 'count', { n: gr.items.length })) + '  \u00b7  ' + T(lang, 'page') + ' ' + o.pagesOf[i], ar ? MG : PW - MG, ry + rowH * 0.66, fontOf('body', Math.round(fs * 0.78)), C.sand, ar ? 'left' : 'right')
     })
     text(g, 'www.sporta.com.kw', R, PH - 150, fontOf('head', 46), C.brand, A)
     links.push({ x: ar ? PW - MG - 520 : MG, y: PH - 200, w: 520, h: 70, url: ORIGIN + '/' + (ar ? '' : '?lang=en') })
@@ -740,7 +740,7 @@
   function check(sig) { if (sig && sig.aborted) { var e = new Error('cancelled'); e.cancelled = true; throw e } }
 
   /**
-   * Build the PDF of a view. Resolves { blob, name, pages, bytes, count, description }.
+   * Build the PDF of a view. Resolves { blob, name, pages, bytes, count, description, textRuns } (textRuns: per page, what was drawn as text - the text layer's input).
    * products: used as given (the caller has applied the view); omitted = the live catalogue with `view` applied.
    * The owner's switches win: prices / soldOut can only turn OFF what settings.show_prices / show_sold_out allow.
    */
@@ -799,7 +799,7 @@
             lang: lang, title: ttl, subject: (desc ? desc + ' \u00b7 ' : '') + T(lang, 'coverUpdated', { d: dateText(d, lang) }),
             date: 'D:' + d.toISOString().replace(/[-:T]/g, '').slice(0, 14) + 'Z'
           })
-          return { blob: blob, name: fileName(lang, d, view, opt.prices), pages: total, bytes: blob.size, count: products.length, description: desc }
+          return { blob: blob, name: fileName(lang, d, view, opt.prices), pages: total, bytes: blob.size, count: products.length, description: desc, textRuns: out.map(function (pg) { return pg.text }) }
         })
       })
     })
@@ -1150,7 +1150,7 @@
       items.forEach(function (p) {
         var sig = cardSig(p, l), n = have[p.slug]
         if (n && n._sig === sig) delete have[p.slug]
-        else { var nn = card(p, l); if (n) { if (n.contains(active)) refocus = nn.querySelector(active && active.tagName === 'BUTTON' ? 'button' : 'a'); delete have[p.slug]; n.remove() } n = nn }
+        else { var nn = card(p, l); if (n) { if (n.contains(active)) refocus = nn.querySelector(active && active.tagName === 'BUTTON' ? 'button' : 'a'); delete have[p.slug]; if (cursor === n) cursor = n.nextSibling; n.remove() } n = nn }
         if (cursor === n) cursor = cursor.nextSibling; else ul.insertBefore(n, cursor)
       })
       for (var k in have) if (own(have, k)) have[k].remove()
@@ -1189,7 +1189,7 @@
       var l = lang()
       if (S.phase !== 'ready') { count.textContent = ''; return }
       var n = visible().length, t = S.products.length
-      var txt = isFiltered(S.view) ? T(l, 'shownOf', { n: n, t: t }) : T(l, 'total', { t: t })
+      var txt = isFiltered(S.view) ? T(l, 'shownOf', { n: n, t: t }) : T(l, t === 1 && l === 'en' ? 'totalOne' : 'total', { t: t })
       if (count.textContent !== txt) count.textContent = txt
     }
     function linksDraw() {
@@ -1210,6 +1210,7 @@
       else if (b.state === 'copied') noteText.textContent = T(l, 'copied')
       else if (b.state === 'copyfail') noteText.textContent = T(l, 'copyFail')
       else if (b.state === 'noview') noteText.textContent = T(l, 'noView')
+      else if (b.state === 'offline') noteText.textContent = T(l, 'offline')
     }
     /** Everything that follows a change of the view (not of the data). */
     function viewChanged() { writeAddress(); chipsDraw(); gridDraw(); countDraw(); linksDraw() }
@@ -1223,11 +1224,11 @@
     function apply(res, first) {
       var before = S.revision
       S.data = res; S.products = res.products; S.cats = res.categories; S.brands = res.brands; S.settings = res.settings; S.revision = res.revision; S.source = res.source; S.at = new Date()
-      if (res.source === 'catalogue') etag = res.revision; else etag = ''
+      etag = res.source === 'catalogue' ? (res.etag || res.revision) : ''
       var viewMoved = sanitise()
       S.phase = 'ready'
       textsDraw(); if (viewMoved || first) controlsFromView(); statusLine(); chipsDraw(); gridDraw(); countDraw(); linksDraw()
-      if (viewMoved || first) writeAddress()
+      if (viewMoved) writeAddress()
       setLd(S.products, lang(), true)
       if (!first && before !== res.revision) announce(T(lang(), 'liveUpdated'))
     }
@@ -1242,7 +1243,7 @@
       if (navigator.onLine === false) { failures = Math.min(failures + 1, 3); noteOffline(); schedule(); return }
       poll()
     }
-    function noteOffline() { if (S.phase === 'ready' && !S.build) { S.build = { state: 'offline' } } }
+    function noteOffline() { if (S.phase === 'ready' && !S.build) { S.build = { state: 'offline' }; noteDraw() } }
     /** One check of the live data. 304 = nothing; 200 = update in place; an error = back off. */
     function poll() {
       if (dead || checking) return Promise.resolve()
@@ -1250,14 +1251,14 @@
       var p = S.source === 'catalogue' && etag
         ? readCatalogue(etag).then(function (r) {
           if (r.status === 304) { S.at = new Date(); statusLine(); return }
-          var res = fromCatalogue(r.json, r.etag)
+          var res = fromCatalogue(r.json, r.etag); res.etag = r.etag
           if (res.revision !== S.revision) apply(res, false); else { S.at = new Date(); statusLine() }
         }, function (e) {
           if (e && e.http === 404) return load({ force: true }).then(function (res) { if (res.revision !== S.revision) apply(res, false); else { S.at = new Date(); statusLine() } })
           throw e
         })
         : load({ force: true }).then(function (res) { if (res.revision !== S.revision) apply(res, false); else { S.at = new Date(); statusLine() } })
-      return p.then(function () { failures = 0 }, function () { failures = Math.min(failures + 1, 3) }).then(function () { checking = false; schedule() })
+      return p.then(function () { failures = 0; if (S.build && S.build.state === 'offline') { S.build = null; noteDraw() } }, function () { failures = Math.min(failures + 1, 3) }).then(function () { checking = false; schedule() })
     }
     function refresh(first) {
       if (dead) return Promise.resolve()

@@ -1,0 +1,313 @@
+{
+  "schema": 1,
+  "comment": "Suites that fail IDENTICALLY at the baseline and are not caused by recent work (CLAUDE.md, the 2026-11-19 manual runs). The gate calls a failure KNOWN only when it matches: the exit code (if given), the text in expect.contains (if given), at most expect.fail failures, and EVERY failing line contains one of expect.names. A new, different or more numerous failure is a REGRESSION: a known failure cannot hide a new one. When a known failure is fixed the gate prints FIXED: delete its entry in the same commit. When the owner accepts a new failure, add it here in the commit that records the acceptance.",
+  "suites": [
+    {
+      "suite": "file-names",
+      "since": "2026-11-19",
+      "reason": "strings and fixtures the file audit cannot resolve (absolute server paths named in code, fixture HTML fragments, a 0-byte .lock); fails identically at the baseline",
+      "evidence": "file-names: 21 FAILED of 6931 checks",
+      "expect": {
+        "exit": 1,
+        "fail": 21,
+        "names": [
+          "[abs-ref] sporta-web/dropin/php-knet/knet.php",
+          "[abs-ref] sporta-web/public/sporta-admin-brands.js",
+          "[abs-ref] sporta-web/public/sporta-checkout-a11y.js",
+          "[abs-ref] sporta-web/public/sporta-shadows.css",
+          "[abs-ref] sporta-web/src/admin/AdminApp.jsx",
+          "[content] sporta-web/.lock",
+          "[content] sporta-web/scripts/fixtures/why-section",
+          "[import] sporta-web/scripts/profiles-screen-test.mjs",
+          "[import] sporta-web/scripts/sw-precache.mjs",
+          "[php-require] sporta-web/scripts/fixtures/pool-probe.php"
+        ]
+      }
+    },
+    {
+      "suite": "unknown-files",
+      "since": "2026-11-19",
+      "reason": "the real-tree checks list files added since ops/known-files.json was written (seo-draft, the keyword CSV, .mcp.json, mcp/); same four at the baseline",
+      "evidence": "4 FAIL — 300 checks passed",
+      "expect": {
+        "exit": 1,
+        "fail": 4,
+        "names": [
+          "no TRACKED file is unexplained",
+          "no unexplained HIGH finding",
+          "every blocking finding is documented in ops/known-files.json",
+          "every non-optional rule in the manifest still matches a file"
+        ]
+      }
+    },
+    {
+      "suite": "xss-config",
+      "since": "2026-11-19",
+      "reason": "the seo head renderer on the rig; the same three failures at the baseline (and the suite then stops with a stack trace)",
+      "evidence": "FAIL the embedded sporta-seo-data block parses as JSON  — unparseable",
+      "expect": {
+        "exit": 1,
+        "fail": 3,
+        "names": [
+          "<title> round-trips each payload as TEXT",
+          "Product JSON-LD with a hostile name and description still parses as JSON",
+          "the embedded sporta-seo-data block parses as JSON"
+        ]
+      }
+    },
+    {
+      "suite": "vps-preflight",
+      "since": "2026-11-19",
+      "reason": "ops/vps-preflight.compose.json is stale against the add-on md5s; regenerate with npm run vps:preflight and commit it when a release is cut",
+      "evidence": "1 FAILED",
+      "expect": {
+        "exit": 1,
+        "fail": 1,
+        "names": [
+          "and its embedded data is HEAD's"
+        ]
+      }
+    },
+    {
+      "suite": "admin-social",
+      "since": "2026-11-19",
+      "reason": "the Social share text check disagrees with the current wording; same two at the baseline",
+      "evidence": "235 passed, 2 failed",
+      "expect": {
+        "exit": 1,
+        "fail": 2,
+        "names": [
+          "with delivery in 24 hours, 14-day returns (Arabic plural)",
+          "English: the same facts, and the brand / category / #Kuwait #Sporta hashtags"
+        ]
+      }
+    },
+    {
+      "suite": "admin-shipping",
+      "since": "2026-11-19",
+      "reason": "Shipping screen re-reads on reopen; same one at the baseline",
+      "evidence": "87 passed, 1 failed",
+      "expect": {
+        "exit": 1,
+        "fail": 1,
+        "names": [
+          "reopening does not read again (the loaded setup is kept)"
+        ]
+      }
+    },
+    {
+      "suite": "admin-save",
+      "since": "2026-11-19",
+      "reason": "the save bar is not the last element in the body on seven modal screens x desktop/phone x light/dark; same 28 at the baseline",
+      "evidence": "812 ok, 28 failed",
+      "expect": {
+        "exit": 1,
+        "fail": 28,
+        "names": [
+          "the bar is the last element in the body (last tab stop)"
+        ]
+      }
+    },
+    {
+      "suite": "abandoned-ui",
+      "since": "2026-11-19",
+      "reason": "the abandoned-orders admin block is not in the compiled admin the fixture serves; same six at the baseline",
+      "evidence": "FAIL the phone header shows our title; React's title node still holds its own text",
+      "expect": {
+        "exit": 1,
+        "fail": 6,
+        "names": [
+          "one sidebar button, right after Orders",
+          "the probe was sent once for the whole visit",
+          "a page loaded with ?tab=abandoned opens the panel",
+          "React's DOM, the address and <body> are identical with and without the block after: Catalogue",
+          "one tile right after Orders in the phone menu",
+          "the phone header shows our title"
+        ]
+      }
+    },
+    {
+      "suite": "race-client",
+      "since": "2026-11-19",
+      "reason": "three sections abort waiting for a checkout button that the captured storefront does not show; G3b sees a boot.js that grew; same four at the baseline (542 s)",
+      "evidence": "56 passed, 4 failed, 1 section(s) skipped",
+      "expect": {
+        "exit": 1,
+        "fail": 4,
+        "names": [
+          "B section aborted",
+          "C section aborted",
+          "E section aborted",
+          "G3b boot.js (a blocking script) did not grow"
+        ]
+      }
+    },
+    {
+      "suite": "admin-trim-release",
+      "since": "2026-11-19",
+      "reason": "the branch's admin add-on has more blocks than the 2026-11-12 trim release (by design: the trim snapshot is a separate file)",
+      "evidence": "FAIL public/sporta-admin-brands.js is not what make-trim-release.mjs makes",
+      "expect": {
+        "exit": 1,
+        "fail": 1,
+        "names": [
+          "public/sporta-admin-brands.js is not what make-trim-release.mjs makes"
+        ]
+      }
+    },
+    {
+      "suite": "site-content",
+      "since": "2026-11-19",
+      "reason": "a page.click times out (30 s) in the site content editor section; 90 checks pass before it (CLAUDE.md 2026-11-18: already failing at HEAD, not from recent work)",
+      "evidence": "90 passed, 1 failed",
+      "expect": {
+        "exit": 1,
+        "fail": 1,
+        "names": [
+          "the suite stopped: page.click"
+        ]
+      }
+    },
+    {
+      "suite": "storefront-polish",
+      "since": "2026-11-19",
+      "reason": "MONO-1112 ink rule outranks color: transparent on the product placeholder (CLAUDE.md 2026-11-18)",
+      "evidence": "1289 passed, 8 failed",
+      "expect": {
+        "exit": 1,
+        "fail": 8,
+        "names": [
+          "a missing photo shows no alt text"
+        ]
+      }
+    },
+    {
+      "suite": "mobile-1112",
+      "since": "2026-11-19",
+      "reason": "the TEXT STYLE block now follows MOBILE-1112 in sporta-features.js (CLAUDE.md 2026-11-18)",
+      "evidence": "665 passed, 1 failed",
+      "expect": {
+        "exit": 1,
+        "fail": 1,
+        "names": [
+          "the MOBILE-1112 block is the last block of the file"
+        ]
+      }
+    },
+    {
+      "suite": "mobile-1112b",
+      "since": "2026-11-19",
+      "reason": "same cause as mobile-1112 (block order in sporta-features.js)",
+      "evidence": "323 passed, 1 failed",
+      "expect": {
+        "exit": 1,
+        "fail": 1,
+        "names": [
+          "the MOBILE-1112B block sits before MOBILE-1112"
+        ]
+      }
+    },
+    {
+      "suite": "sog-1112",
+      "since": "2026-11-19",
+      "reason": "the suite crashes: \"no SOG-1112 section\" in sporta-product-fix.css, which never had one (CLAUDE.md 2026-11-18)",
+      "evidence": "throw new Error('no SOG-1112 section')",
+      "expect": {
+        "exit": 1,
+        "fail": 0,
+        "contains": "no SOG-1112 section"
+      }
+    },
+    {
+      "suite": "admin-buttons",
+      "since": "2026-11-19",
+      "reason": "button radius 0.700rem on the SEO \"Change icon\" button and header-row heights; the 2026-11-19 runs show [5] and [7] both failing at HEAD and at the baseline (the brief said \"[7] only\": tighten when [5] is fixed)",
+      "evidence": "31 passed, 2 failed",
+      "expect": {
+        "exit": 1,
+        "fail": 2,
+        "names": [
+          "[5] one radius, .75rem, on boxed buttons",
+          "[7] New product / New promotion / SEO health"
+        ]
+      }
+    },
+    {
+      "suite": "fonts-used",
+      "since": "2026-11-19",
+      "reason": "screenshot byte equality on 138 of 140 page states: depends on page timing, flaky both ways",
+      "evidence": "64 of 65 checks passed",
+      "expect": {
+        "exit": 1,
+        "fail": 1,
+        "names": [
+          "full-page screenshots: masters vs shipped files are byte-identical"
+        ]
+      },
+      "flaky": true
+    },
+    {
+      "suite": "vps-deploy",
+      "since": "2026-11-19",
+      "reason": "needs dist/ (run npm run release first) and the rig: \"missing dist/api/store.php - run npm run release and npm run sandbox first\"",
+      "evidence": "missing .../dist/api/store.php — run npm run release and npm run sandbox first",
+      "expect": {
+        "exit": 1,
+        "fail": 0,
+        "contains": "run npm run release"
+      }
+    },
+    {
+      "suite": "checkout-split",
+      "since": "2026-11-19",
+      "reason": "a helper chunk is loaded on the first visit (A9); the H1 layout-shift checks flake under load and are reruns, not recorded",
+      "evidence": "97 ok, 3 failed (A9 + two load-sensitive H1)",
+      "expect": {
+        "exit": 1,
+        "fail": 1,
+        "names": [
+          "A9 the first visit to any page loads only the entry"
+        ]
+      }
+    },
+    {
+      "suite": "sizes-weight",
+      "since": "2026-11-19",
+      "reason": "the add-on count is 24 now, the check says 23",
+      "evidence": "120 passed, 1 failed",
+      "expect": {
+        "exit": 1,
+        "fail": 1,
+        "names": [
+          "all 23 add-on files answer an empty 304"
+        ]
+      }
+    },
+    {
+      "suite": "grid",
+      "since": "2026-11-19",
+      "reason": "a product added in /backends shows an image glyph instead of the placeholder (CLAUDE.md 2026-11-19: 3 failures at the baseline)",
+      "evidence": "1 problem(s) in the product grid (3 recorded)",
+      "expect": {
+        "exit": 1,
+        "fail": 3,
+        "names": [
+          "and a placeholder rather than a broken-image glyph"
+        ]
+      }
+    },
+    {
+      "suite": "admin-ai-switch",
+      "since": "2026-11-19",
+      "reason": "the AI switch block is no longer the last block of the admin add-on; same at the baseline",
+      "evidence": "18 ok, 1 FAIL",
+      "expect": {
+        "exit": 1,
+        "fail": 1,
+        "names": [
+          "the add-on file still ends with the block"
+        ]
+      }
+    }
+  ]
+}

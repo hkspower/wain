@@ -100,8 +100,8 @@ async function analyse(engine, label, full = true) {
     R.model = model
     R.firstReads = s.shop.st.reqs.filter((q) => q.startsWith('GET /api/api.php'))
     const bySlug = Object.fromEntries(model.map((p) => [p.slug, p]))
-    R.sizesOrder = eq(bySlug['men-sizes-mixed'].sizes, ['S', 'XL', '2XL', '3XL', '40', '42'])
-    R.ownBrand = bySlug['men-own-brand'].brand === null && bySlug['men-brand-vest'].brand && bySlug['men-brand-vest'].brand.en === 'AHED'
+    R.sizesOrder = eq(bySlug['men-sizes-mixed'].sizesIn, ['S', 'XL', '2XL', '3XL', '40', '42'])
+    R.ownBrand = bySlug['men-own-brand'].brandName === null && bySlug['men-own-brand'].brand === '' && bySlug['men-brand-vest'].brandName && bySlug['men-brand-vest'].brandName.en === 'AHED' && bySlug['men-brand-vest'].brand === 'ahed'
     const out = {}
     for (const lang of ['ar', 'en']) {
       const t0 = Date.now(), b = await buildPdf(s.page, lang)
@@ -136,7 +136,7 @@ head('the engine as shipped')
 const base = await analyse(engineSource(), 'base')
 const S = base.s, M = base.model, st = S.shop.st
 head('the data')
-is(base.firstReads.length === 3 && ['products', 'stock', 'brands'].every((k) => base.firstReads.some((r) => r.includes('r=' + k))), 'the model is read with three GETs: products, stock, brands', base.firstReads.join(' '))
+is(base.firstReads[0] === 'GET /api/api.php?r=catalogue' && base.firstReads.length === 4 && ['products', 'stock', 'brands'].every((k) => base.firstReads.some((r) => r.includes('r=' + k))), 'the catalogue route is asked first; it answers 404 (an older API), so the three routes of the first catalogue are read (GET only)', base.firstReads.join(' '))
 is(M.length === 19, 'every product the shop returns is in the catalogue (19)', String(M.length))
 const order = M.map((p) => p.category + ':' + p.slug)
 is(eq(M.filter((p) => p.category === 'men').map((p) => p.slug).slice(0, 4), ['men-alpha-top', 'men-zeta-top', 'men-fake-sale', 'men-last']), 'men come first, featured products first by their order, then by name')
@@ -145,15 +145,17 @@ const by = Object.fromEntries(M.map((p) => [p.slug, p]))
 is(by['men-sale-shorts'].sale === true && by['men-sale-shorts'].pct === 20 && by['men-sale-shorts'].price === 8 && by['men-sale-shorts'].list === 10, 'sale: price 8 against 10 is 20% off')
 is(by['men-fake-sale'].sale === false && by['men-fake-sale'].pct === 0, 'on_sale with a list price that is not higher is not a sale')
 is(by['women-jacket'].pct === 27, 'percent is rounded (22 against 30 is 27%)')
-is(by['men-own-brand'].brand === null, 'the shop’s own brand is not shown as a product’s maker')
-is(by['men-brand-vest'].brand && by['men-brand-vest'].brand.en === 'AHED' && by['men-brand-vest'].brand.ar === 'أحد', 'a real brand is carried in both languages')
-is(eq(by['men-sizes-mixed'].sizes, ['S', 'XL', '2XL', '3XL', '40', '42']), 'sizes: size order, numbers after, the sold-out size left out (M)', JSON.stringify(by['men-sizes-mixed'].sizes))
-is(eq(by['women-top'].sizes, ['S', 'M', 'L']), 'a size with no stock is not listed')
-is(by['men-sold-out'].soldOut === true && by['men-sold-out'].sizes.length === 0, 'sold out: stock rows exist and none is in stock')
-is(by['men-no-stock-rows'].soldOut === false && by['men-no-stock-rows'].known === false && by['men-no-stock-rows'].sizes.length === 0, 'no stock rows: unknown, not "sold out", no sizes drawn')
-is(eq(by['acc-cap'].sizes, ['ONE']), 'one size is kept as ONE (drawn as "One size")')
+is(by['men-own-brand'].brandName === null && by['men-own-brand'].brand === '', 'the shop’s own brand is not shown as a product’s maker')
+is(by['men-brand-vest'].brandName && by['men-brand-vest'].brandName.en === 'AHED' && by['men-brand-vest'].brandName.ar === 'أحد' && by['men-brand-vest'].brand === 'ahed', 'a real brand is carried in both languages')
+is(eq(by['men-sizes-mixed'].sizesIn, ['S', 'XL', '2XL', '3XL', '40', '42']) && eq(by['men-sizes-mixed'].sizes.map((x) => x.size + (x.in_stock ? '' : '!')), ['S', 'M!', 'XL', '2XL', '3XL', '40', '42']), 'sizes: size order, numbers after; the contract keeps every size with its in_stock flag, sizesIn lists the available ones', JSON.stringify(by['men-sizes-mixed'].sizes))
+is(eq(by['women-top'].sizesIn, ['S', 'M', 'L']) && by['women-top'].sizes.length === 4, 'a size with no stock is not in sizesIn (and is flagged in sizes)')
+is(by['men-sold-out'].soldOut === true && by['men-sold-out'].in_stock === false && by['men-sold-out'].sizesIn.length === 0, 'sold out: stock rows exist and none is in stock')
+is(by['men-no-stock-rows'].soldOut === false && by['men-no-stock-rows'].known === false && by['men-no-stock-rows'].sizes.length === 0 && by['men-no-stock-rows'].sizesIn.length === 0, 'no stock rows: unknown, not "sold out", no sizes drawn')
+is(eq(by['acc-cap'].sizesIn, ['ONE']), 'one size is kept as ONE (drawn as "One size")')
 const json = JSON.stringify(M)
-is(!/SKU-|"sku"|"stock"|in_stock|cost/i.test(json), 'no SKU, quantity or cost reaches the model')
+is(!/SKU-|"sku"|"stock"|cost|quantity/i.test(json), 'no SKU, quantity or cost reaches the model (a size is only available or not)')
+const CONTRACT = ['slug', 'name_ar', 'name_en', 'category', 'brand', 'price', 'list_price', 'pct_off', 'on_sale', 'featured', 'pinned', 'in_stock', 'sizes', 'image', 'image_small', 'images']
+is(M.every((p) => CONTRACT.every((k) => k in p)) && by['men-sale-shorts'].list_price === 10 && by['men-sale-shorts'].pct_off === 20 && by['men-sale-shorts'].on_sale === true && by['men-fake-sale'].on_sale === false && typeof by['men-last'].image === 'string' && Array.isArray(by['men-last'].images), 'every product carries the contract fields (slug ... images), derived for the legacy routes')
 is(by['men-uploaded'].photos[0] === '/images/products/uploaded-photo-tee.png' && by['men-uploaded'].photos[1] === '/images/products/uploaded-photo-tee-2.jpg', 'uploaded photos come first, bare names are put under /images/products/')
 is(eq(by['men-last'].photos, ['/images/products/men-last.jpg', '/images/products/men-last.png', '/images/products/men-last.webp', '/images/products/men-last.jpeg']), 'otherwise <slug>.jpg, .png, .webp, .jpeg')
 const photoSafety = await (async () => {
@@ -199,6 +201,7 @@ for (const lang of ['ar', 'en']) {
   is(b.bytes > 100000 && b.bytes < 8 * 1048576 && o.ms < 20000, 'the file is a sensible size and takes seconds', `${b.bytes} bytes, ${o.ms} ms`)
 }
 is(base.sizesOrder, 'size order (checked on the model)')
+is(base.ownBrand, 'the own-brand rule (checked on the model)')
 
 head('behaviour')
 {
@@ -247,12 +250,12 @@ const src = engineSource()
 const cut = (label, re, to, key) => ({ label, key, text: src.replace(re, to) })
 const MUTANTS = [
   cut('no link annotations', '/Annots [', '/AnnotX [', 'links-en'),
-  cut('grid not mirrored in Arabic', 'if (ar) col = 2 - col', 'if (false) col = 2 - col', 'rtl-ar'),
-  cut('no sale badge', 'if (p.sale && p.pct > 0) {\n      g.direction', 'if (false) {\n      g.direction', 'badge-en'),
+  cut('grid not mirrored in Arabic', 'if (ar) col = lo.cols - 1 - col', 'if (false) col = lo.cols - 1 - col', 'rtl-ar'),
+  cut('no sale badge', 'if (o.prices && p.sale && p.pct > 0) {\n      g.direction', 'if (false) {\n      g.direction', 'badge-en'),
   cut('no sold-out band', 'if (p.soldOut) {\n      g.fillStyle', 'if (false) {\n      g.fillStyle', 'sold-en'),
   cut('JPEG filter changed', '/Filter /DCTDecode', '/Filter /FlateDecode', 'render-en'),
-  cut('size order dropped', 'return sizeRank(a) - sizeRank(c)', 'return 0', 'sizesOrder'),
-  cut('own brand shown', 'b && !own && (b.name_en', 'b && (b.name_en', 'ownBrand'),
+  cut('size order dropped', 'return sizeRank(a.size) - sizeRank(b.size)', 'return 0', 'sizesOrder'),
+  cut('own brand shown', 'b && !ownBrand && (b.name_en', 'b && (b.name_en', 'ownBrand'),
   cut('photo never drawn', 'if (bm) { g.save()', 'if (false) { g.save()', 'photos-en'),
 ]
 for (const m of MUTANTS) {
