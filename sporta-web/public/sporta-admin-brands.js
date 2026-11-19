@@ -12444,6 +12444,549 @@
 })()
 /* ===== ADMIN STOCK TOOLS - end ============================================ */
 
+/* ===== ADMIN INVENTORY EDITOR - begin ===================================
+ * 17. Inventory editor (owner request 2026-11-19: "make inventory full dynamic editer").
+ *
+ * An "Edit sizes" button in the Inventory screen's header opens ONE editable table of every size: product, size, stock,
+ * low-stock level and unit cost (KWD). Every box is typed in place; a row that differs from the system is marked "Changed",
+ * a bad entry is marked and blocks saving, and the footer counts both. Nothing is written while typing.
+ *
+ * "Save changes" writes the changed rows one at a time, each with THAT row's inventory_version:
+ *   stock changed          POST admin.php?r=inventory_adjust        {sku, type:'count', target_stock, expected_version, note}
+ *   cost or low changed    POST admin.php?r=inventory_variant_save  {sku, expected_version, unit_cost_kwd?, low_stock_threshold?, note}
+ * The stock write goes first: its answer carries the new version the cost write needs.
+ *   409 stock_changed   the size changed in another session: its current values are shown, what was typed for it is dropped,
+ *                       nothing is overwritten.
+ *   429                 waits Retry-After and tries again (three times).
+ *   401 / 403           the run stops: the session ended.
+ * "Stop after this one" ends the run after the row in flight; the rest stay unsaved and are marked "Not saved (stopped)".
+ * Reads: one GET of the stock list (admin.php?r=variants) when the dialog opens, on "Refresh", and when the tab shows again.
+ * A row changed elsewhere since the person typed in it has its typed values dropped and says so ("stale").
+ * Filters: search (name, code, size), category, "Changed only". Text is drawn with textContent only. No timer of its own:
+ * the header button is checked after a click, a route change and the tab showing again.
+ */
+;(function () {
+  'use strict'
+  try {
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaInvEditor) return
+  try { Object.defineProperty(window, '__sportaInvEditor', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php', BTN = 'data-sporta-inv-edit', MAX = 999999, PACE_MS = 300, RETRIES = 3
+  var SIZE_ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', '4XL', '5XL', 'ONE']
+  var STYLE_ID = 'sie-style'
+
+  var STR = {
+    en: {
+      open: 'Edit sizes', title: 'Edit sizes and stock',
+      intro: 'Type in any box. Nothing is saved until you press Save changes. Each size is saved against its own version, so a change made in another session is never overwritten.',
+      search: 'Search name, code or size', allCats: 'All categories', changedOnly: 'Changed only', refresh: 'Refresh',
+      colProduct: 'Product', colSize: 'Size', colStock: 'Stock', colLow: 'Low level', colCost: 'Unit cost (KWD)', colStatus: 'Status',
+      same: 'Same', changed: 'Changed', saving: 'Saving…', saved: 'Saved', conflict: 'Changed elsewhere, not saved',
+      stale: 'Changed elsewhere since you typed. Your typed values were dropped.', error: 'Not saved: {m}', stopped: 'Not saved (stopped)',
+      badStock: 'Stock: a whole number from 0 to 999999.', badLow: 'Low level: a whole number from 0 to 999999.',
+      badCost: 'Unit cost: KWD with up to 3 decimals, for example 8.500.',
+      summary: '{n} changed · {b} need fixing', save: 'Save {n} changes', saveNone: 'Save changes', discard: 'Discard changes',
+      stop: 'Stop after this one', close: 'Close', savingN: 'Saving {i} of {n}…', waitN: 'Waiting {s} s (too many requests)…',
+      done: 'Saved {a}. Not saved: {c}.', conflictNow: 'Changed in another session: it now has {n} in stock. Press Refresh and type again.',
+      loading: 'Reading the stock list…', failed: 'Could not read the stock list.', retry: 'Try again',
+      empty: 'There are no sizes in the stock list.', noMatch: 'No size matches.',
+      confirmLeave: 'Leave without saving the {n} changes?', signedOut: 'The session ended. Sign in again.', netErr: 'The server could not be reached.'
+    },
+    ar: {
+      open: 'تعديل المقاسات', title: 'تعديل المقاسات والمخزون',
+      intro: 'اكتب في أي خانة. لا يُحفظ شيء حتى تضغط «حفظ التغييرات». يُحفظ كل مقاس بإصداره الخاص، فلا يُكتب فوق تغيير تم من جلسة أخرى.',
+      search: 'ابحث بالاسم أو الرمز أو المقاس', allCats: 'كل الفئات', changedOnly: 'المتغيّر فقط', refresh: 'تحديث',
+      colProduct: 'المنتج', colSize: 'المقاس', colStock: 'المخزون', colLow: 'حدّ التنبيه', colCost: 'تكلفة الوحدة (د.ك)', colStatus: 'الحالة',
+      same: 'مطابق', changed: 'متغيّر', saving: 'جارٍ الحفظ…', saved: 'تم الحفظ', conflict: 'تغيّر من جلسة أخرى، لم يُحفظ',
+      stale: 'تغيّر من جلسة أخرى بعد كتابتك. أُلغيت القيم التي كتبتها.', error: 'لم يُحفظ: {m}', stopped: 'لم يُحفظ (أُوقف الحفظ)',
+      badStock: 'المخزون: رقم صحيح من 0 إلى 999999.', badLow: 'حدّ التنبيه: رقم صحيح من 0 إلى 999999.',
+      badCost: 'التكلفة: بالدينار الكويتي حتى 3 منازل عشرية، مثل 8.500.',
+      summary: '{n} متغيّر · {b} يحتاج إلى تصحيح', save: 'حفظ {n} تغييرًا', saveNone: 'حفظ التغييرات', discard: 'تجاهل التغييرات',
+      stop: 'إيقاف بعد الحالي', close: 'إغلاق', savingN: 'جارٍ الحفظ {i} من {n}…', waitN: 'انتظار {s} ثانية (طلبات كثيرة)…',
+      done: 'تم حفظ {a}. لم يُحفظ {c}.', conflictNow: 'تغيّر من جلسة أخرى: مخزونه الآن {n}. اضغط تحديث وأعد الكتابة.',
+      loading: 'جارٍ قراءة قائمة المخزون…', failed: 'تعذّرت قراءة قائمة المخزون.', retry: 'حاول مرة أخرى',
+      empty: 'لا توجد مقاسات في قائمة المخزون.', noMatch: 'لا يوجد مقاس مطابق.',
+      confirmLeave: 'تغادر دون حفظ {n} تغييرًا؟', signedOut: 'انتهت الجلسة. سجّل الدخول من جديد.', netErr: 'تعذّر الاتصال بالخادم.'
+    }
+  }
+
+  var S = { lang: 'en', rows: null, loading: false, failed: false, opener: null, edit: {}, results: {}, cats: [],
+    q: '', cat: 'all', only: false, saving: false, stop: false, cells: {} }
+  var U = null, root = null
+
+  // ---------------------------------------------------------------- small helpers
+  function t(k, vars) {
+    var s = (STR[S.lang] || STR.en)[k] || STR.en[k] || k
+    if (vars) for (var x in vars) s = s.split('{' + x + '}').join(String(vars[x]))
+    return s
+  }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function btn(cls, text, fn) {
+    var b = el('button', 'sie-btn' + (cls ? ' ' + cls : ''), text); b.type = 'button'
+    b.addEventListener('click', fn)
+    return b
+  }
+  function langOf(node) {
+    var n = node
+    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
+    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
+  }
+  function whole(v) { var n = Number(v); return isFinite(n) && n >= 0 ? Math.floor(n) : 0 }
+  function filsOf(v) { if (v == null || v === '') return null; var n = Number(v); return isFinite(n) && n >= 0 ? Math.round(n * 1000) : null }
+  /** 8500 -> "8.500" */
+  function kwd(f) { var s = String(Math.abs(f)); while (s.length < 4) s = '0' + s; return s.slice(0, -3) + '.' + s.slice(-3) }
+  function digits(v) {
+    return String(v == null ? '' : v).trim()
+      .replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 1632) })
+      .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 1776) })
+      .replace(/٫/g, '.')
+  }
+  /** A whole number box: 0 to 999999, anything else is "bad" (a blank box is bad too: the server needs a number). */
+  function parseWhole(v) {
+    var s = digits(v)
+    if (!/^[0-9]{1,6}$/.test(s)) return { state: 'bad' }
+    var n = Number(s)
+    return n > MAX ? { state: 'bad' } : { state: 'ok', n: n }
+  }
+  /** A unit cost box: KWD with up to 3 decimals. Blank is bad: this route cannot clear a cost. */
+  function parseCost(v) {
+    var s = digits(v)
+    if (!/^(0|[1-9][0-9]{0,6})(\.[0-9]{1,3})?$/.test(s)) return { state: 'bad' }
+    var fils = Math.round(Number(s) * 1000)
+    return { state: 'ok', fils: fils, str: kwd(fils) }
+  }
+  function sizeRank(s) { var i = SIZE_ORDER.indexOf(String(s).toUpperCase()); return i < 0 ? 99 : i }
+  function cmp(a, b) {
+    if (a.slug !== b.slug) return a.slug < b.slug ? -1 : 1
+    var d = sizeRank(a.size) - sizeRank(b.size)
+    return d || (a.size < b.size ? -1 : a.size > b.size ? 1 : 0)
+  }
+  function norm(r) {
+    return {
+      sku: clean(r && r.sku), slug: clean(r && r.slug), name_en: clean(r && r.name_en), name_ar: clean(r && r.name_ar),
+      category: clean(r && r.category), size: clean(r && r.size),
+      stock: whole(r && r.stock), version: whole(r && r.inventory_version), low: whole(r && r.low_stock_threshold),
+      cost: filsOf(r && r.unit_cost_kwd)
+    }
+  }
+  function nameOf(r) { return (S.lang === 'ar' && r.name_ar) || r.name_en || r.name_ar || r.slug || r.sku }
+  function today() { var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) }
+  function note() { return 'Inventory editor ' + today() }
+  function wait(sec) { return new Promise(function (resolve) { setTimeout(resolve, sec * 1000) }) }
+
+  // ---------------------------------------------------------------- what a row would write
+  function hasEdit(sku) { var e = S.edit[sku]; return !!e && (e.stock !== undefined || e.low !== undefined || e.cost !== undefined) }
+  /** The plan for one row from what is typed: the values to write, the problems, and whether anything differs from the system. */
+  function planOf(r) {
+    var e = S.edit[r.sku] || {}, bad = [], stock = null, low = null, cost = null
+    if (e.stock !== undefined) { var a = parseWhole(e.stock); if (a.state === 'ok') { if (a.n !== r.stock) stock = a.n } else bad.push(t('badStock')) }
+    if (e.low !== undefined) { var b = parseWhole(e.low); if (b.state === 'ok') { if (b.n !== r.low) low = b.n } else bad.push(t('badLow')) }
+    if (e.cost !== undefined) { var c = parseCost(e.cost); if (c.state === 'ok') { if (c.fils !== r.cost) cost = c.str } else bad.push(t('badCost')) }
+    return { stock: stock, low: low, cost: cost, bad: bad, changed: stock !== null || low !== null || cost !== null }
+  }
+  function statusOf(r) {
+    var p = planOf(r)
+    if (p.bad.length && hasEdit(r.sku)) return { k: 'bad', text: p.bad.join(' ') }
+    var res = S.results[r.sku]
+    // A result that says why a row was NOT written (stopped, failed, changed elsewhere, signed out) outranks "Changed": the box still holds the typed value, but the answer is the news.
+    if (res && (res.k === 'stopped' || res.k === 'error' || res.k === 'conflict' || res.k === 'stale')) return res
+    if (p.changed) return { k: 'changed', text: t('changed') }
+    if (res) return res
+    return { k: 'same', text: t('same') }
+  }
+  function editValue(r, field) {
+    var e = S.edit[r.sku]
+    if (e && e[field] !== undefined) return e[field]
+    if (field === 'stock') return String(r.stock)
+    if (field === 'low') return String(r.low)
+    return r.cost == null ? '' : kwd(r.cost)
+  }
+  function setEdit(r, field, value) {
+    var e = S.edit[r.sku]
+    if (!e) { e = S.edit[r.sku] = { v: r.version } }
+    e[field] = value
+    delete S.results[r.sku]
+    drawStatus(r)
+    drawFoot()
+  }
+  function clearEdit(sku, fields) {
+    var e = S.edit[sku]
+    if (!e) return
+    fields.forEach(function (f) { delete e[f] })
+    if (!hasEdit(sku)) delete S.edit[sku]
+  }
+  function setResult(sku, res) {
+    S.results[sku] = res
+    var r = (S.rows || []).filter(function (x) { return x.sku === sku })[0]
+    if (r) drawStatus(r)
+    drawFoot()
+  }
+  function applyVariant(r, v) {
+    r.stock = whole(v.stock); r.version = whole(v.inventory_version)
+    r.low = whole(v.low_stock_threshold); r.cost = filsOf(v.unit_cost_kwd)
+  }
+  function applyConflict(r, j) {
+    r.stock = whole(j.stock); r.version = whole(j.inventory_version)
+    r.low = whole(j.low_stock_threshold); r.cost = filsOf(j.unit_cost_kwd)
+    delete S.edit[r.sku]
+  }
+
+  // ---------------------------------------------------------------- the network
+  function post(route, body, attempt) {
+    return fetch(API + '?r=' + route, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' }, body: JSON.stringify(body)
+    }).then(function (res) {
+      return res.json().catch(function () { return {} }).then(function (j) {
+        return { status: res.status, ok: res.ok, j: j || {}, retry: Number(res.headers.get('Retry-After')) || 5 }
+      })
+    }, function () { return { status: 0, ok: false, j: { error: 'netErr' }, retry: 0 } })
+      .then(function (x) {
+        if (x.status === 429 && attempt < RETRIES) {
+          if (U) U.msg.textContent = t('waitN', { s: x.retry })
+          return wait(x.retry).then(function () { return post(route, body, attempt + 1) })
+        }
+        return x
+      })
+  }
+  function read() {
+    if (S.saving) return
+    S.loading = true; S.failed = false; drawBody()
+    fetch(API + '?r=variants', { credentials: 'same-origin', headers: { 'X-Sporta-Admin': '1' } })
+      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json() })
+      .then(function (j) {
+        var list = Array.isArray(j) ? j : (j && Array.isArray(j.data) ? j.data : null)
+        if (!list) throw new Error('shape')
+        applyRead(list)
+        S.loading = false
+        drawAll()
+      })
+      .catch(function () { S.loading = false; S.failed = true; drawBody() })
+  }
+  function applyRead(list) {
+    S.rows = list.map(norm).filter(function (r) { return r.sku }).sort(cmp)
+    var byKey = {}
+    S.rows.forEach(function (r) { byKey[r.sku] = r })
+    Object.keys(S.edit).forEach(function (sku) {
+      var r = byKey[sku]
+      if (!r || r.version !== S.edit[sku].v) { delete S.edit[sku]; S.results[sku] = { k: 'stale', text: t('stale') } }
+    })
+    var seen = {}
+    S.rows.forEach(function (r) { if (r.category) seen[r.category] = true })
+    S.cats = Object.keys(seen).sort()
+  }
+
+  // ---------------------------------------------------------------- the save run
+  function errorText(x) {
+    if (x.status === 0) return t('netErr')
+    return t('error', { m: String(x.j.error || ('http ' + x.status)) })
+  }
+  /** What one write answer means for the row: null when it went through, else the outcome and whether to go on with the row. */
+  function outcome(r, x) {
+    if (x.ok && x.j && x.j.variant) { applyVariant(r, x.j.variant); return null }
+    if (x.status === 401 || x.status === 403) return { k: 'error', text: t('signedOut'), stop: true, row: true }
+    if (x.status === 409) { applyConflict(r, x.j); return { k: 'conflict', text: t('conflictNow', { n: r.stock }), stop: false, row: true } }
+    return { k: 'error', text: errorText(x), stop: false, row: true }
+  }
+  /** Writes one row: stock first (its answer gives the version), then cost and low level with that version. */
+  function runRow(r, p) {
+    var stockWrite = p.stock === null ? Promise.resolve(null) : post('inventory_adjust', {
+      sku: r.sku, type: 'count', target_stock: p.stock, expected_version: r.version, note: note()
+    }, 0)
+    return stockWrite.then(function (x) {
+      if (x) {
+        var bad = outcome(r, x)
+        if (bad) return bad
+        clearEdit(r.sku, ['stock'])
+      }
+      if (p.cost === null && p.low === null) return { k: 'saved', text: t('saved'), stop: false }
+      var body = { sku: r.sku, expected_version: r.version, note: note() }
+      if (p.cost !== null) body.unit_cost_kwd = p.cost
+      if (p.low !== null) body.low_stock_threshold = p.low
+      return post('inventory_variant_save', body, 0).then(function (y) {
+        var bad2 = outcome(r, y)
+        if (bad2) return bad2
+        clearEdit(r.sku, ['cost', 'low'])
+        return { k: 'saved', text: t('saved'), stop: false }
+      })
+    })
+  }
+  function saveAll() {
+    if (S.saving || !S.rows) return
+    var list = S.rows.filter(function (r) { var p = planOf(r); return p.changed && !p.bad.length })
+    if (!list.length) return
+    S.saving = true; S.stop = false
+    var ok = 0, fail = 0, i = 0
+    drawFoot()
+    function finish() {
+      list.slice(i).forEach(function (r) { S.results[r.sku] = { k: 'stopped', text: t('stopped') } })
+      S.saving = false; S.stop = false
+      U.msg.textContent = t('done', { a: ok, c: fail + (list.length - i) })
+      drawRows(); drawFoot()
+    }
+    function next() {
+      if (S.stop || i >= list.length) return finish()
+      var r = list[i++]
+      var p = planOf(r)
+      setResult(r.sku, { k: 'saving', text: t('saving') })
+      U.msg.textContent = t('savingN', { i: i, n: list.length })
+      runRow(r, p).then(function (out) {
+        if (out.k === 'saved') ok++; else fail++
+        setResult(r.sku, { k: out.k, text: out.text })
+        if (out.stop) { S.stop = true; U.msg.textContent = out.text }
+        setTimeout(next, PACE_MS)
+      }, function () {
+        fail++
+        setResult(r.sku, { k: 'error', text: t('netErr') })
+        setTimeout(next, PACE_MS)
+      })
+    }
+    next()
+  }
+  function discard() {
+    if (S.saving) return
+    S.edit = {}; S.results = {}
+    U.msg.textContent = ''
+    drawRows(); drawFoot()
+  }
+
+  // ---------------------------------------------------------------- the dialog
+  function ensureStyle() {
+    if (document.getElementById(STYLE_ID)) return
+    var st = el('style'); st.id = STYLE_ID
+    st.textContent = [
+      '.sie-ov{position:fixed;inset:0;z-index:2147482000;background:rgba(23,26,30,.55);display:flex;align-items:center;justify-content:center;padding:1rem}',
+      '.sie-dlg{background:#fff;color:#171a1e;border-radius:16px;max-width:64rem;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.3)}',
+      '.sie-head{display:flex;justify-content:space-between;gap:1rem;align-items:center;padding:1rem 1.25rem .25rem}',
+      '.sie-head h2{margin:0;font-size:1.25rem;font-weight:700}',
+      '.sie-intro{margin:0;padding:0 1.25rem .75rem;color:#4b5563;font-size:.9rem}',
+      '.sie-tools{display:flex;flex-wrap:wrap;gap:.5rem;padding:0 1.25rem .75rem;align-items:center}',
+      '.sie-tools input[type=search]{flex:1 1 14rem;min-height:44px;padding:.5rem .75rem;border:1px solid #9ca3af;border-radius:12px;font:inherit;background:#fff;color:#171a1e}',
+      '.sie-tools select{min-height:44px;border:1px solid #9ca3af;border-radius:12px;padding:0 .5rem;font:inherit;background:#fff;color:#171a1e}',
+      '.sie-tools label{min-height:44px;display:inline-flex;align-items:center;gap:.4rem;font-size:.9rem}',
+      '.sie-body{overflow:auto;padding:0 1.25rem;flex:1 1 auto;min-height:6rem}',
+      '.sie-table{width:100%;border-collapse:collapse;font-size:.9rem}',
+      '.sie-table th,.sie-table td{padding:.4rem .5rem;border-bottom:1px solid #e5e7eb;text-align:start;vertical-align:middle}',
+      '.sie-table th{font-size:.8rem;color:#374151;position:sticky;top:0;background:#fff}',
+      '.sie-sub{font-size:.78rem;color:#6b7280}',
+      '.sie-in{min-height:44px;width:6rem;border:1px solid #9ca3af;border-radius:10px;padding:.4rem .5rem;font:inherit;text-align:end;background:#fff;color:#171a1e}',
+      '.sie-in.sie-cost{width:7.5rem}',
+      '.sie-in[aria-invalid=true]{border:2px solid #b42318}',
+      '.sie-st{font-size:.85rem;font-weight:600}',
+      '.sie-st-changed{color:#B34D00}',
+      '.sie-st-bad,.sie-st-error,.sie-st-conflict,.sie-st-stale{color:#b42318}',
+      '.sie-st-saved{color:#166534}',
+      '.sie-st-saving{color:#374151}',
+      '.sie-msg{margin:0;padding:.5rem 1.25rem;font-size:.9rem;min-height:1.5rem}',
+      '.sie-foot{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between;padding:.75rem 1.25rem 1rem;border-top:1px solid #e5e7eb}',
+      '.sie-btn{min-height:44px;padding:0 1rem;border-radius:12px;border:1px solid #9ca3af;background:#fff;color:#171a1e;font:inherit;font-weight:600;cursor:pointer}',
+      '.sie-btn.sie-p{background:#FF7B17;border-color:#FF7B17;color:#171a1e}',
+      '.sie-btn:disabled{opacity:.5;cursor:not-allowed}',
+      '.sie-sum{font-size:.9rem;color:#374151}',
+      '.sie-empty{padding:1rem 0;color:#4b5563}'
+    ].join('\n')
+    ;(document.head || document.documentElement).appendChild(st)
+  }
+  function build() {
+    ensureStyle()
+    root = el('div', 'sie-ov'); root.setAttribute('data-sie', 'overlay')
+    var dlg = el('div', 'sie-dlg')
+    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'sie-title')
+    dlg.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr'); dlg.setAttribute('lang', S.lang)
+    var head = el('div', 'sie-head')
+    var h = el('h2', '', t('title')); h.id = 'sie-title'
+    head.appendChild(h); head.appendChild(btn('', t('close'), closeDialog))
+    dlg.appendChild(head)
+    dlg.appendChild(el('p', 'sie-intro', t('intro')))
+
+    var tools = el('div', 'sie-tools')
+    var q = el('input'); q.type = 'search'; q.placeholder = t('search'); q.setAttribute('aria-label', t('search'))
+    q.addEventListener('input', function () { S.q = q.value; drawRows() })
+    var cat = el('select'); cat.setAttribute('aria-label', t('allCats'))
+    cat.addEventListener('change', function () { S.cat = cat.value; drawRows() })
+    var lab = el('label'); var chk = el('input'); chk.type = 'checkbox'
+    chk.addEventListener('change', function () { S.only = chk.checked; drawRows() })
+    lab.appendChild(chk); lab.appendChild(document.createTextNode(' ' + t('changedOnly')))
+    tools.appendChild(q); tools.appendChild(cat); tools.appendChild(lab); tools.appendChild(btn('', t('refresh'), read))
+    dlg.appendChild(tools)
+
+    var body = el('div', 'sie-body'); body.setAttribute('data-sie', 'body')
+    dlg.appendChild(body)
+    var msg = el('p', 'sie-msg'); msg.setAttribute('role', 'status'); msg.setAttribute('aria-live', 'polite')
+    dlg.appendChild(msg)
+
+    var foot = el('div', 'sie-foot')
+    var sum = el('span', 'sie-sum')
+    var acts = el('div', '')
+    acts.style.display = 'flex'; acts.style.flexWrap = 'wrap'; acts.style.gap = '.5rem'
+    var stop = btn('', t('stop'), function () { S.stop = true; stop.disabled = true })
+    var disc = btn('', t('discard'), discard)
+    var save = btn('sie-p', t('saveNone'), saveAll)
+    acts.appendChild(stop); acts.appendChild(disc); acts.appendChild(save)
+    foot.appendChild(sum); foot.appendChild(acts)
+    dlg.appendChild(foot)
+    root.appendChild(dlg)
+    document.body.appendChild(root)
+    U = { dlg: dlg, q: q, cat: cat, chk: chk, body: body, msg: msg, sum: sum, save: save, disc: disc, stop: stop }
+  }
+  function drawBody() {
+    if (!U) return
+    U.body.textContent = ''
+    if (S.loading) { U.body.appendChild(el('p', 'sie-empty', t('loading'))); return }
+    if (S.failed) {
+      U.body.appendChild(el('p', 'sie-empty', t('failed')))
+      U.body.appendChild(btn('sie-p', t('retry'), read))
+      return
+    }
+    drawRows()
+  }
+  function drawAll() {
+    if (!U) return
+    U.cat.textContent = ''
+    U.cat.appendChild(new Option(t('allCats'), 'all'))
+    S.cats.forEach(function (c) { U.cat.appendChild(new Option(c, c)) })
+    if (S.cat !== 'all' && S.cats.indexOf(S.cat) < 0) S.cat = 'all'
+    U.cat.value = S.cat
+    drawBody()
+    drawFoot()
+  }
+  function visible(r) {
+    if (S.cat !== 'all' && r.category !== S.cat) return false
+    if (S.only && !planOf(r).changed && !hasEdit(r.sku)) return false
+    var q = clean(S.q).toLowerCase()
+    if (q && [nameOf(r), r.name_en, r.name_ar, r.sku, r.slug, r.size].join(' ').toLowerCase().indexOf(q) < 0) return false
+    return true
+  }
+  function drawRows() {
+    if (!U || S.loading || S.failed || !S.rows) return
+    U.body.textContent = ''
+    S.cells = {}
+    if (!S.rows.length) { U.body.appendChild(el('p', 'sie-empty', t('empty'))); drawFoot(); return }
+    var list = S.rows.filter(visible)
+    if (!list.length) { U.body.appendChild(el('p', 'sie-empty', t('noMatch'))); drawFoot(); return }
+    var table = el('table', 'sie-table')
+    table.setAttribute('data-sie', 'table')
+    var thead = el('thead'), hr = el('tr')
+    ;['colProduct', 'colSize', 'colStock', 'colLow', 'colCost', 'colStatus'].forEach(function (k) { hr.appendChild(el('th', '', t(k))) })
+    thead.appendChild(hr); table.appendChild(thead)
+    var tbody = el('tbody')
+    list.forEach(function (r) { tbody.appendChild(rowEl(r)) })
+    table.appendChild(tbody)
+    U.body.appendChild(table)
+    drawFoot()
+  }
+  function inputCell(r, field, mode, cls, label) {
+    var td = el('td')
+    var inp = el('input', 'sie-in' + (cls ? ' ' + cls : ''))
+    inp.type = 'text'; inp.setAttribute('inputmode', mode); inp.setAttribute('autocomplete', 'off')
+    inp.setAttribute('aria-label', label)
+    inp.value = editValue(r, field)
+    inp.addEventListener('input', function () {
+      setEdit(r, field, inp.value)
+      inp.setAttribute('aria-invalid', planOf(r).bad.length && hasEdit(r.sku) ? 'true' : 'false')
+    })
+    td.appendChild(inp)
+    return td
+  }
+  function rowEl(r) {
+    var tr = el('tr'); tr.setAttribute('data-sie-sku', r.sku)
+    var name = nameOf(r)
+    var p = el('td'); p.appendChild(el('div', '', name)); p.appendChild(el('div', 'sie-sub', r.sku)); tr.appendChild(p)
+    tr.appendChild(el('td', '', r.size))
+    tr.appendChild(inputCell(r, 'stock', 'numeric', '', name + ' ' + r.size + ' ' + t('colStock')))
+    tr.appendChild(inputCell(r, 'low', 'numeric', '', name + ' ' + r.size + ' ' + t('colLow')))
+    tr.appendChild(inputCell(r, 'cost', 'decimal', 'sie-cost', name + ' ' + r.size + ' ' + t('colCost')))
+    var sc = el('td'); var st = el('span', 'sie-st'); sc.appendChild(st); tr.appendChild(sc)
+    S.cells[r.sku] = st
+    var s = statusOf(r)
+    st.textContent = s.text; st.className = 'sie-st sie-st-' + s.k
+    return tr
+  }
+  function drawStatus(r) {
+    var st = S.cells[r.sku]
+    if (!st) return
+    var s = statusOf(r)
+    st.textContent = s.text
+    st.className = 'sie-st sie-st-' + s.k
+  }
+  function drawFoot() {
+    if (!U) return
+    var changed = 0, bad = 0, edits = 0
+    ;(S.rows || []).forEach(function (r) {
+      var p = planOf(r)
+      if (p.bad.length && hasEdit(r.sku)) bad++
+      else if (p.changed) changed++
+      if (hasEdit(r.sku)) edits++
+    })
+    U.sum.textContent = t('summary', { n: changed, b: bad })
+    U.save.textContent = changed ? t('save', { n: changed }) : t('saveNone')
+    U.save.disabled = S.saving || !changed || bad > 0
+    U.disc.disabled = S.saving || !edits
+    U.stop.disabled = !S.saving
+    U.stop.hidden = !S.saving
+    U.q.disabled = S.saving
+  }
+  function dirtyCount() {
+    var n = 0
+    ;(S.rows || []).forEach(function (r) { if (planOf(r).changed) n++ })
+    return n
+  }
+  function onKey(e) { if (e.key === 'Escape' && root) closeDialog() }
+  function openDialog(opener) {
+    if (root) return
+    S.opener = opener; S.lang = langOf(opener)
+    S.edit = {}; S.results = {}; S.q = ''; S.cat = 'all'; S.only = false; S.rows = null; S.cells = {}
+    build()
+    document.addEventListener('keydown', onKey)
+    read()
+    setTimeout(function () { if (U && U.q) U.q.focus() }, 0)
+  }
+  function closeDialog() {
+    if (!root || S.saving) return
+    var n = dirtyCount()
+    if (n && !window.confirm(t('confirmLeave', { n: n }))) return
+    root.remove(); root = null; U = null
+    document.removeEventListener('keydown', onKey)
+    if (S.opener && S.opener.focus) S.opener.focus()
+  }
+
+  // ---------------------------------------------------------------- the header button
+  function actions() {
+    var a = document.querySelectorAll('.inventory-heading__actions')
+    for (var i = 0; i < a.length; i++) if (shown(a[i])) return a[i]
+    return null
+  }
+  function ensure() {
+    var a = actions()
+    var have = document.querySelectorAll('[' + BTN + ']')
+    if (!a) { for (var i = 0; i < have.length; i++) have[i].remove(); return }
+    if (have.length === 1 && have[0].parentNode === a) return
+    for (var j = 0; j < have.length; j++) have[j].remove()
+    var lang = langOf(a)
+    var label = (STR[lang] || STR.en).open
+    var b = el('button', 'inventory-refresh', label)
+    b.type = 'button'; b.setAttribute(BTN, '1')
+    b.addEventListener('click', function () { openDialog(b) })
+    var live = a.querySelector('.inventory-live-status')
+    if (live && live.parentNode === a) a.insertBefore(b, live); else a.appendChild(b)
+  }
+  function soon() { ensure(); setTimeout(ensure, 150); setTimeout(ensure, 800) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) return
+    soon()
+    if (root && !S.saving && !S.loading) read()
+  })
+  window.addEventListener('beforeunload', function (e) { if (S.saving) { e.preventDefault(); e.returnValue = '' } })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+  } catch (e) { /* a page this block does not know: leave it alone */ }
+})()
+/* ===== ADMIN INVENTORY EDITOR - end ===================================== */
+
 /* ===== ADMIN SPORTA AI - begin ===========================================
  * 10. Sporta AI (owner request 2026-11-11: "make sporta ai setup at backends").
  *
