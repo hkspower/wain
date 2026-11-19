@@ -1358,6 +1358,48 @@ check the plan's byte line shows no shrink; `birthday.js` is one label).
 - Decisions by interpretation (change them if the owner disagrees): the compiled page's own 12px order number stays visible above the card's 18px one (React's nodes are never hidden); the Arabic wording of the card ("ملخص الطلب", "ماذا يحدث بعد ذلك", "يفضّل تجهيز المبلغ بالضبط، فالمندوب قد لا يحمل فكة.", "عندك سؤال عن هذا الطلب؟") is new copy and has not been read by a native speaker; the "1 KWD" delivery fee and the "14-day" return window in the checkout list are the compiled product page's static sentences, so they go stale together if the owner edits the fee or the window in /backends; the order summary on the card is the limited invoice's, so an order from before line rows were kept (119 of 120 live orders have none) shows the card without a summary.
 - Not seen on a real phone or in Safari / Firefox (Chromium only). No deploy: the plan's live -> release bytes must differ by this work only (live files are commit `e5224bea`'s plus any later add-on release).
 
+**Built 2026-11-19, NOT deployed (owner: "full improve product page ux ui"): PRODUCT UX 1120.** A scan of the product page (`/product/<slug>`, the captured live
+build, 320 / 360 / 390 / 768 / 1280 px, Arabic and English, light and dark; every control, every keyboard stop, the size / fit / quantity / sold-out states) found
+what held (every control 44 px or more, nothing scrolls sideways, every keyboard stop is ringed, the buy bar and the states read right) and four things that did
+not. Three add-on files, no API, no migration, no new file: (1) TITLE, `sporta-features.js` NAMES-1119: a hyphenated word was a place the line may break, so
+"Sgomma T-Shirt — Navy" wrapped as "Sgomma T-" / "Shirt — Navy" on a phone and a tablet (320-768 px, English); it now reads "Sgomma" / "T-Shirt — Navy". A word
+joiner (U+2060: no width, no glyph, so the shop's fonts, which have none, draw nothing and substitute nothing) is written after a hyphen that has a letter or digit
+on both sides, in the same text-node pass as the dash glue (card names, product title, bag and drawer lines), once, and again after React rewrites the text, and
+ONLY in a hyphenated word of up to 14 characters (`WORD_MAX`): a longer code ("AIRMAX-90-ULTRA-LONGCODE-0001") keeps breaking at its hyphens, because a word that
+cannot break is wider than a phone's card. The tooltip block, the META-1117 description fallback, the new block's WhatsApp message AND the PRICES-1118 bag lookup
+(`norm`, which finds a bag line's product by the line's NAME text: with the joiner in "T-Shirt" a bag line lost its original price, percent and Original total / You
+save rows until `norm` ignored it, caught by `test:prices-1118`) read the name WITHOUT the joiner (the file holds it as the escape, never as the raw invisible
+character). Still reading the glued name as it is: `sporta-footer-call.js` (the "removed from your bag" announcement; a screen reader ignores the joiner). Arabic names have no hyphen and are untouched; the title stays centred on the column
+(PRODUCT SHAPE 1119). (2) PLATE, `sporta-product-fix.css` [pux-1]: a product with no maker of its own on show (PRODUCT BRAND-1118 took the shop's logo row out)
+still drew the divider and the padding that belonged to that row, a stray hairline one pixel under the plate's top edge; both go, and a product with a maker keeps
+both. (3) ACTIONS, `sporta-features.js` PRODUCT ACTIONS 1120 (a new block right after NAMES-1119) + `sporta-product-fix.css` [pux-2..5]: one row after the
+reassurance panel (Delivery / Payment / Returns). "Ask on WhatsApp" is a wa.me link whose message is "Hello Sporta, I have a question about this product:" + the
+product name + a new line + the page's CANONICAL address (per language, English `?lang=en`; never the address bar, so a visitor from an ad passes no tracking tail on);
+the number is the digits of the footer's own WhatsApp link, which SITE CONTENT keeps equal to /backends (a page with no such link gets no ask action and Share takes
+the row). "Share" opens the phone's share sheet where the browser has one (`navigator.share`), else it is "Copy link": the canonical address to the clipboard (a
+hidden-textarea copy if the clipboard refuses), "Link copied" / "Copy failed" in the button and in a polite live region for 2.6 s, and NOTHING moves while the words
+change (the words that can replace the label are drawn invisibly inside it, [pux-2b], so the button keeps one width and the row never wraps under its own message; before
+that the Share button grew 7 px and the ask button shrank 7 px). The labels are short on purpose ("Ask about this product" plus "Link copied" did not fit one row on a
+390 px phone); the accessible name starts with the visible words. 44 px, the Back control's twins (12 px corner, 1 px line at 20% ink, the deep orange ring), 1.25 rem
+line icons as CSS masks (the icon set's WhatsApp; a share arrow and a link are drawn in the same style, because the generated set has neither), the dark theme, hidden
+when printing, one line from 360 px up (at 344 px and 320 px it may stack, each button full width). It is ONE node of ours, put back after React renders the page
+again, updated in place when the product, the language, the canonical or the footer number changes (a related product opened by the router shows its own name and
+address; a focused button keeps focus), removed with the page; on a sold-out product too (a question about a restock is the likeliest one). (4) DARK PRICE,
+`sporta-shadows.css` [pc-7]: a sold-out related card's grey price was 2.75:1 on the dark card (it is only drawn in an admin's own dark browser); it is the struck
+price's #a8b3c0 there, 7.7:1. Proof: `npm run test:product-ux-1120` (178 checks on the real compiled storefront, 280 s: every rule cut in turn, 26 mutants each of which
+must turn its check red; per-flow time limits and a 25-minute watchdog; rig-free, needs the capture, prints SKIP without it). Neighbours green on the same tree, one at a time: product-names 126, product-brand-1118 24,
+brand-plate-layout 43, product-layout 98, product-shape-1119 48, cards-1119 109, colours-1118 15, center-text 133, words-colours 355, meta-1117 35, prices-1118 71
+(after the `norm` fix; red before it), bag-link-1118 17, live-stock-1118 18, icons-polish 1,758, product-back 165, cart-ux 342, add-to-cart-ux 194, js-guard 46.
+Measured: the title never ends a line at a
+hyphen at 320 / 360 / 390 / 768 / 1280 px; the row is two 44 px buttons on one line from 360 px, 0 layout shift; the confirmation moves the row and both buttons by 0 px.
+NOT seen in a real phone browser, Safari or Firefox (Chromium only here; Linux Chromium has no `navigator.share`, so the share sheet is a stub that records the call; the
+clipboard is a stub too); the WhatsApp link was not opened. Left as it was: the "Bestseller" pill is 11 px and clips at 320 px; Fit pills show on a T-shirt and
+descriptions are one sentence (data); the compiled page's "Struck-through sizes are not carried" hint also shows on a sold-out one-size item. Release scope when the
+owner says "deploy": `--only sporta-features.js,sporta-product-fix.css,sporta-shadows.css` together with PRODUCT BACK 1120 (`boot.js`), because
+`sporta-product-fix.css` carries both sections. Tooling note: the file-writing tool turns a typed backslash-u sequence into the character itself, so an escape that must
+stay an escape in a file is built from a backslash in a patch script (this cost one wrong "patched" message). `test:release-gate` fails one registry check at this base
+for scripts that are not registered (fabric, photo-limits, catalogue-*, qr, admin-inventory-editor, ...), not for this suite.
+
 Rules learned this session (apply):
 - `sporta-web/dropin/php-store/install.mysql.sql` is GENERATED. Never hand-edit it: add a part to `PARTS` in `scripts/make-install-sql.mjs`, then run that script. Then regenerate `dbcenter-manifest.php` (`node scripts/make-dbcenter-manifest.mjs`) and record the column in `sporta-web/ops/db/expected-schema.json`.
 - New columns: append with no `AFTER` clause, so every database ends with the same column order and the recorded positions do not shift.
