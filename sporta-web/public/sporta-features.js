@@ -3860,6 +3860,8 @@
         })
         .catch(function () { listState = 'failed' })
     }
+    // `totals` is set only for the bag PAGE's lines: they alone feed the page summary. The closed drawer keeps its own copies of the same lines in
+    // the DOM, and counting them too doubled "Original total" and "You save" on the page (found by the cart scan, 2026-11-19).
     var LINES = [
       { row: '.cart-line', name: 'h3', qty: '.purchase-quantity > span', totals: '.cart-line__controls' },
       { row: '.cart-drawer__line', name: 'p.font-bold', qty: '.purchase-quantity > span', totals: null }
@@ -3886,7 +3888,16 @@
           var q = Math.round(qty.n), u = unit.n
           // two or more pieces on the bag PAGE: the line total, in the row of the quantity box and the remove button (a row that
           // already exists, so nothing moves). The drawer is too narrow for a third item: it keeps the app's own subtotal.
-          if (controls && q >= 2) {
+          // ...unless the app already draws that line total in the row (the compiled bag page does: the figure beside the stepper). A second copy of
+          // the same figure pushed the remove button to a row of its own (cart scan, 2026-11-19), so the tag is only for a build that does not draw one.
+          var drawn = false
+          if (controls) for (var ci = 0; ci < controls.children.length; ci++) {
+            var cc = controls.children[ci]
+            if (cc.hasAttribute('data-sporta-line')) continue
+            var ca = amountIn(cc.textContent)
+            if (ca && Math.abs(ca.n - u * q) < 0.0005 && /KWD|د\.ك|دينار/.test(cc.textContent)) { drawn = true; break }
+          }
+          if (controls && q >= 2 && !drawn) {
             var lt = withAmount(template, u * q), full = tr('line') + ': ' + lt
             if (!tag) {
               tag = mk('span', 'data-sporta-line', lt); tag.setAttribute('aria-label', full); tag.setAttribute('title', full)
@@ -3900,9 +3911,10 @@
             var pct = pctOf(rec.list, rec.price)
             var wasText = ' \u00b7 ' + tr('was') + ' ' + withAmount(template, rec.list) + ' (' + tr('offShort', { p: digits(pct, unit.token) }) + ')'
             if (!was) { was = mk('span', 'data-sporta-was', wasText); unitP.appendChild(was) } else setText(was, wasText)
-            origTotal += rec.list * q; saved += (rec.list - rec.price) * q; tmpl = tmpl || template
-          } else { if (was) was.remove(); origTotal += u * q }
-          nowTotal += u * q
+            if (def.totals) { origTotal += rec.list * q; saved += (rec.list - rec.price) * q }
+            tmpl = tmpl || template
+          } else { if (was) was.remove(); if (def.totals) origTotal += u * q }
+          if (def.totals) nowTotal += u * q
           if (!tmpl) tmpl = template
         }
       })

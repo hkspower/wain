@@ -327,6 +327,50 @@ html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__form-panel :
   color: #ffffff !important;
 }
 
+/* ==== AI PANEL 1119 (2026-11-19, owner: "fix sporta ai"; proof: npm run test:ai-panel) ======================================
+ * The Sporta AI panel is drawn INSIDE <header class="app-header"> (the build puts its launcher there; see the rule above that stops the header
+ * trapping it). MONO-1112 rule 2 paints every text inside the header white, but only the panel's top strip is dark: the greeting bubble, the
+ * four question chips, the microphone, the typed text of the input and every answer sit on WHITE. They were white on white (1.0:1): a visitor
+ * saw an empty bubble, four empty ovals and an input whose typed words could not be read. Everything under the panel's strip is the brand black
+ * again (the orange buttons and the user's own bubble are ink on orange, as rule 3 already has them).
+ *  - [ai-1] the colours above.
+ *  - [ai-2] the strip's close button and the microphone were TEXT glyphs ("✕", an emoji): 31 x 35 and 42 x 50 px on a desktop, and the emoji
+ *    drawn in the colours of each phone. They are 44 x 44 px and the shop's line icons (a close and a microphone, 1.75 line, drawn with a mask
+ *    in the text colour, the glyph of the button hidden; its aria-label is untouched). */
+/* [ai-1] */
+:where(html:not(.dark):not([data-theme="dark"])) .storefront-root .app-header [role="dialog"].fixed:not(#m-never) > :not(header),
+:where(html:not(.dark):not([data-theme="dark"])) .storefront-root .app-header [role="dialog"].fixed:not(#m-never) > :not(header) :not(svg, svg *, [role="alert"], [role="alert"] *) {
+  color: #171a1e !important;
+}
+/* [ai-2] */
+.storefront-root .app-header [role="dialog"].fixed {
+  --sporta-ai-close: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.75' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E");
+  --sporta-ai-mic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z'/%3E%3Cpath d='M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21'/%3E%3C/svg%3E");
+}
+.storefront-root .app-header [role="dialog"].fixed > header > button,
+.storefront-root .app-header [role="dialog"].fixed > form > button:not(.btn) {
+  display: inline-grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 0;
+  line-height: 0;
+}
+.storefront-root .app-header [role="dialog"].fixed > header > button::before,
+.storefront-root .app-header [role="dialog"].fixed > form > button:not(.btn)::before {
+  content: "";
+  width: 1.25rem;
+  height: 1.25rem;
+  background: currentColor;
+  -webkit-mask: var(--sporta-ai-close) center / contain no-repeat;
+  mask: var(--sporta-ai-close) center / contain no-repeat;
+}
+.storefront-root .app-header [role="dialog"].fixed > form > button:not(.btn)::before {
+  -webkit-mask-image: var(--sporta-ai-mic);
+  mask-image: var(--sporta-ai-mic);
+}
+/* ==== end AI PANEL 1119 */
+
 /* ==== TILE-FALLBACK-1112: category tiles keep a dark ground when their photo does not load (owner: "fix white page",
    2026-11-12). The tile text is white over the photo (MONO-1112); with no photo the tile was white on white, so the home
    page looked blank. The ground is charcoal, under the photo, so a loaded photo covers it and a failed one leaves readable

@@ -42,7 +42,7 @@ const LIST = (o = {}) => [
   { slug: 'vanquish-t-shirt-navy-blue', name_en: NAMES.en[0], name_ar: NAMES.ar[0], price: o.price1 ?? 10, list_price: o.list1 ?? 12.5, on_sale: o.sale1 ?? true },
   { slug: 'cloudsoft-leggings-grey', name_en: NAMES.en[1], name_ar: NAMES.ar[1], price: 4.5, list_price: 4.5, on_sale: false },
 ]
-async function open(page, lang, { w = 1280, list = LIST(), fail: failApi = false, dark = false, js = FEATURES, css = null } = {}) {
+async function open(page, lang, { w = 1280, list = LIST(), fail: failApi = false, dark = false, js = FEATURES, css = null, keepAppTotals = false } = {}) {
   ref.script = js
   if (css) ref.current = { ...addonFiles(), 'sporta-shadows.css': css }; else ref.current = addonFiles()
   const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, serviceWorkers: 'block' })
@@ -54,6 +54,13 @@ async function open(page, lang, { w = 1280, list = LIST(), fail: failApi = false
   await pg.goto(`${base}/__fx/${page}-${lang}?js=1`)
   if (dark) await pg.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
   await pg.waitForTimeout(500)
+  // The compiled bag page draws each line's total itself, and the script adds its own only where the build draws none (cart scan, 2026-11-19: two copies
+  // of the same figure). The fixture is that page's markup, so unless a test asks for the page as it is (keepAppTotals) the app's own totals are taken
+  // out here, which is the build the line-total tag is for.
+  if (page === 'cart' && !keepAppTotals) {
+    await pg.evaluate(() => document.querySelectorAll('.cart-line__controls').forEach((c) => [...c.children].forEach((x) => { if (!x.hasAttribute('data-sporta-line') && !x.classList.contains('purchase-quantity') && x.tagName !== 'BUTTON' && /KWD|د\.ك/.test(x.textContent)) x.remove() })))
+    await pg.waitForTimeout(400)
+  }
   return { ctx, pg, errors, calls }
 }
 const text = async (pg, sel) => norm(await pg.locator(sel).first().textContent().catch(() => ''))
@@ -106,6 +113,15 @@ for (const lang of ['en', 'ar']) {
 
 // =============================================================================================== 2. the bag page
 head('the bag page')
+{
+  // the page as the compiled app draws it: the line total beside the stepper is the app's own; a second copy is not added
+  for (const lang of ['en', 'ar']) {
+    const { pg, ctx } = await open('cart', lang, { keepAppTotals: true })
+    const r = await pg.evaluate(() => { const row = document.querySelectorAll('.cart-line')[1].querySelector('.cart-line__controls'); const amounts = [...row.children].filter((x) => !x.classList.contains('purchase-quantity') && x.tagName !== 'BUTTON' && /KWD|د\.ك/.test(x.textContent)).map((x) => x.textContent.replace(/\s+/g, ' ').trim()); return { amounts, tags: row.querySelectorAll('[data-sporta-line]').length } })
+    is(r.tags === 0 && r.amounts.length === 1, `${lang}: the app already draws line 2's total beside the stepper: no second copy of it is added`, JSON.stringify(r))
+    await ctx.close()
+  }
+}
 for (const lang of ['en', 'ar']) {
   const { pg, errors, calls, ctx } = await open('cart', lang)
   const lines = pg.locator('.cart-line')
@@ -176,6 +192,33 @@ head('the bag drawer')
   await ctx.close()
 }
 
+// =============================================================================================== 3b. the real compiled bag page
+// The compiled app keeps the closed drawer's copy of every line in the DOM while the bag PAGE is open. Counting those lines too doubled "Original total"
+// and "You save" on the page (cart scan, 2026-11-19: one line, 2 pieces at 8.000 instead of 10.000 showed 40.000 and 8.000, not 20.000 and 4.000).
+head('the real compiled bag page (the closed drawer holds the same lines in the DOM)')
+const LIVE = await import('./lib/cart-ux-live.mjs')
+const realBag = async (js) => {
+  const body = JSON.parse(readFileSync(join(LIVE.liveDir(), 'api/products.json'), 'utf8')).map((p) => (p.slug === 'sculpt-jacket-black' ? { ...p, price: 8, list_price: 10, on_sale: true } : p))
+  const srv = await LIVE.serveLive({ api: { products: body }, js: js ? { 'sporta-features.js': js } : {} })
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' })
+    await ctx.addInitScript((l) => localStorage.setItem('sporta_cart', JSON.stringify(l)), [LIVE.line('sculpt-jacket-black', 'L', 'Sculpt Jacket — Black', 'x', 8, 2)])
+    const pg = await ctx.newPage()
+    await pg.goto(srv.base + '/cart?lang=en'); await pg.waitForSelector('.cart-line', { timeout: 15000 }).catch(() => {}); await pg.waitForTimeout(1500)
+    const r = await pg.evaluate(() => ({ drawer: document.querySelectorAll('.cart-drawer__line').length, rows: [...document.querySelectorAll('[data-sporta-sumrows] > p')].map((p) => p.textContent.replace(/\s+/g, ' ').trim()) }))
+    await ctx.close(); return r
+  } finally { await srv.close() }
+}
+if (!LIVE.liveDir()) is(true, 'SKIP: no capture of the live storefront on this machine (the real-app section was not measured)')
+else {
+  const real = await realBag(null)
+  is(real.drawer >= 1, 'the closed drawer does hold its copy of the line in the DOM (the case under test)', JSON.stringify(real))
+  is(real.rows.length === 2 && /Original total ?KWD 20\.000$/.test(real.rows[0]) && /You save ?−KWD 4\.000$/.test(real.rows[1]), 'the page summary counts the page\'s lines once: Original total 20.000, You save 4.000', JSON.stringify(real.rows))
+  const undone = FEATURES.replace("if (def.totals) { origTotal += rec.list * q; saved += (rec.list - rec.price) * q }", "origTotal += rec.list * q; saved += (rec.list - rec.price) * q")
+  if (undone === FEATURES) is(false, 'mutant: the cut text was found')
+  else { const bad = await realBag(undone); is(!(bad.rows.length === 2 && /Original total ?KWD 20\.000$/.test(bad.rows[0])), 'mutant (the drawer\'s lines feed the page summary again): caught', JSON.stringify(bad.rows)) }
+}
+
 // =============================================================================================== 4. mutations
 head('mutations (each must turn the suite red)')
 async function mutant(name, edit, probe, { css = null } = {}) {
@@ -191,8 +234,11 @@ await mutant('no stale-price proof (a changed price still shows a saving)', (s) 
   const { pg, ctx } = await open('cart', 'en', { js, list: LIST({ price1: 9, list1: 12.5 }) })
   const n = await count(pg, '[data-sporta-was]'); await ctx.close(); return n > 0
 })
-await mutant('line total shown for one piece too', (s) => s.replace('if (controls && q >= 2) {', 'if (controls && q >= 1) {'), async (js) => {
+await mutant('line total shown for one piece too', (s) => s.replace('if (controls && q >= 2 && !drawn) {', 'if (controls && q >= 1 && !drawn) {'), async (js) => {
   const { pg, ctx } = await open('cart', 'en', { js }); const n = await count(pg, '[data-sporta-line]'); await ctx.close(); return n === 2
+})
+await mutant('a second copy of the line total when the app draws one', (s) => s.replace('if (controls && q >= 2 && !drawn) {', 'if (controls && q >= 2) {'), async (js) => {
+  const { pg, ctx } = await open('cart', 'en', { js, keepAppTotals: true }); const n = await count(pg, '[data-sporta-line]'); await ctx.close(); return n === 0
 })
 await mutant('a request on every pass (no once-only guard)', (s) => s.replace("if (listState !== 'idle') return", ''), async (js) => {
   const { pg, calls, ctx } = await open('cart', 'en', { js }); await pg.evaluate(() => document.body.appendChild(document.createElement('i'))); await pg.waitForTimeout(300); await ctx.close(); return calls.length > 1
