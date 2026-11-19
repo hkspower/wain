@@ -4219,3 +4219,122 @@
   } catch (e) { /* the menu keeps its five tabs */ }
 })()
 /* ===== CATALOGUE-1118 - end ===== */
+
+/* ===== MAGIC ZOOM-1119 (2026-11-19, owner: "make magic zoom") =====================================================================
+ * The product photo's hover zoom was the build's own: it scaled the photo that is already on the page (a 640px copy where the shop has
+ * made small copies) 2.5 times with a 700 ms ease, which is a soft picture, and it jumped to the pointer. This block replaces it, for a
+ * mouse only ((hover: hover) and (pointer: fine); a finger keeps the swipe, the tap and the full-screen viewer above), with a magnifier:
+ *   - a layer inside the photo stage (data-sporta-lens, pointer-events none, aria-hidden) that shows the photo's ORIGINAL file (the
+ *     <img>'s own src; the viewer above loads the same file, so it is cached for the full-screen view) at 2.5x, around the point under the
+ *     pointer. Until the original has arrived (it starts to download after 140 ms of rest, never on a drive-by) the layer shows the copy
+ *     the page already has, so the first frame is instant and then sharpens in place;
+ *   - the layer glides to the pointer (an exponential ease, about 80 ms) instead of jumping, fades in and out over 160 ms, and holds the
+ *     point under the pointer exactly: the picture's pixel there is the same pixel the page shows, only larger;
+ *   - the build's own scale is switched off while the lens is drawn (data-sporta-mz on the stage, CSS in sporta-product-fix.css), so the
+ *     two never stack; if the lens cannot be drawn the build's zoom stays as it was;
+ *   - prefers-reduced-motion: no glide and no fade;
+ *   - not on the "no photo" plate, not while the viewer is open, not on a touch device, nothing on /backends. It follows a change of
+ *     photo (arrow keys, thumbnails) and a scroll, and goes when the pointer leaves the stage or the window.
+ * Only attributes and a layer inside the stage are written; no layout moves (the layer is absolute), no request but the original photo.
+ * Leading ";" because this file is several IIFEs back to back. */
+;(function () {
+  'use strict'
+  try {
+    if (location.pathname.indexOf('/backends') === 0) return
+    if (!window.requestAnimationFrame || window.__sportaMagicZoom) return
+    Object.defineProperty(window, '__sportaMagicZoom', { value: 1, enumerable: false, configurable: false })
+    var STAGE = '.catalog-gallery-stage', LENS = 'data-sporta-lens', ON = 'data-sporta-mz', PLATE = /product-photo-unavailable/
+    var Z = 2.5, GLIDE_MS = 80, DWELL_MS = 140, FADE_MS = 200
+    var S = null   // the lens in use: { stage, img, lens, src, tx, ty, px, py, last, raf, hi, timer, shown }
+    var fine = function () { try { return matchMedia('(hover: hover) and (pointer: fine)').matches } catch (e) { return false } }
+    var calm = function () { try { return matchMedia('(prefers-reduced-motion: reduce)').matches } catch (e) { return false } }
+    var clamp = function (v, a, b) { return v < a ? a : v > b ? b : v }
+    var shownImg = function (stage) {
+      var imgs = stage.querySelectorAll('.catalog-gallery-track > img')
+      if (imgs.length < 2) return imgs[0] || null
+      var r = stage.getBoundingClientRect(), cx = r.left + r.width / 2, best = imgs[0], d = Infinity
+      for (var i = 0; i < imgs.length; i++) {
+        var b = imgs[i].getBoundingClientRect(), dd = Math.abs(b.left + b.width / 2 - cx)
+        if (dd < d) { d = dd; best = imgs[i] }
+      }
+      return best
+    }
+    var usable = function (stage, img) {
+      return !!img && !stage.hasAttribute('data-sporta-noview') && !PLATE.test(img.getAttribute('src') || '') && !PLATE.test(img.currentSrc || '') && img.naturalWidth > 0
+    }
+    var cssUrl = function (u) { return 'url(' + JSON.stringify(String(u)) + ')' }
+    function end(now) {
+      if (!S) return
+      var s = S; S = null
+      if (s.raf) cancelAnimationFrame(s.raf)
+      clearTimeout(s.timer)
+      s.stage.removeAttribute(ON)
+      // the layer fades out (CSS) and is removed once it has; with reduced motion there is no fade
+      var gone = function () { if (s.lens.parentNode) s.lens.parentNode.removeChild(s.lens) }
+      if (now || calm()) gone(); else setTimeout(gone, FADE_MS)
+    }
+    function begin(stage, e) {
+      var img = shownImg(stage)
+      if (!usable(stage, img)) return
+      var lens = document.createElement('div')
+      lens.setAttribute(LENS, ''); lens.setAttribute('aria-hidden', 'true')
+      var bg = getComputedStyle(stage).backgroundColor
+      lens.style.backgroundColor = /rgba\(.*,\s*0\)$|transparent/.test(bg) ? '#fff' : bg
+      var low = img.currentSrc || img.getAttribute('src'), src = img.getAttribute('src') || low
+      lens.style.backgroundImage = cssUrl(low)
+      stage.appendChild(lens)
+      var r = stage.getBoundingClientRect()
+      S = { stage: stage, img: img, lens: lens, src: src, tx: e.clientX, ty: e.clientY, px: e.clientX - r.left, py: e.clientY - r.top, last: 0, raf: 0, hi: low === src, timer: 0, shown: false, first: true }
+      if (!S.hi) {
+        var me = S
+        me.timer = setTimeout(function () {
+          if (S !== me) return
+          var big = new Image()
+          big.onload = function () { if (S === me && me.img === img) { me.lens.style.backgroundImage = cssUrl(me.src); me.hi = true } }
+          big.src = me.src
+        }, DWELL_MS)
+      }
+      kick()
+    }
+    function kick() { if (S && !S.raf) S.raf = requestAnimationFrame(frame) }
+    function frame(t) {
+      if (!S) return
+      var s = S; s.raf = 0
+      try {
+        if (!s.stage.isConnected || document.querySelector('.catalog-product-lightbox')) { end(true); return }
+        var cur = shownImg(s.stage)
+        if (cur !== s.img) { var st = s.stage, ev = { clientX: s.tx, clientY: s.ty }; end(true); begin(st, ev); return }
+        if (!usable(s.stage, s.img)) { end(true); return }
+        var r = s.stage.getBoundingClientRect(), ir = s.img.getBoundingClientRect()
+        var nw = s.img.naturalWidth, nh = s.img.naturalHeight, sc = Math.min(ir.width / nw, ir.height / nh)
+        var dw = nw * sc, dh = nh * sc
+        var left = ir.left - r.left + (ir.width - dw) / 2, top = ir.top - r.top + (ir.height - dh) / 2
+        var gx = s.tx - r.left, gy = s.ty - r.top
+        var k = calm() || !s.last ? 1 : 1 - Math.exp(-Math.min(34, Math.max(1, t - s.last)) / GLIDE_MS)   // a frame is at most 34 ms: after a rest the first step is a normal one
+        if (s.first) k = 1
+        s.px += (gx - s.px) * k; s.py += (gy - s.py) * k
+        var u = clamp((s.px - left) / dw, 0, 1), v = clamp((s.py - top) / dh, 0, 1)
+        s.lens.style.backgroundSize = (dw * Z) + 'px ' + (dh * Z) + 'px'
+        s.lens.style.backgroundPosition = (s.px - u * dw * Z) + 'px ' + (s.py - v * dh * Z) + 'px'
+        s.last = t
+        if (!s.shown) { s.shown = true; s.first = false; s.stage.setAttribute(ON, '') }
+        if (Math.abs(gx - s.px) > 0.3 || Math.abs(gy - s.py) > 0.3) kick()
+      } catch (e) { end(true) }
+    }
+    document.addEventListener('mousemove', function (e) {
+      try {
+        if (!fine()) { if (S) end(true); return }
+        var st = e.target && e.target.closest ? e.target.closest(STAGE) : null
+        if (!st) { if (S) end(); return }
+        if (!S || S.stage !== st) { if (S) end(true); begin(st, e) }
+        if (!S) return
+        S.tx = e.clientX; S.ty = e.clientY; kick()
+      } catch (er) { /* the build's own zoom stays */ }
+    }, { passive: true })
+    document.addEventListener('mouseout', function (e) { if (S && !e.relatedTarget) end() }, { passive: true })
+    window.addEventListener('scroll', function () { if (S) kick() }, { passive: true })
+    window.addEventListener('resize', function () { if (S) kick() }, { passive: true })
+    document.addEventListener('keydown', function () { if (S) kick() }, { passive: true })
+  } catch (e) { /* the build's own hover zoom stays */ }
+})()
+/* ===== MAGIC ZOOM-1119 - end ===== */

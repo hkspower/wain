@@ -849,3 +849,26 @@ body:has(.action-bar) .sporta-u3-toast {
   text-align: center;
 }
 /* ==== end PRODUCT SHAPE 1119 */
+
+/* ==== MAGIC ZOOM 1119 (2026-11-19, owner: "make magic zoom"; script: sporta-features.js MAGIC ZOOM-1119; proof: npm run test:magic-zoom) ===========
+ * The layer the script draws inside the photo stage ([data-sporta-lens]): the photo's original file at 2.5x around the pointer. It covers the
+ * stage (absolute, so nothing moves), takes no pointer event, fades over 160 ms (none with reduced motion), sits under the zoom badge and the
+ * arrows. While it is drawn (data-sporta-mz on the stage) the build's own inline scale of the photo is switched off, so the two never stack;
+ * without the script, or while the lens is not drawn, the build's zoom is untouched. */
+.catalog-gallery-stage > [data-sporta-lens] {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity .16s ease;
+}
+.catalog-gallery-stage[data-sporta-mz] > [data-sporta-lens] { opacity: 1; }
+.catalog-gallery-stage[data-sporta-mz] .catalog-gallery-photo { transform: none !important; }
+.catalog-gallery-stage > .catalog-gallery-zoom { z-index: 3; }
+@media (prefers-reduced-motion: reduce) {
+  .catalog-gallery-stage > [data-sporta-lens] { transition: none; }
+}
+/* ==== end MAGIC ZOOM 1119 */
