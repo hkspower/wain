@@ -60,6 +60,37 @@
   .campaign-home .home-feature-item > div { text-align: start; }
 }
 
+/* ==== FEATURES BAND 1119 (2026-11-19, owner: "fix مميزات سبورتا layout"; proof: npm run test:home-features) ====================
+ * Measured on the captured live storefront (Arabic and English, 320-1280px) before this change, three things in the band under the
+ * "مميزات سبورتا" / "Sporta features" banner:
+ *  1. PHONES (under 720px). One card per row, and the group (tile + title + sub) was pinned to the START edge, so the other side of every
+ *     card was empty: 43% of the card at 320px, 55% at 390px, 72% at 600px (English 26% / 42% / 64%). The 2026-11-03 rule above fixed exactly
+ *     this from 720px and left phones "as the live build has it".
+ *  2. EVERY ROW LAYOUT (phones and 960px up). CENTER-1118 centres the title and the sub (`.home-feature-title`, `.home-feature-sub`), which is
+ *     right under a tile (720-959px: stacked) but in a row it centres each line inside a text block that is only as wide as its longer
+ *     line: the title floated 13-25px in from the sub's start edge instead of sharing it.
+ *  3. Nothing else is wrong and nothing else changes: no overflow at any width, every title and sub on one line, the stacked layout at
+ *     720-959px, sizes, colours, copy and the hover are untouched.
+ * What changes, and only this:
+ *  [fb-1] under 720px the group is centred in the card, as it already is from 960px. Same height as before (72px), same tile size.
+ *  [fb-2] wherever the card is a row (under 720px and from 960px) the title and the sub share the start edge of their block, so the
+ *         block reads as one unit beside its tile. The more specific selector (4 classes) outranks CENTER-1118's `:is()` (3 classes + main);
+ *         the stacked layout keeps its centred lines because it is not in these two ranges.
+ *  [fb-3] under 720px the three cards sit one above the other, and a centred group is as wide as its own text, so the three tiles zig-zagged
+ *         (up to 18px apart). Each text block gets the same floor (9.25rem, a little over the longest line in either language) so the tiles stand in one
+ *         column; a longer text, a bigger font chosen in the admin or a translation still grows the block. */
+@media (max-width: 719.98px) {
+  /* [fb-1] */
+  .campaign-home .home-feature-item { justify-content: center; }
+  /* [fb-3] */
+  .campaign-home .home-feature-item > div { min-width: 9.25rem; }
+}
+@media (max-width: 719.98px), (min-width: 960px) {
+  /* [fb-2] */
+  :root .campaign-home .home-feature-item :is(.home-feature-title, .home-feature-sub) { text-align: start; }
+}
+/* ==== end FEATURES BAND 1119 */
+
 /* About page: one scale for every number (owner request, 2026-11-03).
  *
  * Measured on the live /about at 390, 768 and 1280px, Arabic and English, before this change:

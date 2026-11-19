@@ -100,6 +100,30 @@ if (SECTIONS.includes('compose')) {
   }
 }
 
+if (SECTIONS.includes('volumes')) {
+  // the sporta service's mounts (paths only: a mount line names no secret, the secret files themselves are not read) and how its image is built
+  out('== VOLUMES of the sporta service and its image build')
+  const L = rd('/infra/apache/docker-compose.yml').split('\n')
+  const at = L.findIndex((l) => /^  sporta:\s*$/.test(l))
+  if (at < 0) out('no sporta block')
+  else {
+    let end = L.findIndex((l, i) => i > at && /^  [A-Za-z0-9_.-]+:\s*$/.test(l)); if (end < 0) end = L.length
+    let on = false
+    for (const l of L.slice(at, end)) {
+      if (/^    volumes:/.test(l)) { on = true; out('volumes:'); continue }
+      if (on && /^    \S/.test(l)) on = false
+      if (on) out(l.replace(/^\s+/, '  '))
+      if (/^    (build|image|context|dockerfile|user|mem_limit|cpus|cpu_shares|oom_score_adj|deploy|ulimits|tmpfs|shm_size|read_only|cap_|security_opt|dns|extra_hosts|logging|init|stop_grace_period)/.test(l)) out(l.replace(/^\s+/, ''))
+    }
+  }
+  out('files in /infra/apache: ' + readdirSync('/infra/apache').filter((x) => !/^\.env/.test(x)).join(', '))
+  for (const f of readdirSync('/infra/apache')) {
+    if (!/^Dockerfile/i.test(f) && !/sporta.*\.(conf|ini)$/i.test(f)) continue
+    out('-- ' + f)
+    for (const l of rd('/infra/apache/' + f).split('\n').slice(0, 60)) if (l.trim() && !/^\s*#/.test(l)) out('  ' + l.slice(0, 200))
+  }
+}
+
 if (SECTIONS.includes('http')) {
   out('== HTTP (from the VPS itself: no internet round trip; 1 warm-up + 7 samples, sequential)')
   const BASE = 'https://www.sporta.com.kw'
