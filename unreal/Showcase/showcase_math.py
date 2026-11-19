@@ -243,9 +243,12 @@ def mac_profile_from_args(args):
     return mac_profile(num("memory_gb"), num("gpu_cores"), num("perf_cores"), got.get("chip", "").replace("_", " "))  # run.sh passes "Apple_M2_Pro"
 
 
-# The night Gulf Road stations: the same two places the web build's 4K
-# stills stand (tools/shots/ik4k.mjs), in metres along the lap and off
-# the centreline, with the camera the web's sweep shot uses.
+# The night Gulf Road stations, in metres along the lap and off the
+# centreline, with the camera the web's sweep shot uses. The city station,
+# 587 m, is the web build's own "city" (tools/shots/capture.mjs). The coast
+# station is NOT the web's: capture.mjs's coast is 1300 m (where
+# web-night-coast.jpg stands), and ik4k.mjs's 4K stills stand at 2400 m and
+# 3040 m, so 3304 m is a place of this kit's own.
 NIGHT_SHOTS = {
     "night-city": {"station_m": 587.0, "lateral_m": 1.75, "cam_back_m": 7.4, "cam_side_m": 3.2, "cam_up_m": 1.3},
     "night-coast": {"station_m": 3304.0, "lateral_m": -1.75, "cam_back_m": 7.4, "cam_side_m": -3.2, "cam_up_m": 1.3},

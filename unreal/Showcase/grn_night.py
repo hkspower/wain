@@ -3,8 +3,8 @@ GAME, not a map — the port builds its world at runtime in AGRNGameMode —
 parks the Black Demon on the corniche, clears the road and renders one
 frame from the car's own chase camera.
 
-    unreal/Showcase/run.sh night city [car]    # station 587 m, the web build's "sweep" place
-    unreal/Showcase/run.sh night coast [car]   # station 3304 m; the car defaults to black-demon
+    unreal/Showcase/run.sh night city [car]    # station 587 m, the web build's "city" station (capture.mjs)
+    unreal/Showcase/run.sh night coast [car]   # station 3304 m (not the web's 1300 m coast); the car defaults to black-demon
 
 run.sh launches UnrealEditor-Cmd with -game, the Python host executor and
 -GRNNight=<shot>; init_unreal.py imports this module so the class below

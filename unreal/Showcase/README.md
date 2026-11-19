@@ -177,15 +177,20 @@ it was timed under.
 ## What to compare against
 
 `press/unreal/black-demon/stand-in/` holds the Black Demon's shots made
-by the renderers this repository can run: `cycles-hero.jpg`,
-`cycles-side.jpg`, `cycles-rear.jpg` from the Blender studio (the hero is
-from 19 November's car; the side and rear are older, from before the
-rear tyres grew, and need the 3ds Max pack to be rendered again), and
-`web-night-city.jpg`, `web-night-coast.jpg` from the game itself
-(`CAR=black-demon PAINT=factory node tools/shots/ik4k.mjs`). Every
-car's Cycles hero is `press/renders/<id>.png`
+by the renderers this repository can run, all of 19 November's car (rear
+tyres 1.4 times the fleet's, the rear quarters cut for them):
+
+| File | How |
+| --- | --- |
+| `cycles-hero.jpg` | The Blender studio hero, `press/renders/black-demon.png` (`npm run cars:render`, 256 samples), as a quality-92 JPEG. |
+| `cycles-side.jpg`, `cycles-rear.jpg` | The same studio handed to the 3ds Max pack and rendered in Cycles at 2560x1440, 128 samples: `npm run max:render-pack -- black-demon` (a few seconds), `python3 tools/max/preview_render.py press/max/render/black-demon --shots side,rear --samples 128` (219 s and 267 s on 4 CPUs), `python3 tools/max/finish_render.py press/max/render --from preview --publish <folder> --jpeg-quality 92`. These are Cycles previews of the pack. No 3ds Max or Arnold render has ever been made in this repository: that needs Windows, 3ds Max and Arnold (`tools/max/render_all.py`). The pack's pixel filter (Cycles' default) and sample count differ from the hero's. |
+| `web-night-coast.jpg` | The game's own chase camera, parked at the coast station (1300 m) at 02:30 in the car's factory paint: `npm run shots:standin` (`tools/shots/standin.mjs`). 2000x1125, read straight off the canvas. |
+| `web-night-city.jpg` | The game's rear-quarter braking frame (`tools/shots/ik4k.mjs`, stage `brake`, 4K, road emptied with `CLEAR_ROAD=1`), brought down to 2000x1125 with `node tools/shots/standin.mjs --from`. The exact commands are in the header of `standin.mjs`. |
+
+Every car's Cycles hero is `press/renders/<id>.png`
 (`npm run cars:render`). The Cycles turntable preview is not in git; it
-lives on the render board.
+lives on the render board. The 3ds Max pack and its previews
+(`press/max/`) are not in git either.
 
 ## The pieces
 

@@ -2096,7 +2096,7 @@ export const TRIKE_NOSE = {
 /**
  * How big each of a three-wheeler's tyres is, against the fleet's wheel.
  *
- * The nose wheel is a steering wheel and a fifth smaller than the fleet's;
+ * The nose wheel is a steering wheel and 14% smaller than the fleet's;
  * the rear pair carries the weight and the drive and is 1.4 times it, a
  * tyre 0.95 m across under a body 0.9 m tall. That is the whole shape of
  * the machine, so it is named here once for the build (createCar), the

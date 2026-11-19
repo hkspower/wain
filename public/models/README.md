@@ -137,8 +137,9 @@ authored at: 0.36 m rolling radius, 0.26 m section width, 0.205 m bead,
 0.2 m rotor. Those are `SECTION_R` and `SECTION_HALF_W` in `cars.ts`, and
 they are not the size of the wheel the game runs.
 
-The fitted wheel is `TIRE_RADIUS` × `TIRE_HALF_W` — currently 0.41 m and
-0.138 m, because the fleet measured at a body-length-to-wheel-diameter
+The fitted wheel is `TIRE_RADIUS` × `TIRE_HALF_W` — currently 0.375 m and
+0.1325 m (the Black Demon's three-wheeler layout scales it per wheel: 0.86
+at the nose and 1.4 at the rear, `TRIKE_FRONT_R` and `TRIKE_REAR_R`), because the fleet measured at a body-length-to-wheel-diameter
 ratio of 8.05 where a real car sits between 6.5 and 7.1, and the wheels
 read as castors. `models.ts` scales every authored wheel part by
 `WHEEL_R_K` radially and `WHEEL_W_K` along the axle as it swaps it in, so

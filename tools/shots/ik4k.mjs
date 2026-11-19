@@ -4,6 +4,7 @@
 //   node tools/shots/ik4k.mjs            # zeta-300-gtr
 //   CAR=kaiju-r node tools/shots/ik4k.mjs
 //   CAR=black-demon PAINT=factory node tools/shots/ik4k.mjs   # the card's own colour, not the red
+//   SHOTS=brake CLEAR_ROAD=1 OUT=/tmp/ik4k ...   # one stage, road emptied, written elsewhere (standin.mjs)
 //   TIER=high node tools/shots/ik4k.mjs  # if ultra is too slow headless
 //   SHOTS=lock,brake node tools/shots/ik4k.mjs   # re-render some
 //
@@ -53,6 +54,13 @@ const OUT = process.env.OUT ?? "press/ik/4k";
 // measure at, which is why the whites in these frames topped out near
 // 150 of 255. EV lifts from that floor; +1 is the default.
 const EV = Number(process.env.EV ?? 1);
+// CLEAR_ROAD=1 sends the civilians to the far side of the lap in the brake
+// stage, as the sweep and traffic stages already do. Off by default, so the
+// committed stills of the other cars are what the script has always made;
+// on for the Unreal stand-in (press/unreal/<car>/stand-in/web-night-city.jpg,
+// see tools/shots/standin.mjs), which is compared with a frame whose road
+// is empty.
+const CLEAR_ROAD = process.env.CLEAR_ROAD === "1";
 mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch({
@@ -110,14 +118,24 @@ await page.evaluate(async ({ car, tier, ev, paint }) => {
 
 // The authored shells and wheels arrive as async fetches; a 4K still of
 // the procedural stand-ins would be a still of the wrong car.
+//
+// The tyres are as late as the shells: on this container's software GL the
+// last authored tyre lands about 170 s after boot (tools/shots/standin.mjs
+// measured it), so both are waited for, for five minutes, and a timeout
+// says which one was missing.
 await page.waitForFunction(() => {
   const e = window.__grnEngine;
-  let shells = 0, authored = 0;
+  let shells = 0, authored = 0, tyres = 0, tyresAuthored = 0;
   e.carBody.traverse((o) => {
-    if (o.isMesh && o.userData.shell) { shells++; if (o.geometry.userData.authored) authored++; }
+    if (!o.isMesh) return;
+    if (o.userData.shell) { shells++; if (o.geometry.userData.authored) authored++; }
+    if (o.userData.wheelPart === "tire" && (o.parent?.userData.spokes ?? 0) > 0) {
+      tyres++;
+      if (o.geometry.userData.authored) tyresAuthored++;
+    }
   });
-  return shells > 0 && authored === shells;
-}, null, { timeout: 120000 }).catch(() => console.log("(authored shells did not all arrive; rendering what is there)"));
+  return shells > 0 && authored === shells && tyresAuthored === tyres;
+}, null, { timeout: 300000 }).catch(() => console.log("(authored shells or tyres did not all arrive; rendering what is there)"));
 console.log(`car ${CAR} on, tier ${TIER}, 4K pinned, ${secs()} s`);
 
 /**
@@ -295,6 +313,7 @@ results.sweep = await shoot("sweep", `
 // 3. A 200 km/h stop: nose down, airbrake up, lamps lit.
 results.brake = await shoot("brake", `
   const r = e.rival; if (r) { r.s = e.track.wrap(e.player.s + e.track.length / 2); }
+  ${CLEAR_ROAD ? "for (const t of e.traffic) t.s = e.track.wrap(2400 + e.track.length / 2);" : ""}
   return inLanes(async (k) => {
   const lat = 1.75 * k;
   e.player.s = 2400; e.player.lat = lat; e.heading = 0; e.driftYaw = 0;

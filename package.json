@@ -229,6 +229,7 @@
     "shots": "node tools/shots/capture.mjs",
     "sampler": "node tools/shots/sampler.mjs",
     "shots:cars": "node tools/shots/cars.mjs",
+    "shots:standin": "node tools/shots/standin.mjs",
     "shots:police": "node tools/shots/police.mjs",
     "shots:glasshouse": "node tools/shots/glasshouse.mjs",
     "shots:driverfit": "node tools/shots/driverfit.mjs",
