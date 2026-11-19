@@ -1397,8 +1397,9 @@ clipboard is a stub too); the WhatsApp link was not opened. Left as it was: the 
 descriptions are one sentence (data); the compiled page's "Struck-through sizes are not carried" hint also shows on a sold-out one-size item. Release scope when the
 owner says "deploy": `--only sporta-features.js,sporta-product-fix.css,sporta-shadows.css` together with PRODUCT BACK 1120 (`boot.js`), because
 `sporta-product-fix.css` carries both sections. Tooling note: the file-writing tool turns a typed backslash-u sequence into the character itself, so an escape that must
-stay an escape in a file is built from a backslash in a patch script (this cost one wrong "patched" message). `test:release-gate` fails one registry check at this base
-for scripts that are not registered (fabric, photo-limits, catalogue-*, qr, admin-inventory-editor, ...), not for this suite.
+stay an escape in a file is built from a backslash in a patch script (this cost one wrong "patched" message). `test:release-gate` failed one registry check at this base
+for scripts that were not registered (fabric, photo-limits, catalogue-*, qr, admin-inventory-editor, ...); the integration commit registers those 12 (measured once through the
+gate: 804 ok lines, 0 FAIL) and the suite reads 204 passed, 0 failed.
 
 Rules learned this session (apply):
 - `sporta-web/dropin/php-store/install.mysql.sql` is GENERATED. Never hand-edit it: add a part to `PARTS` in `scripts/make-install-sql.mjs`, then run that script. Then regenerate `dbcenter-manifest.php` (`node scripts/make-dbcenter-manifest.mjs`) and record the column in `sporta-web/ops/db/expected-schema.json`.
@@ -1408,3 +1409,5 @@ Rules learned this session (apply):
 - The working tree can receive edits from a background catalogue process. Before committing, check `git diff` hunks in shared files (`admin.php`, `sporta-admin-brands.js`, `sporta-features.js`, `package.json`) and stage only your own hunks. Leftover catalogue edits are committed as WIP, not ready.
 - The Bash privacy plugin can refuse a command that names `public/sporta-admin-brands.js`, or one that touches this file. Use Grep, Read and Edit for those.
 - Playwright: a page route registered later wins. Register the page route first and the API route second.
+- Every new `test:*` script is registered in `sporta-web/ops/release/gate.config.json` in the SAME commit (or listed under `not_in_gate` with its reason): `test:release-gate` fails otherwise, and a suite that is not in the registry is never run by the gate. Measure a new one once with `node scripts/release-gate.mjs --only <name> --include-unmeasured`, then record its ok count as `minOk` and its seconds as `measuredSec`.
+- A hidden control (display: none) is not a removed control: keep its measuring suites honest by asserting it is hidden and lowering the registry `minOk` with a `note` (the AI icon: `icons-polish` 1690, `iconset` 7487), never by deleting checks silently.

@@ -126,7 +126,9 @@
       "product-brand-1118",
       "admin-catalogue-pdf",
       "catalogue-seo",
-      "release-gate"
+      "release-gate",
+      "fabric",
+      "photo-limits"
     ],
     "static": [
       "file-names",
@@ -149,7 +151,9 @@
       "apple-lib",
       "admin-ai-switch",
       "catalogue-seo",
-      "release-gate"
+      "release-gate",
+      "fabric",
+      "photo-limits"
     ],
     "rig": [
       "brand",
@@ -190,7 +194,9 @@
       "variants-create",
       "discount-badge",
       "product-listing",
-      "multi-replica"
+      "multi-replica",
+      "catalogue-api",
+      "catalogue-e2e"
     ],
     "money": [
       "race-money",
@@ -256,7 +262,11 @@
       "admin-invoices",
       "admin-catalogue-pdf",
       "admin-live-data",
-      "admin-hidden-products"
+      "admin-hidden-products",
+      "admin-hide-email-hint",
+      "admin-inventory-editor",
+      "admin-fabric",
+      "admin-catalogue-settings"
     ],
     "storefront": [
       "xss-htaccess",
@@ -360,7 +370,9 @@
       "live-stock-1118",
       "product-brand-1118",
       "catalogue-pdf",
-      "catalogue-page"
+      "catalogue-page",
+      "fabric-storefront",
+      "catalogue-live"
     ],
     "checkout": [
       "checkout-a11y",
@@ -375,7 +387,13 @@
     "catalogue": [
       "catalogue-pdf",
       "catalogue-page",
-      "catalogue-seo"
+      "catalogue-seo",
+      "catalogue-api",
+      "catalogue-live",
+      "catalogue-e2e",
+      "admin-catalogue-settings",
+      "pdf-text-layer",
+      "qr"
     ]
   },
   "suites": [
@@ -3289,6 +3307,196 @@
         "scripts/release-gate*.mjs",
         "scripts/lib/release-gate-core.mjs",
         "ops/release/*.json"
+      ]
+    },
+    {
+      "name": "admin-hide-email-hint",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 6,
+      "parse": "auto",
+      "measuredSec": 3,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-inventory-editor",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 150,
+      "minOk": 60,
+      "parse": "auto",
+      "measuredSec": 46,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-fabric",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 45,
+      "parse": "auto",
+      "measuredSec": 18,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js",
+        "dropin/php-store/fabric.php"
+      ]
+    },
+    {
+      "name": "fabric",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 29,
+      "parse": "auto",
+      "measuredSec": 0,
+      "quick": true,
+      "note": "PHP CLI only, no database",
+      "triggers": [
+        "dropin/php-store/fabric.php",
+        "dropin/php-store/fabric.mysql.sql"
+      ]
+    },
+    {
+      "name": "photo-limits",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 11,
+      "parse": "auto",
+      "measuredSec": 0,
+      "quick": true,
+      "note": "PHP CLI only, no database",
+      "triggers": [
+        "dropin/php-store/photo-limits.php",
+        "dropin/php-store/admin.php"
+      ]
+    },
+    {
+      "name": "fabric-storefront",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 23,
+      "parse": "auto",
+      "measuredSec": 9,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "dropin/php-store/fabric.php"
+      ]
+    },
+    {
+      "name": "catalogue-api",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 120,
+      "minOk": 201,
+      "parse": "auto",
+      "measuredSec": 20,
+      "quick": false,
+      "note": "makes its own database, docroot and php servers on the rig's MariaDB",
+      "triggers": [
+        "dropin/php-store/catalogue.php",
+        "dropin/php-store/api.php",
+        "dropin/php-store/admin.php",
+        "dropin/php-store/seo-page.php",
+        "@rig"
+      ]
+    },
+    {
+      "name": "catalogue-live",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 300,
+      "minOk": 131,
+      "parse": "auto",
+      "measuredSec": 100,
+      "quick": false,
+      "note": "needs the capture of the live storefront (SKIPs with exit 0 without it)",
+      "triggers": [
+        "public/sporta-catalogue.js",
+        "@admin-addon",
+        "dropin/php-store/seo-page.php",
+        "@htaccess",
+        "src/**"
+      ]
+    },
+    {
+      "name": "catalogue-e2e",
+      "needs": "rig+browser",
+      "parallelSafe": false,
+      "timeoutSec": 120,
+      "minOk": 48,
+      "parse": "auto",
+      "measuredSec": 26,
+      "quick": false,
+      "note": "MariaDB + php + the capture + poppler (pdftotext, pdfinfo)",
+      "triggers": [
+        "public/sporta-catalogue.js",
+        "@admin-addon",
+        "dropin/php-store/seo-page.php",
+        "@htaccess",
+        "src/**",
+        "dropin/php-store/catalogue.php",
+        "dropin/php-store/api.php",
+        "@rig"
+      ]
+    },
+    {
+      "name": "admin-catalogue-settings",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 330,
+      "minOk": 213,
+      "parse": "auto",
+      "measuredSec": 102,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js",
+        "public/sporta-catalogue.js",
+        "dropin/php-store/catalogue.php"
+      ]
+    },
+    {
+      "name": "pdf-text-layer",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 210,
+      "minOk": 23,
+      "parse": "auto",
+      "measuredSec": 61,
+      "quick": false,
+      "note": "needs poppler (pdfinfo, pdffonts, pdftotext, pdftoppm)",
+      "triggers": [
+        "public/sporta-catalogue.js",
+        "scripts/lib/pdf-text-layer-spike.mjs"
+      ]
+    },
+    {
+      "name": "qr",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 14,
+      "parse": "auto",
+      "measuredSec": 23,
+      "quick": false,
+      "note": "needs zbarimg (zbar-tools) as the independent reader",
+      "triggers": [
+        "public/sporta-catalogue.js",
+        "scripts/lib/qr-spike.mjs"
       ]
     }
   ],
