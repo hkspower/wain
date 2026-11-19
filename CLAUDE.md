@@ -598,6 +598,14 @@
      file: no photo for them was found in Dropbox by name (the old-shop folders are named by product code); each needs a real photo or the owner's confirmation of a match.
      The hostinger-vps connector timed out at session start on 2026-11-19 (it starts fine by hand); these deploys went through the session's `rosa` Hostinger
      connector, the same API and VM 2058651 (a read-only `vps_docker_list` first).
+     **Built 2026-11-19, NOT deployed (owner: "remove zoon icon at images"): NO ZOOM BADGE 1119** in `sporta-product-fix.css` (own section, after MAGIC ZOOM 1119).
+     The compiled build draws a 40px white tile with a magnifier (`span.catalog-gallery-zoom`, aria-hidden, no pointer event) in the end-bottom corner of the
+     product photo; it is now `display: none !important` (nothing painted, no box, nothing to tab to). The photo is still the control: cursor zoom-in, a tap or
+     click opens the full-screen viewer, the mouse lens still follows the pointer; the viewer's own -, level, + bar is a working control and is untouched. The repo
+     storefront's `src/components/ProductGallery.jsx` lost its "⤢" glyph the same way. Ships with `sporta-product-fix.css` alone (one-file add-on release, no API,
+     no migration; the live file is the repo's `bfa628e1` version, so the plan's bytes should differ by this section only). Proof: `npm run test:no-zoom-badge`
+     (30, the real compiled product page, ar + en, 390 / 1280 px, two mutants red); `test:images-viewer` 669, `test:magic-zoom` 49, `test:product-shape-1119` 48
+     green; the other neighbouring suites are listed in the commit that follows if they were run. Not yet seen on the live site.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`

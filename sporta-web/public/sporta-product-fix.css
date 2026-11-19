@@ -872,3 +872,15 @@ body:has(.action-bar) .sporta-u3-toast {
   .catalog-gallery-stage > [data-sporta-lens] { transition: none; }
 }
 /* ==== end MAGIC ZOOM 1119 */
+
+/* ==== NO ZOOM BADGE 1119 (2026-11-19, owner: "remove zoon icon at images"; proof: npm run test:no-zoom-badge) =============
+ * The build draws a 40px white tile with a magnifier (ZoomIn) in the end-bottom corner of the product photo. It is decorative
+ * (aria-hidden, no pointer event): the photo itself is the control, so tapping or clicking it still opens the full-screen
+ * viewer, the mouse lens still follows the pointer and the cursor still says zoom-in. Only the tile goes. display:none (not
+ * visibility) so nothing is left to paint, to tab to or to take up room. The selector already outranks the build's `grid`
+ * utility; !important is kept so a later add-on rule that sets display on the badge (the hover transition rules do not, but
+ * sporta-images.css hides the same element with !important in the desktop grid) can never bring it back. The viewer's own
+ * zoom bar (-, level, +) is a working control, not this badge: untouched. */
+:root .storefront-root .catalog-gallery-stage .catalog-gallery-zoom,
+:root .catalog-gallery-stage .catalog-gallery-zoom { display: none !important; }
+/* ==== end NO ZOOM BADGE 1119 */

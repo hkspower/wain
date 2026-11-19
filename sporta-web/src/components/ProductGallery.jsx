@@ -216,15 +216,9 @@ function Frame({ images, at, total, alt, go, onZoom, t, rtl }) {
             />
           ))}
         </div>
-
-        {/* Says the photo does more than sit there. Hidden from assistive tech:
-            the frame's own button role and label carry the meaning. */}
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute bottom-3 end-3 rounded-full bg-black/45 px-2.5 py-1 text-xs font-semibold text-white opacity-0 backdrop-blur-sm transition group-hover:opacity-100"
-        >
-          ⤢
-        </span>
+        {/* No zoom badge on the photo (owner, 2026-11-19: "remove zoom icon at
+            images"): the frame is the control — the cursor says zoom-in, a click
+            opens the full-screen view, the hover lens follows the pointer. */}
       </div>
     </div>
   )
