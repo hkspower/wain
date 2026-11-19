@@ -2728,8 +2728,9 @@ if ($r === 'set_stock') {
 // strap and wrong for a t-shirt. The "New product" screen (public/sporta-admin-brands.js)
 // calls this once, after the product row exists and while it is still hidden.
 //
-// Body: {slug, sizes: [{size: "M", stock: 5}, ...]}, 1 to 20 sizes. A size is 1-4 letters, digits or
-// dots (varchar(4)), kept upper-case, no duplicates; stock 0-999999. The product must exist
+// Body: {slug, sizes: [{size: "M", stock: 5}, ...]}, 1 to 20 sizes. A size is one of the nine the order path
+// takes (STORE_SIZES: S M L XL 2XL 3XL 4XL 5XL ONE; XXL and longer spellings are folded into them), kept
+// upper-case, no duplicates (SIZES-1119); stock 0-999999. The product must exist
 // (product_not_found, 404). A size the product already has is REFUSED (size_exists, 409),
 // never overwritten: changing an existing count is set_stock / inventory_adjust, which keep
 // the version check and the movement log. Nothing is written unless every size is.

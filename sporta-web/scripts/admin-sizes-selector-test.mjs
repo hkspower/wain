@@ -259,7 +259,7 @@ head('the picker: several at once, the nine sizes, order, Enter, Arabic digits')
   }
   await type(pg, 'size-list', 'M 42')
   await pg.click(D('size-list-add'))
-  is(eq(await rowsText(pg), ['S', 'M', 'L', '3XL', '4XL', '5XL', 'ONE']) && (await errText()).includes('42'), 'a list with one size outside the nine adds nothing and names it (42)', await errText())
+  is(eq(await rowsText(pg), ['S', 'M', 'L', '3XL', '4XL', '5XL', 'ONE']) && (await errText()).includes('42') && (await errText()).includes('The sizes are S M L XL 2XL 3XL 4XL 5XL and ONE'), 'a list with one size outside the nine adds nothing, names it (42) and says which sizes the shop sells', await errText())
   await type(pg, 'size-custom', '3xl')
   await pg.click(D('size-add'))
   is(await errText().then((x) => x.includes('already in the list')), 'a size that is already chosen (3xl is 3XL) is refused as a duplicate')

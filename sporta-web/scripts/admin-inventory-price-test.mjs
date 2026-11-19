@@ -166,9 +166,11 @@ head('4. MUTATION: the list price back in the route')
   const MUT2 = await serve(mut2)
   const mut2Login = await call(MUT2, 'login', { method: 'POST', headers: H, body: { email: 'inv-admin@sporta.test', password: 'correct-horse-battery-kw' } })
   const mut2Cookie = mut2Login.set.map((s) => s.split(';')[0]).join('; ')
-  await call(MUT2, 'variants_create', { method: 'POST', cookie: mut2Cookie, headers: H, body: { slug: 'no-sale', sizes: [{ size: 'xxl', stock: 1 }] } })
+  const mut2Res = await call(MUT2, 'variants_create', { method: 'POST', cookie: mut2Cookie, headers: H, body: { slug: 'no-sale', sizes: [{ size: 'xxl', stock: 1 }] } })
   const mut2Sizes = await sql("select group_concat(size order by size) from product_variants where slug = 'no-sale'")
-  is(mut2Sizes.includes('XXL'), 'MUTATION: without the rule the save stores XXL (the check above would fail)', mut2Sizes)
+  // SIZES-1119: since the route only takes the nine sizes the order path takes, a copy without the folding rule can no longer STORE "XXL"; it
+  // refuses it (invalid_size), where the real route answers 200 and stores 2XL. Either way "xxl" no longer becomes 2XL: the check above would fail.
+  is(mut2Res.status !== 200 || mut2Sizes.includes('XXL'), 'MUTATION: without the folding rule "xxl" is refused or stored as XXL, not folded into 2XL (the check above would fail)', `${mut2Res.status} ${mut2Sizes}`)
 } finally {
   for (const p of servers) { try { p.kill() } catch { /* gone */ } }
   inst.stop()

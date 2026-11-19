@@ -8148,9 +8148,9 @@
  * itself. A second tab adds MANY products from a table (shared brand,
  * category and sizes, photos matched by file name = slug, a review step, then create).
  *
- * SIZES-1118 (owner, 2026-11-18: "improve sizes selecter at backends"). The sizes picker has four quick sets (clothes S-XL, clothes
- * XS-3XL, shoes 38-46, kids 4-14) that ADD the sizes not yet chosen, lists its rows in size order (XS S M L XL 2XL 3XL, then numbers
- * small to large), takes "S:4 M:6 L" in one box (all or nothing, a bad token is named), fills one count into every row, totals the
+ * SIZES-1118 (owner, 2026-11-18: "improve sizes selecter at backends"). The sizes picker has quick sets that ADD the sizes not yet chosen
+ * (SIZES-1119: clothes S-2XL, clothes S-5XL, one size; it first had XS, shoe and kids sets too, taken out because the order path takes only
+ * the nine sizes S M L XL 2XL 3XL 4XL 5XL ONE), lists its rows in size order (S M L XL 2XL 3XL 4XL 5XL, then ONE), takes "S:4 M:6 L" in one box (all or nothing, a bad token is named), fills one count into every row, totals the
  * pieces, moves to the next count on Enter and reads Arabic digits ("٤٤" is 44). The SAME picker serves "Add sizes", a second
  * entry of this block (a button in the Catalogue header and in the Stock screen's header): a product that already exists gets sizes
  * and opening stock through variants_create (all or nothing, never overwrites). The sizes it already holds are read from the Stock
@@ -8234,7 +8234,7 @@
       setsLab: 'Quick sets', setClothes: 'Clothes S–2XL', setAll: 'Clothes S–5XL', setOne: 'One size', clearSizes: 'Clear all',
       listLab: 'Several at once', listHint: 'Sizes separated by spaces or commas. A count can follow a colon, for example S:4 M:6 L.', listPlaceholder: 'S:4 M:6 L',
       sameLab: 'Same count for every size', sameApply: 'Fill all', totalLine: 'Sizes: {n} · Pieces: {p}', sizeHave: 'The product already has this size',
-      v_list_bad: 'Not a size: {x}. A size is up to 4 letters or digits.', v_list_empty: 'Type at least one size.', v_list_nothing: 'Those sizes are already in the list.',
+      v_list_bad: 'Not a size the shop sells: {x}. The sizes are S M L XL 2XL 3XL 4XL 5XL and ONE.', v_list_empty: 'Type at least one size.', v_list_nothing: 'Those sizes are already in the list.',
       szOpen: 'Add sizes', szTitle: 'Add sizes to a product', szHead: 'Sizes and opening stock',
       szIntro: 'Choose a product, pick the sizes it comes in and type how many pieces you have of each. A size the product already has is not changed here: change its count on the Stock screen.',
       szProduct: 'Product', szChoose: 'Choose a product…', szLoading: 'Reading the catalogue…', szLoadFail: 'Could not read the catalogue.', szRetry: 'Try again',
@@ -8304,7 +8304,7 @@
       setsLab: 'مجموعات سريعة', setClothes: 'ملابس S–2XL', setAll: 'ملابس S–5XL', setOne: 'مقاس واحد', clearSizes: 'مسح الكل',
       listLab: 'عدة مقاسات معًا', listHint: 'اكتب المقاسات تفصل بينها مسافة أو فاصلة. ويمكن إضافة العدد بعد نقطتين، مثل S:4 M:6 L.', listPlaceholder: 'S:4 M:6 L',
       sameLab: 'العدد نفسه لكل مقاس', sameApply: 'املأ الكل', totalLine: 'المقاسات: {n} · القطع: {p}', sizeHave: 'للمنتج هذا المقاس بالفعل',
-      v_list_bad: 'ليس مقاسًا: {x}. المقاس حتى ٤ أحرف أو أرقام.', v_list_empty: 'اكتب مقاسًا واحدًا على الأقل.', v_list_nothing: 'هذه المقاسات موجودة في القائمة بالفعل.',
+      v_list_bad: 'مقاس لا يبيعه المتجر: {x}. المقاسات: S M L XL 2XL 3XL 4XL 5XL ONE.', v_list_empty: 'اكتب مقاسًا واحدًا على الأقل.', v_list_nothing: 'هذه المقاسات موجودة في القائمة بالفعل.',
       szOpen: 'إضافة مقاسات', szTitle: 'إضافة مقاسات إلى منتج', szHead: 'المقاسات والمخزون الافتتاحي',
       szIntro: 'اختر منتجًا، ثم المقاسات المتوفرة منه، واكتب عدد القطع لكل مقاس. المقاس الموجود للمنتج لا يتغير هنا: غيّر عدده من شاشة المخزون.',
       szProduct: 'المنتج', szChoose: 'اختر منتجًا…', szLoading: 'جارٍ قراءة الكتالوج…', szLoadFail: 'تعذّرت قراءة الكتالوج.', szRetry: 'حاول مرة أخرى',
