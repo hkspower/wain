@@ -184,6 +184,18 @@ for (const { pattern } of rules) {
     notes.push(`allowed: ${lists.map((l) => l.filter).join(" and ")} name both JavaScript types${exts.has("xml") ? " and application/xml" : ""}`);
 }
 
+/* expose_php makes PHP add X-Powered-By with its version to every answer
+   (on in the php:8.3-apache image, which has no php.ini). The endpoints remove
+   it themselves; this is the second layer, and a careless edit that deletes
+   the unset must fail here rather than on the live site. Comments are stripped
+   first, as above. */
+{
+  const code = readFileSync(HTACCESS, "utf8").replace(/^[ \t]*#.*$/gm, "");
+  const unsets = [...code.matchAll(/^\s*Header\s+(?:always\s+)?unset\s+X-Powered-By\b/gim)].length;
+  if (unsets < 2) errors.push(`public/.htaccess unsets X-Powered-By in ${unsets} form(s); it needs both 'always' and plain, or PHP names its version on the normal answers`);
+  else notes.push("allowed: X-Powered-By is unset on normal and error answers");
+}
+
 /* The rules that matter most are the ones protecting live data. Losing one of
    these to a careless edit is silent and expensive, so they are named.
 

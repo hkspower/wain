@@ -451,6 +451,14 @@ RedirectMatch 404 ^/storage(/|$)
   Header unset Set-Cookie
   Header unset Set-Cookie2
 
+  # expose_php makes PHP add X-Powered-By: PHP/<version> to every answer it
+  # gives, and nothing a visitor receives needs the version. The PHP endpoints
+  # also remove it themselves (header_remove), so this is the second layer, for
+  # a PHP page this file serves that an endpoint does not reach. 19 November:
+  # the live API answered with it on every request.
+  Header always unset X-Powered-By
+  Header unset X-Powered-By
+
   # Content Security Policy.
   #
   # Honest about its limits: 'unsafe-inline' has to stay in script-src because

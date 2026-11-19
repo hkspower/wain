@@ -48,6 +48,7 @@ const adminKeyFile = join(storage, "media-admin.key");
    `php media.php version`'s phpIni note, which exists for exactly this. */
 const php = spawn("php",
   ["-d", "post_max_size=20M", "-d", "upload_max_filesize=20M",
+   "-d", "display_errors=1",
    "-S", `127.0.0.1:${PORT}`, "-t", web],
   {
     stdio: "ignore",
@@ -289,6 +290,22 @@ try {
     const missing = await fetch(`${BASE}?action=view&draftId=${draftId()}&kind=logo&index=0`,
       { headers: { "X-Media-Key": ADMIN_KEY } });
     ok("a draft id nobody uploaded to is 404, not an error", missing.status === 404, String(missing.status));
+
+    /* An array in a field (draftId[]=x) was cast with a PHP warning, shown to the visitor. */
+    const arrView = await fetch(`${BASE}?action=view&draftId[]=x&kind=logo&index=0`, { headers: { "X-Media-Key": ADMIN_KEY } });
+    const arrViewText = await arrView.text();
+    ok("an array draft id on the view is refused with no PHP warning shown",
+      arrView.status < 500 && !/Warning|Fatal|\.php|on line/i.test(arrViewText), `${arrView.status} ${arrViewText.slice(0, 120)}`);
+    ok("the media endpoint does not name the PHP version", !arrView.headers.get("x-powered-by"), String(arrView.headers.get("x-powered-by")));
+    const arrFd = new FormData();
+    arrFd.append("draftId[]", "x");
+    arrFd.append("kind", "logo");
+    arrFd.append("index", "0");
+    arrFd.append("file", new Blob([PNG_1PX], { type: "image/png" }), "a.png");
+    const arrUp = await fetch(BASE, { method: "POST", headers: { Origin: ORIGIN }, body: arrFd });
+    const arrUpText = await arrUp.text();
+    ok("an array draft id on the upload is refused with no PHP warning shown",
+      arrUp.status === 400 && !/Warning|Fatal|\.php|on line/i.test(arrUpText), `${arrUp.status} ${arrUpText.slice(0, 120)}`);
 
     const traversalView = await fetch(`${BASE}?action=view&draftId=..%2F..%2Fetc&kind=logo&index=0`,
       { headers: { "X-Media-Key": ADMIN_KEY } });

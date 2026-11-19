@@ -6725,3 +6725,22 @@ Asked as «fix api», then «Update wain.php/media.php», then «run it for me»
 - **62 of 66 are already byte-identical on `www`; none differs.** The other 4 are this repository's home hero (`home/hero-7f6c3666ee-*`), which the live site does not use: the owner's pages use their own `hero-837b9f4417-*`. Writing them would add unused files and a rebuild for no visible change, so nothing was written and wain was not rebuilt.
 - **33 files of the owner's sit in those folders** (`find/index.html`, `home/cafe-*`, `home/hosts-*`, `home/lifestyle-*` and others). The script never deletes, so they were not touched.
 - The folder matched the running site apart from the manifest's paths.
+
+## The API warnings and X-Powered-By — 19 November (in the repository; the VPS is not changed)
+
+«fix api and media x powered and js and java and htaccess». What the live scan read on the VPS:
+- `GET /api/wain.php?a[]=x` answered 200 with PHP's own warning, «Array to string conversion» in `/var/www/html/api/wain.php` on line 1386. A bracketed parameter reaches `(string)` as an array. `media.php` had the same shape for `draftId[]`, `kind[]` and `index[]`, on the view and on the upload.
+- Every API answer carried `X-Powered-By: PHP/8.3.36`. The cause is `expose_php`, on by default in the php:8.3-apache image, which has no php.ini.
+
+**Why the suites did not see it:** `test:wain-api` and `test:media` start `php -S` with the CLI default `display_errors=Off`, so the warning never reached the response, and checks for it passed on the old code. Both suites now pass `display_errors=1`, the image's effective setting. The new checks went red on the old endpoints with the same message as the live one.
+
+**Fixed in the repository:**
+- `wain-api.php`, `media-endpoint.php` and `tts-endpoint.php`: after `declare(strict_types=1)`, outside the CLI, `display_errors` is off and `X-Powered-By` is removed. Errors still reach the log.
+- `wain-api.php` line 1386 and the four `media-endpoint.php` reads take a string or the default (`is_string(...) ? ... : ''`). Nothing else in the three endpoints casts a request value.
+- `public/.htaccess`: `Header always unset X-Powered-By` and `Header unset X-Powered-By` beside the `Set-Cookie` rules, the second layer for a PHP page the endpoints do not reach. `audit:htaccess` fails when either form is missing (sabotaged: exit 1).
+
+**JavaScript and JSON («js and java»):** the repository's compression lists already name `text/javascript`, `application/javascript`, `application/json` and `application/xml` (since 31 October). What lacks them is the live `.htaccess` on `www` (sha256 `c3b4130a…`, 22,096 bytes, the owner's file): it lists neither JavaScript type nor JSON and has no `X-Powered-By` rule. `www` runs the owner's source (1 November), so that file is not changed here.
+
+**Tests, agent build, in the worktree:** `test:wain-api` 250 passed, `test:media` 88, `test:tts` 74; `audit:htaccess` 0 problems; `audit:client-ip` and `audit:logs` 0 errors.
+
+**Not done, each waiting for the owner's yes:** the endpoint update on the VPS (`scripts/vps/update-endpoints.sh`, look-only first, then `CONFIRM=yes`), which needs the pinned commit and the new hashes; the temporary helper container it runs in, since creating anything on the VPS needs its own yes; and the owner's `.htaccess` on `www`.

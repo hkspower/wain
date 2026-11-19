@@ -65,6 +65,17 @@
 
 declare(strict_types=1);
 
+// Keep PHP's own voice out of every answer. php:8.3-apache ships no php.ini,
+// so display_errors defaults to on: a request with ?a[]=x printed PHP's
+// "Array to string conversion" warning with this file's path and line
+// (19 November). Errors still reach the server log. expose_php adds an
+// X-Powered-By header with the PHP version to every response. The CLI keeps
+// its own output, because the operator reads it there.
+if (PHP_SAPI !== 'cli') {
+    ini_set('display_errors', '0');
+    header_remove('X-Powered-By');
+}
+
 /* ── constants ──────────────────────────────────────────────────────────────*/
 
 /** The same filter the other two bridges apply, with the same caveat: an
@@ -1383,7 +1394,9 @@ if (PHP_SAPI === 'cli') {
 
 $t0 = microtime(true);
 $ms = static fn(): int => (int) round((microtime(true) - $t0) * 1000);
-$action = (string) ($_GET['a'] ?? '');
+// A repeated or bracketed parameter arrives as an array, and (string) on an
+// array is the warning above; only a plain string names an action.
+$action = is_string($_GET['a'] ?? null) ? $_GET['a'] : '';
 
 $send = static function (int $code, array $body) use ($ms, $action): never {
     http_response_code($code);

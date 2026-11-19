@@ -66,7 +66,11 @@ writeFileSync(join(web, "data", "places.json"), JSON.stringify(SEED));
    cap test make ~60 public writes, and the cap has to stay above them so that
    the last section is the only one that meets it. */
 const WRITES_PER_MIN = 100;
-const php = spawn("php", ["-S", `127.0.0.1:${PORT}`, "-t", web], {
+/* display_errors=1 matches the php:8.3-apache image on the VPS, which has no
+   php.ini and so shows warnings in the response body. The CLI default here
+   is Off, which hid the 19 November leak of "Array to string conversion"
+   and file paths from every test that expected it. */
+const php = spawn("php", ["-d", "display_errors=1", "-S", `127.0.0.1:${PORT}`, "-t", web], {
   stdio: "ignore",
   env: { ...process.env, WAIN_API_WRITES_PER_MIN: String(WRITES_PER_MIN), WAIN_API_RATE_PER_MIN: "5000",
          // The order email is written here instead of sent (a test seam).
@@ -294,6 +298,17 @@ try {
     ok("a wrong token gets order:null — the same answer as no such order", wrongTok.status === 200 && wrongTok.json?.order === null, j(wrongTok.json));
     const noOrder = await call("order_status", { id: uuid(), token: tok() });
     ok("an unknown id gets order:null", noOrder.json?.order === null);
+
+    /* A query string can carry an array. `(string) $_GET['a']` cast it with a
+       PHP warning, and the visitor was shown the file path and a line number.
+       The image also sent X-Powered-By on every answer (read on www, 19 November). */
+    const arrAction = await fetch(`${BASE}?a[]=x`);
+    const arrText = await arrAction.text();
+    ok("an array in the action is 400 unknown_action, with no PHP warning shown",
+      arrAction.status === 400 && /"error":"unknown_action"/.test(arrText) && !/Warning|Fatal|\.php|on line/i.test(arrText), arrText.slice(0, 160));
+    ok("the API does not name the PHP version in X-Powered-By", !arrAction.headers.get("x-powered-by"), String(arrAction.headers.get("x-powered-by")));
+    const pingHeaders = await fetch(`${BASE}?a=ping`);
+    ok("ping does not name the PHP version either", !pingHeaders.headers.get("x-powered-by"), String(pingHeaders.headers.get("x-powered-by")));
 
     const badPhone = await call("order_place", order({ customer_phone: "12345678" }));
     ok("a phone not starting 5/6/9 is 422 invalid, naming the field", badPhone.status === 422 && badPhone.json?.error === "invalid" && badPhone.json.field === "customer_phone", j(badPhone.json));

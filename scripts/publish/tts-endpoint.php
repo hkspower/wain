@@ -49,6 +49,14 @@
 
 declare(strict_types=1);
 
+// Keep PHP's own voice out of every answer, as wain-api.php and media-endpoint.php
+// do: php:8.3-apache shows warnings and sends X-Powered-By unless told not to
+// (19 November). The CLI keeps its own output.
+if (PHP_SAPI !== 'cli') {
+    ini_set('display_errors', '0');
+    header_remove('X-Powered-By');
+}
+
 /* ── the voice table ────────────────────────────────────────────────────────
    COPIED FROM scripts/gen-voice.mjs, AND IT MUST STAY COPIED.
 

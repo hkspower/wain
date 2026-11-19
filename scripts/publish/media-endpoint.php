@@ -48,6 +48,17 @@
 
 declare(strict_types=1);
 
+// Keep PHP's own voice out of every answer. php:8.3-apache ships no php.ini,
+// so display_errors defaults to on: an array in place of a form field printed
+// PHP's "Array to string conversion" warning with this file's path and line
+// (19 November). Errors still reach the server log. expose_php adds an
+// X-Powered-By header with the PHP version to every response. The CLI keeps
+// its own output, because the operator reads it there.
+if (PHP_SAPI !== 'cli') {
+    ini_set('display_errors', '0');
+    header_remove('X-Powered-By');
+}
+
 /**
  * What a key file actually IS, in the three states it can be in.
  *
@@ -624,9 +635,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
         $fail(403, 'bad_key');
     }
 
-    $draftId = (string) ($_GET['draftId'] ?? '');
-    $kind    = (string) ($_GET['kind'] ?? '');
-    $index   = (string) ($_GET['index'] ?? '0');
+    // A bracketed parameter arrives as an array; (string) on it is a warning.
+    $draftId = is_string($_GET['draftId'] ?? null) ? $_GET['draftId'] : '';
+    $kind    = is_string($_GET['kind'] ?? null) ? $_GET['kind'] : '';
+    $index   = is_string($_GET['index'] ?? null) ? $_GET['index'] : '0';
     if (!preg_match('/^[A-Za-z0-9-]{6,64}$/', $draftId)) $fail(400, 'bad_draft_id');
     if (!in_array($kind, ['logo', 'photo'], true)) $fail(400, 'bad_kind');
     if (!preg_match('/^\d{1,2}$/', $index) || (int) $index >= MAX_PHOTOS) $fail(400, 'bad_index');
@@ -674,9 +686,10 @@ if ($count("$pendingDir/.rate-" . hash('sha256', rateKey($ip)) . '.json', 60) > 
     $fail(429, 'rate_limited');
 }
 
-$draftId = (string) ($_POST['draftId'] ?? '');
-$kind    = (string) ($_POST['kind'] ?? '');
-$index   = (string) ($_POST['index'] ?? '0');
+// A bracketed form field arrives as an array; (string) on it is a warning.
+$draftId = is_string($_POST['draftId'] ?? null) ? $_POST['draftId'] : '';
+$kind    = is_string($_POST['kind'] ?? null) ? $_POST['kind'] : '';
+$index   = is_string($_POST['index'] ?? null) ? $_POST['index'] : '0';
 
 /* Opaque id only — no dot, no slash, nothing a path can be built from beyond
    this exact charset. Both newDraftId() shapes in media.ts (a UUID, and the
