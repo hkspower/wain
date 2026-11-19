@@ -142,6 +142,12 @@ if (array_key_exists($r, $STORE_LIMITS)) {
 
 // ---------------------------------------------------------------- products
 if ($r === 'products') {
+    // The composition is read by its own query, and only once the migration (fabric.mysql.sql) has run: a database without the
+    // column never sees a query that names it, so the products API cannot break on it. The main query below is unchanged.
+    require_once __DIR__ . '/fabric.php';
+    $fabricBySlug = store_column_exists($db, 'products', 'fabric')
+        ? $db->query('select slug, fabric from products where fabric is not null')->fetchAll(PDO::FETCH_KEY_PAIR)
+        : [];
     $rows = $db->query(
         // THE BRAND IS JOINED IN, rather than fetched separately.
         //
@@ -190,6 +196,8 @@ if ($r === 'products') {
         // say so on the product page and to refuse the item on /returns —
         // finding out at the pickup is the worst possible moment.
         $row['no_exchange'] = (bool)$row['no_exchange'];
+        // The composition as a list: [{material, percent|null}], or null when the product states none.
+        $row['fabric'] = store_fabric_decode($fabricBySlug[$row['slug']] ?? null);
         unset($row['sale_price'], $row['sale_starts_at'], $row['sale_ends_at']);
     }
     unset($row);

@@ -419,7 +419,7 @@ $activityActions = [
     'product_image_upload', 'product_save', 'product_active', 'brand_save',
     // brand_delete was missing, so removing a brand for good — the one brand
     // write that cannot be undone — was the one that left no trace.
-    'brand_active', 'brand_delete', 'brand_assign', 'customer', 'sync', 'inventory_adjust',
+    'brand_active', 'brand_delete', 'brand_assign', 'product_fabric_save', 'customer', 'sync', 'inventory_adjust',
     'inventory_variant_save', 'set_stock', 'variants_create', 'slide_save', 'slide_delete',
     'slide_reorder', 'font_upload', 'font_delete', 'checkout_settings',
     'inventory_finance', 'theme_settings', 'topbar_settings', 'seo_save',
@@ -1669,12 +1669,20 @@ function store_admin_category(PDO $db, mixed $typed, bool $mustExist): ?string {
 }
 
 if ($r === 'products_all') {
+    require_once __DIR__ . '/fabric.php';
     $rows = $db->query(
         'select id, slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
                 sale_starts_at, sale_ends_at, featured, featured_sort, category, brand_slug,
                 image, images, active
            from products order by id desc'
     )->fetchAll();
+    // The composition as a list, the same shape the public products API sends (fabric.php). Read by its own query, and only
+    // once the migration (fabric.mysql.sql) has run, so a database without the column never sees a query that names it.
+    $fabricBySlug = store_column_exists($db, 'products', 'fabric')
+        ? $db->query('select slug, fabric from products where fabric is not null')->fetchAll(PDO::FETCH_KEY_PAIR)
+        : [];
+    foreach ($rows as &$fr) $fr['fabric'] = store_fabric_decode($fabricBySlug[$fr['slug']] ?? null);
+    unset($fr);
     // Which products the shop LISTS, and what each hidden one lacks (product-listable.php: name, price, SKU, photo). Added to every row; the
     // admin's product editor ignores keys it does not know, and the Catalogue screen's "Hidden from the shop" list reads them.
     require_once __DIR__ . '/product-listable.php';
@@ -2057,6 +2065,28 @@ if ($r === 'brand_assign' && $method === 'POST') {
         $updated = $u->rowCount();
     }
     store_out(['updated' => $updated, 'skipped' => $skipped]);
+}
+
+// Sets, or clears, the fabric composition of ONE product (fabric.php has the rules).
+// Body: {slug, fabric: [{material, percent?}, ...]}. An empty list clears it. Every rule is checked by
+// store_fabric_parse() before a write, so a half-filled or wrong composition never reaches the row.
+// Logged by the shutdown hook ($activityActions): the action name only.
+if ($r === 'product_fabric_save' && $method === 'POST') {
+    require_once __DIR__ . '/fabric.php';
+    $b = store_body(8192);
+    $slug = store_slug(store_input_string($b['slug'] ?? null, 'slug', 160));
+    if ($slug === '' || strlen($slug) > 80) store_fail('invalid_slug');
+    if (!array_key_exists('fabric', $b)) store_fail('bad_request');
+    // Before the migration (fabric.mysql.sql) there is no column to write: say so, rather than fail with an SQL error.
+    if (!store_column_exists($db, 'products', 'fabric')) store_fail('fabric_not_migrated', 409);
+    $canon = store_fabric_parse($b['fabric']);
+    $q = $db->prepare('select slug from products where slug = ? limit 1');
+    $q->execute([$slug]);
+    $found = $q->fetchColumn();
+    if ($found === false) store_fail('product_not_found', 404);
+    $u = $db->prepare('update products set fabric = ? where slug = ?');
+    $u->execute([$canon, (string)$found]);
+    store_out(['slug' => (string)$found, 'fabric' => store_fabric_decode($canon)]);
 }
 
 // Create or rename a brand. One route for both: the admin screen has one form

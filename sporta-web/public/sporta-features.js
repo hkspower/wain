@@ -4298,6 +4298,91 @@
 })()
 /* ===== PRODUCT BRAND-1118 - end ===== */
 
+/* ===== FABRIC-1119 (2026-11-19, owner: "make fabric selector with percent option") =====================
+ * The product page says what the garment is made of, under the title: "Fabric: Cotton 80%, Elastane 20%", or "Fabric: Cotton, Nylon"
+ * when the admin gave no percentages. The composition is the product's `fabric` list in /api/api.php?r=products (the rules are in
+ * dropin/php-store/fabric.php). One request per product page, no data of its own, and nothing is drawn when the product states no fabric.
+ * It re-checks after the page changes (the observer), adds nothing twice, and never edits the app's own nodes: one <p data-sporta-fabric>
+ * after the title. createElement/textContent only. */
+;(function () {
+  'use strict'
+  try {
+    if (window.__sportaFabric) return
+    Object.defineProperty(window, '__sportaFabric', { value: { version: 1 }, enumerable: false, configurable: false })
+    var LABEL = { en: 'Fabric', ar: 'الخامة' }
+    var NAME = {
+      cotton: ['Cotton', 'قطن'], polyester: ['Polyester', 'بوليستر'],
+      elastane: ['Elastane', 'إيلاستين'], nylon: ['Nylon', 'نايلون'],
+      viscose: ['Viscose', 'فسكوز'], modal: ['Modal', 'مودال'],
+      wool: ['Wool', 'صوف'], linen: ['Linen', 'كتان'], bamboo: ['Bamboo', 'خيزران']
+    }
+    var products = null
+    function slugOf() { var m = /^\/product\/([^/]+)\/?$/.exec(location.pathname); return m ? decodeURIComponent(m[1]) : '' }
+    function langNow() { return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en' }
+    function nameOf(material, lang) { var n = NAME[material]; return n ? (lang === 'ar' ? n[1] : n[0]) : '' }
+    function line(list, lang) {
+      var parts = []
+      list.forEach(function (e) {
+        var n = nameOf(e && e.material, lang)
+        if (!n) return
+        parts.push(e.percent == null ? n : n + ' ' + e.percent + '%')
+      })
+      return parts.length ? LABEL[lang] + ': ' + parts.join(', ') : ''
+    }
+    function load() {
+      if (!products) {
+        products = fetch('/api/api.php?r=products', { credentials: 'same-origin' })
+          .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json() })
+          .then(function (j) { return Array.isArray(j) ? j : [] })
+          .catch(function () { products = null; return [] })
+      }
+      return products
+    }
+    function run() {
+      var page = document.querySelector('.catalog-product-page')
+      var slug = page ? slugOf() : ''
+      var old = document.querySelectorAll('[data-sporta-fabric]')
+      if (!slug) { for (var i = 0; i < old.length; i++) old[i].remove(); return }
+      var title = page.querySelector('.catalog-product-summary h1') || page.querySelector('h1')
+      if (!title) return
+      // a line already drawn for this product, in this language, stays as it is
+      var have = title.parentNode.querySelector(':scope > [data-sporta-fabric]')
+      if (have && have.getAttribute('data-sporta-fabric') === slug && have.getAttribute('lang') === langNow()) return
+      for (var j = 0; j < old.length; j++) if (old[j] !== have) old[j].remove()
+      load().then(function (list) {
+        // the page may have moved on while the list was read: draw only for the product on screen now
+        if (slugOf() !== slug) return
+        var mine = null
+        for (var k = 0; k < list.length; k++) if (list[k] && list[k].slug === slug) { mine = list[k]; break }
+        var text = mine && Array.isArray(mine.fabric) && mine.fabric.length ? line(mine.fabric, langNow()) : ''
+        var node = document.querySelector('[data-sporta-fabric="' + slug + '"]')
+        if (!text) { if (node) node.remove(); return }
+        if (!node) {
+          node = document.createElement('p')
+          node.setAttribute('data-sporta-fabric', slug)
+          node.style.margin = '.25rem 0 .5rem'
+          node.style.fontSize = '.95rem'
+          node.style.color = '#4b5563'
+          var t2 = page.querySelector('.catalog-product-summary h1') || title
+          t2.parentNode.insertBefore(node, t2.nextSibling)
+        }
+        node.setAttribute('lang', langNow())
+        node.setAttribute('dir', langNow() === 'ar' ? 'rtl' : 'ltr')
+        if (node.textContent !== text) node.textContent = text
+      })
+    }
+    var queued = false
+    function soon() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { run() } catch (e) { /* the page keeps working without the line */ } }) }
+    function start() {
+      run()
+      // the document root: the language sits on <html>, and a route change adds nodes under it
+      try { new MutationObserver(soon).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['lang', 'dir'] }) } catch (e) { /* the page keeps working without it */ }
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) { /* the product page keeps working without the fabric line */ }
+})()
+/* ===== FABRIC-1119 - end ===== */
+
 /* ===== CATALOGUE-1118 - begin ===================================================================================
  * The "Catalogue" page of the main menu (owner request 2026-11-18). Two small jobs, both on every storefront page except /backends:
  *

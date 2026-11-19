@@ -12987,6 +12987,462 @@
 })()
 /* ===== ADMIN INVENTORY EDITOR - end ===================================== */
 
+/* ===== ADMIN FABRIC - begin ==============================================
+ * 18. Fabric composition (owner request 2026-11-19: "make fabric selector with percent option").
+ *
+ * A "Fabric" button beside the Catalogue's Prices button opens ONE dialog listing the products. Each product has its
+ * composition: up to four materials from a fixed list (cotton, polyester, elastane, nylon, viscose, modal, wool, linen,
+ * bamboo). The PERCENT OPTION switches the whole product between two shapes, and the server enforces both:
+ *   off  materials only ("Cotton, Nylon")
+ *   on   a percentage on every material, between 1 and 100, adding up to exactly 100 ("Cotton 80%, Elastane 20%")
+ * The live total says what is missing before Save. A product saves on its own row: POST admin.php?r=product_fabric_save
+ * {slug, fabric: [{material, percent?}]}, and an empty list clears the composition. The server's answer (the stored list)
+ * replaces the row's draft, so the screen shows what was saved, not what was typed.
+ * Reads: one GET of the product list (admin.php?r=products_all) when the dialog opens, and on Refresh. Nothing is written
+ * while typing. Text is drawn with textContent only. No timer: the button is checked after a click, a route change and the
+ * tab showing again.
+ */
+;(function () {
+  'use strict'
+  try {
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaFabric) return
+  try { Object.defineProperty(window, '__sportaFabric', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php', BTN = 'data-sporta-fab-open', ANCHOR = 'data-sporta-prices-open', MAX_ENTRIES = 4
+  var MATERIALS = [
+    ['cotton', 'Cotton', 'قطن'], ['polyester', 'Polyester', 'بوليستر'], ['elastane', 'Elastane', 'إيلاستين'],
+    ['nylon', 'Nylon', 'نايلون'], ['viscose', 'Viscose', 'فسكوز'], ['modal', 'Modal', 'مودال'],
+    ['wool', 'Wool', 'صوف'], ['linen', 'Linen', 'كتان'], ['bamboo', 'Bamboo', 'خيزران']
+  ]
+  var STR = {
+    en: {
+      open: 'Fabric', title: 'Fabric', close: 'Close',
+      intro: 'What each product is made of. Choose up to four materials. Turn on percentages to give each material its share: the shares must add up to exactly 100.',
+      search: 'Search name or code', refresh: 'Refresh', loading: 'Reading the products…', failed: 'Could not read the products.', retry: 'Try again',
+      none: 'No product matches.', empty: 'There are no products.',
+      pctOn: 'Show percentages', pctHint: 'On: every material gets a share that adds up to 100. Off: materials only.',
+      choose: 'Choose a material', percentLabel: 'Percent', remove: 'Remove', add: 'Add a material', addFull: 'Four materials is the most',
+      total: 'Total {n}%', totalBad: 'Total {n}%: the shares must add up to exactly 100', pctBad: 'Each share must be a whole number from 1 to 100.',
+      dup: 'Each material can be listed once.', needMat: 'Choose the material for the share you typed.',
+      save: 'Save', clear: 'Clear (no fabric stated)', saving: 'Saving…', saved: 'Saved.', unchanged: 'Nothing to save.',
+      stated: 'Now: {x}', notStated: 'Not stated',
+      e_fabric_unknown_material: 'The shop does not know that material.', e_fabric_duplicate: 'Each material can be listed once.',
+      e_fabric_too_many: 'Four materials is the most.', e_fabric_percent_invalid: 'Each share must be a whole number from 1 to 100.',
+      e_fabric_percent_total: 'The shares must add up to exactly 100.', e_fabric_percent_partial: 'Either every material has a share, or none does.',
+      e_fabric_invalid: 'That composition is not valid.', e_product_not_found: 'That product no longer exists.',
+      e_fabric_not_migrated: 'The shop database is not ready for fabric yet. Ask for the database update.',
+      e_signed_out: 'The session ended. Sign in again.', e_net: 'The server could not be reached.', e_other: 'Not saved: {m}',
+      confirmLeave: 'Leave without saving the {n} changed products?', sum: '{n} products · {p} with a composition'
+    },
+    ar: {
+      open: 'الخامة', title: 'الخامة', close: 'إغلاق',
+      intro: 'ما تُصنع منه كل قطعة. اختر حتى أربع خامات. فعّل النسب لتعطي كل خامة حصتها: يجب أن تكون الحصص مجموعها 100 بالضبط.',
+      search: 'ابحث بالاسم أو الرمز', refresh: 'تحديث', loading: 'جارٍ قراءة المنتجات…', failed: 'تعذّرت قراءة المنتجات.', retry: 'حاول مرة أخرى',
+      none: 'لا يوجد منتج مطابق.', empty: 'لا توجد منتجات.',
+      pctOn: 'إظهار النسب', pctHint: 'مفعّل: لكل خامة حصة مجموعها 100. غير مفعّل: الخامات فقط.',
+      choose: 'اختر خامة', percentLabel: 'النسبة', remove: 'إزالة', add: 'إضافة خامة', addFull: 'أربع خامات هو الحد الأقصى',
+      total: 'المجموع {n}%', totalBad: 'المجموع {n}%: يجب أن تكون الحصص مجموعها 100 بالضبط', pctBad: 'كل حصة رقم صحيح من 1 إلى 100.',
+      dup: 'كل خامة تُذكر مرة واحدة.', needMat: 'اختر الخامة للحصة التي كتبتها.',
+      save: 'حفظ', clear: 'مسح (لا خامة معلنة)', saving: 'جارٍ الحفظ…', saved: 'تم الحفظ.', unchanged: 'لا يوجد ما يُحفظ.',
+      stated: 'الآن: {x}', notStated: 'غير معلنة',
+      e_fabric_unknown_material: 'المتجر لا يعرف هذه الخامة.', e_fabric_duplicate: 'كل خامة تُذكر مرة واحدة.',
+      e_fabric_too_many: 'أربع خامات هو الحد الأقصى.', e_fabric_percent_invalid: 'كل حصة رقم صحيح من 1 إلى 100.',
+      e_fabric_percent_total: 'يجب أن تكون الحصص مجموعها 100 بالضبط.', e_fabric_percent_partial: 'إما أن تكون لكل خامة حصة، أو لا تكون لأي منها.',
+      e_fabric_invalid: 'هذا التركيب غير صالح.', e_product_not_found: 'هذا المنتج لم يعد موجودًا.',
+      e_fabric_not_migrated: 'قاعدة بيانات المتجر ليست جاهزة للخامة بعد. اطلب تحديث قاعدة البيانات.',
+      e_signed_out: 'انتهت الجلسة. سجّل الدخول من جديد.', e_net: 'تعذّر الاتصال بالخادم.', e_other: 'لم يُحفظ: {m}',
+      confirmLeave: 'تغادر دون حفظ {n} منتجات تغيّرت؟', sum: '{n} منتجات · {p} لها تركيب'
+    }
+  }
+
+  var S = { lang: 'en', products: null, loading: false, failed: false, opener: null, draft: {}, refs: {}, saving: {}, q: '' }
+  var U = null, root = null
+
+  // ---------------------------------------------------------------- helpers
+  function t(k, vars) {
+    var s = (STR[S.lang] || STR.en)[k] || STR.en[k] || k
+    if (vars) for (var x in vars) s = s.split('{' + x + '}').join(String(vars[x]))
+    return s
+  }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function langOf(node) {
+    var n = node
+    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
+    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
+  }
+  function matName(k) {
+    for (var i = 0; i < MATERIALS.length; i++) if (MATERIALS[i][0] === k) return S.lang === 'ar' ? MATERIALS[i][2] : MATERIALS[i][1]
+    return k
+  }
+  function nameOf(p) { return (S.lang === 'ar' && p.name_ar) || p.name_en || p.name_ar || p.slug }
+  function btn(cls, text, fn) { var b = el('button', 'fab-btn' + (cls ? ' ' + cls : ''), text); b.type = 'button'; b.addEventListener('click', fn); return b }
+  function digitsOf(v) {
+    return String(v == null ? '' : v).trim()
+      .replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 1632) })
+      .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 1776) })
+  }
+
+  // ---------------------------------------------------------------- the draft of one product
+  function savedOf(p) { return Array.isArray(p.fabric) ? p.fabric : [] }
+  function draftFrom(p) {
+    var list = savedOf(p)
+    var pct = list.some(function (e) { return e.percent != null })
+    return {
+      on: pct,
+      entries: list.length ? list.map(function (e) { return { material: e.material, percent: e.percent == null ? '' : String(e.percent) } }) : [{ material: '', percent: '' }]
+    }
+  }
+  function draftOf(p) { if (!S.draft[p.slug]) S.draft[p.slug] = draftFrom(p); return S.draft[p.slug] }
+  /** What the draft would save, or the message that stops it. Blank material rows are ignored. */
+  function check(d) {
+    var seen = {}, out = [], sum = 0
+    for (var i = 0; i < d.entries.length; i++) {
+      var e = d.entries[i]
+      var typedPct = d.on && digitsOf(e.percent) !== ''
+      if (!e.material) { if (typedPct) return { ok: false, msg: t('needMat') }; continue }
+      if (seen[e.material]) return { ok: false, msg: t('dup') }
+      seen[e.material] = true
+      if (d.on) {
+        var s = digitsOf(e.percent)
+        if (!/^[0-9]{1,3}$/.test(s) || Number(s) < 1 || Number(s) > 100) return { ok: false, msg: t('pctBad') }
+        sum += Number(s)
+        out.push({ material: e.material, percent: Number(s) })
+      } else {
+        out.push({ material: e.material })
+      }
+    }
+    if (d.on && out.length && sum !== 100) return { ok: false, msg: t('totalBad', { n: sum }), sum: sum, body: null }
+    return { ok: true, msg: '', sum: sum, body: out }
+  }
+  function sameAsSaved(p, body) {
+    var s = savedOf(p).map(function (e) { return e.percent == null ? e.material : e.material + ':' + e.percent }).join(',')
+    var b = (body || []).map(function (e) { return e.percent == null ? e.material : e.material + ':' + e.percent }).join(',')
+    return s === b
+  }
+  function isDirty(p) {
+    var d = S.draft[p.slug]
+    if (!d) return false
+    var c = check(d)
+    return !c.ok || !sameAsSaved(p, c.body)
+  }
+  function statedText(p) {
+    var list = savedOf(p)
+    if (!list.length) return t('notStated')
+    return list.map(function (e) { return matName(e.material) + (e.percent == null ? '' : ' ' + e.percent + '%') }).join(', ')
+  }
+
+  // ---------------------------------------------------------------- the network
+  function read() {
+    if (S.saving && Object.keys(S.saving).length) return
+    S.loading = true; S.failed = false; drawBody()
+    fetch(API + '?r=products_all', { credentials: 'same-origin', headers: { 'X-Sporta-Admin': '1' } })
+      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json() })
+      .then(function (j) {
+        var list = Array.isArray(j) ? j : (j && Array.isArray(j.data) ? j.data : null)
+        if (!list) throw new Error('shape')
+        S.products = list.filter(function (p) { return p && p.slug }).sort(function (a, b) { return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0 })
+        // a draft whose product changed under it (saved elsewhere) is dropped, so the screen shows the stored value
+        var bySlug = {}; S.products.forEach(function (p) { bySlug[p.slug] = p })
+        Object.keys(S.draft).forEach(function (slug) { if (!bySlug[slug] || !isDirty(bySlug[slug])) delete S.draft[slug] })
+        S.loading = false
+        drawAll()
+      })
+      .catch(function () { S.loading = false; S.failed = true; drawBody() })
+  }
+  function post(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' }, body: JSON.stringify(body)
+    }).then(function (res) {
+      return res.json().catch(function () { return {} }).then(function (j) { return { status: res.status, ok: res.ok, j: j || {} } })
+    }, function () { return { status: 0, ok: false, j: {} } })
+  }
+  function errorText(x) {
+    if (x.status === 0) return t('e_net')
+    if (x.status === 401 || x.status === 403) return t('e_signed_out')
+    var code = String(x.j && x.j.error || '')
+    return STR[S.lang] && STR[S.lang]['e_' + code] ? t('e_' + code) : t('e_other', { m: code || ('http ' + x.status) })
+  }
+  function save(p) {
+    if (S.saving[p.slug]) return
+    var d = draftOf(p), c = check(d)
+    if (!c.ok) { setStatus(p.slug, c.msg, 'bad'); return }
+    if (sameAsSaved(p, c.body)) { setStatus(p.slug, t('unchanged'), 'ok'); return }
+    S.saving[p.slug] = true
+    setStatus(p.slug, t('saving'), 'busy'); setBusy(p.slug, true)
+    post('product_fabric_save', { slug: p.slug, fabric: c.body }).then(function (x) {
+      delete S.saving[p.slug]
+      setBusy(p.slug, false)
+      if (x.ok && x.j && x.j.slug) {
+        p.fabric = Array.isArray(x.j.fabric) ? x.j.fabric : null
+        delete S.draft[p.slug]
+        drawProduct(p)
+        setStatus(p.slug, t('saved') + ' ' + t('stated', { x: statedText(p) }), 'ok')
+        drawFoot()
+      } else {
+        setStatus(p.slug, errorText(x), 'bad')
+        fillSaveState(p, draftOf(p))
+      }
+    })
+  }
+
+  // ---------------------------------------------------------------- the dialog
+  function ensureStyle() {
+    if (document.getElementById('fab-style')) return
+    var st = el('style'); st.id = 'fab-style'
+    st.textContent = [
+      '.fab-ov{position:fixed;inset:0;z-index:2147482000;background:rgba(23,26,30,.55);display:flex;align-items:center;justify-content:center;padding:1rem}',
+      '.fab-dlg{background:#fff;color:#171a1e;border-radius:16px;max-width:52rem;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.3)}',
+      '.fab-head{display:flex;justify-content:space-between;gap:1rem;align-items:center;padding:1rem 1.25rem .25rem}',
+      '.fab-head h2{margin:0;font-size:1.25rem;font-weight:700}',
+      '.fab-intro{margin:0;padding:0 1.25rem .75rem;color:#4b5563;font-size:.9rem}',
+      '.fab-tools{display:flex;flex-wrap:wrap;gap:.5rem;padding:0 1.25rem .75rem;align-items:center}',
+      '.fab-tools input[type=search]{flex:1 1 14rem;min-height:44px;padding:.5rem .75rem;border:1px solid #9ca3af;border-radius:12px;font:inherit;background:#fff;color:#171a1e}',
+      '.fab-body{overflow:auto;padding:0 1.25rem;flex:1 1 auto;min-height:6rem}',
+      '.fab-card{border:1px solid #e5e7eb;border-radius:12px;padding:.75rem;margin-bottom:.75rem}',
+      '.fab-name{font-weight:700}',
+      '.fab-sub{font-size:.78rem;color:#6b7280}',
+      '.fab-now{font-size:.85rem;color:#374151;margin:.25rem 0 .5rem}',
+      '.fab-row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-bottom:.5rem}',
+      '.fab-sel,.fab-pct{min-height:44px;border:1px solid #9ca3af;border-radius:10px;padding:.4rem .5rem;font:inherit;background:#fff;color:#171a1e}',
+      '.fab-pct{width:6rem;text-align:end}',
+      '.fab-total{font-size:.9rem;font-weight:600}',
+      '.fab-total.fab-bad{color:#b42318}',
+      '.fab-total.fab-ok{color:#166534}',
+      '.fab-acts{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:.5rem}',
+      '.fab-status{font-size:.85rem;min-height:1.2rem;margin:.25rem 0 0}',
+      '.fab-status.fab-bad{color:#b42318}',
+      '.fab-status.fab-ok{color:#166534}',
+      '.fab-status.fab-busy{color:#374151}',
+      '.fab-btn{min-height:44px;padding:0 1rem;border-radius:12px;border:1px solid #9ca3af;background:#fff;color:#171a1e;font:inherit;font-weight:600;cursor:pointer}',
+      '.fab-btn.fab-p{background:#FF7B17;border-color:#FF7B17;color:#171a1e}',
+      '.fab-btn:disabled{opacity:.5;cursor:not-allowed}',
+      '.fab-foot{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between;padding:.75rem 1.25rem 1rem;border-top:1px solid #e5e7eb}',
+      '.fab-sum{font-size:.9rem;color:#374151}',
+      '.fab-empty{padding:1rem 0;color:#4b5563}',
+      '.fab-lab{display:inline-flex;align-items:center;gap:.4rem;min-height:44px;font-size:.9rem}'
+    ].join('\n')
+    ;(document.head || document.documentElement).appendChild(st)
+  }
+  function build() {
+    ensureStyle()
+    root = el('div', 'fab-ov'); root.setAttribute('data-fab', 'overlay')
+    var dlg = el('div', 'fab-dlg')
+    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'fab-title')
+    dlg.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr'); dlg.setAttribute('lang', S.lang)
+    var head = el('div', 'fab-head')
+    var h = el('h2', '', t('title')); h.id = 'fab-title'
+    head.appendChild(h); head.appendChild(btn('', t('close'), closeDialog))
+    dlg.appendChild(head)
+    dlg.appendChild(el('p', 'fab-intro', t('intro')))
+    var tools = el('div', 'fab-tools')
+    var q = el('input'); q.type = 'search'; q.placeholder = t('search'); q.setAttribute('aria-label', t('search'))
+    q.addEventListener('input', function () { S.q = q.value; drawBody() })
+    tools.appendChild(q); tools.appendChild(btn('', t('refresh'), read))
+    dlg.appendChild(tools)
+    var body = el('div', 'fab-body'); body.setAttribute('data-fab', 'body')
+    dlg.appendChild(body)
+    var foot = el('div', 'fab-foot')
+    var sum = el('span', 'fab-sum')
+    foot.appendChild(sum)
+    dlg.appendChild(foot)
+    root.appendChild(dlg)
+    document.body.appendChild(root)
+    U = { q: q, body: body, sum: sum }
+  }
+  function drawBody() {
+    if (!U) return
+    U.body.textContent = ''
+    S.refs = {}
+    if (S.loading) { U.body.appendChild(el('p', 'fab-empty', t('loading'))); return }
+    if (S.failed) { U.body.appendChild(el('p', 'fab-empty', t('failed'))); U.body.appendChild(btn('fab-p', t('retry'), read)); return }
+    if (!S.products) return
+    if (!S.products.length) { U.body.appendChild(el('p', 'fab-empty', t('empty'))); return }
+    var q = clean(S.q).toLowerCase()
+    var list = S.products.filter(function (p) {
+      if (!q) return true
+      return [p.name_en, p.name_ar, p.slug].join(' ').toLowerCase().indexOf(q) >= 0
+    })
+    if (!list.length) { U.body.appendChild(el('p', 'fab-empty', t('none'))); drawFoot(); return }
+    list.forEach(function (p) { U.body.appendChild(cardEl(p)) })
+    drawFoot()
+  }
+  function drawAll() { drawBody() }
+  function drawProduct(p) {
+    var r = S.refs[p.slug]
+    if (!r) { drawBody(); return }
+    var fresh = cardEl(p)
+    r.card.parentNode.replaceChild(fresh, r.card)
+  }
+  function cardEl(p) {
+    var d = draftOf(p)
+    var card = el('section', 'fab-card'); card.setAttribute('data-fab-slug', p.slug)
+    card.appendChild(el('div', 'fab-name', nameOf(p)))
+    card.appendChild(el('div', 'fab-sub', p.slug))
+    card.appendChild(el('div', 'fab-now', t('stated', { x: statedText(p) })))
+
+    var lab = el('label', 'fab-lab')
+    var pct = el('input'); pct.type = 'checkbox'; pct.checked = !!d.on
+    pct.addEventListener('change', function () {
+      // The shares a person typed are kept when the switch goes off and on again: only the view changes, not the draft.
+      d.on = pct.checked
+      setStatus(p.slug, '', ''); drawProduct(p)
+    })
+    lab.appendChild(pct); lab.appendChild(document.createTextNode(' ' + t('pctOn')))
+    card.appendChild(lab)
+    card.appendChild(el('div', 'fab-sub', t('pctHint')))
+
+    var rowsWrap = el('div')
+    d.entries.forEach(function (e, i) { rowsWrap.appendChild(entryRow(p, d, e, i)) })
+    card.appendChild(rowsWrap)
+
+    var total = el('div', 'fab-total'); total.setAttribute('data-fab-total', '1')
+    card.appendChild(total)
+    var status = el('p', 'fab-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); status.setAttribute('data-fab-status', '1')
+    card.appendChild(status)
+
+    var acts = el('div', 'fab-acts')
+    var add = btn('', d.entries.length >= MAX_ENTRIES ? t('addFull') : t('add'), function () {
+      if (d.entries.length >= MAX_ENTRIES) return
+      d.entries.push({ material: '', percent: '' }); drawProduct(p)
+    })
+    add.disabled = d.entries.length >= MAX_ENTRIES
+    var save1 = btn('fab-p', t('save'), function () { save(p) })
+    var clear = btn('', t('clear'), function () {
+      S.draft[p.slug] = { on: false, entries: [] }
+      save(p)
+    })
+    acts.appendChild(add); acts.appendChild(save1); acts.appendChild(clear)
+    card.appendChild(acts)
+
+    S.refs[p.slug] = { card: card, total: total, status: status, save: save1, add: add }
+    fillTotal(p, d)
+    fillSaveState(p, d)
+    setStatus(p.slug, S.statusFor && S.statusFor[p.slug] ? S.statusFor[p.slug].text : '', S.statusFor && S.statusFor[p.slug] ? S.statusFor[p.slug].k : '')
+    return card
+  }
+  function entryRow(p, d, e, i) {
+    var row = el('div', 'fab-row')
+    var sel = el('select', 'fab-sel'); sel.setAttribute('aria-label', t('choose') + ' ' + (i + 1))
+    var empty = new Option(t('choose'), ''); sel.appendChild(empty)
+    MATERIALS.forEach(function (m) { sel.appendChild(new Option(S.lang === 'ar' ? m[2] : m[1], m[0])) })
+    sel.value = e.material || ''
+    sel.addEventListener('change', function () { e.material = sel.value; refresh(p, d) })
+    row.appendChild(sel)
+    if (d.on) {
+      var pb = el('input', 'fab-pct'); pb.type = 'text'; pb.setAttribute('inputmode', 'numeric'); pb.setAttribute('autocomplete', 'off')
+      pb.setAttribute('aria-label', t('percentLabel') + ' ' + (i + 1)); pb.value = e.percent
+      pb.addEventListener('input', function () { e.percent = pb.value; refresh(p, d) })
+      row.appendChild(pb)
+      row.appendChild(document.createTextNode('%'))
+    }
+    var rm = btn('', t('remove'), function () {
+      d.entries.splice(i, 1)
+      if (!d.entries.length) d.entries.push({ material: '', percent: '' })
+      drawProduct(p)
+    })
+    row.appendChild(rm)
+    return row
+  }
+  function refresh(p, d) { fillTotal(p, d); fillSaveState(p, d); setStatus(p.slug, '', ''); drawFoot() }
+  function fillTotal(p, d) {
+    var r = S.refs[p.slug]
+    if (!r) return
+    var c = check(d)
+    // With the percent option off there is no total, but a duplicate or a missing material still says why Save is off.
+    if (!d.on) {
+      r.total.textContent = c.ok ? '' : c.msg
+      r.total.className = c.ok ? 'fab-total' : 'fab-total fab-bad'
+      return
+    }
+    if (c.ok) {
+      r.total.textContent = c.body.length ? t('total', { n: c.sum }) : ''
+      r.total.className = c.body.length ? 'fab-total fab-ok' : 'fab-total'
+      return
+    }
+    // a total that is not 100 names the sum; any other problem (a bad share, a duplicate) names itself
+    r.total.textContent = c.sum != null ? t('totalBad', { n: c.sum }) : c.msg
+    r.total.className = 'fab-total fab-bad'
+  }
+  function fillSaveState(p, d) {
+    var r = S.refs[p.slug]
+    if (!r) return
+    var c = check(d)
+    r.save.disabled = !!S.saving[p.slug] || !c.ok || sameAsSaved(p, c.body)
+    r.add.disabled = d.entries.length >= MAX_ENTRIES
+  }
+  function setStatus(slug, text, k) {
+    S.statusFor = S.statusFor || {}
+    S.statusFor[slug] = { text: text, k: k }
+    var r = S.refs[slug]
+    if (!r) return
+    r.status.textContent = text
+    r.status.className = 'fab-status' + (k === 'bad' ? ' fab-bad' : k === 'ok' ? ' fab-ok' : k === 'busy' ? ' fab-busy' : '')
+  }
+  function setBusy(slug, on) {
+    var r = S.refs[slug]
+    if (!r) return
+    r.save.disabled = on
+  }
+  function dirtyCount() {
+    var n = 0
+    ;(S.products || []).forEach(function (p) { if (S.draft[p.slug] && isDirty(p)) n++ })
+    return n
+  }
+  function drawFoot() {
+    if (!U || !S.products) return
+    var pcts = S.products.filter(function (p) { return savedOf(p).length > 0 }).length
+    U.sum.textContent = t('sum', { n: S.products.length, p: pcts })
+  }
+  function onKey(e) { if (e.key === 'Escape' && root) closeDialog() }
+  function openDialog(opener) {
+    if (root) return
+    S.opener = opener; S.lang = langOf(opener)
+    S.draft = {}; S.refs = {}; S.saving = {}; S.q = ''; S.statusFor = {}; S.products = null
+    build()
+    document.addEventListener('keydown', onKey)
+    read()
+    setTimeout(function () { if (U && U.q) U.q.focus() }, 0)
+  }
+  function closeDialog() {
+    if (!root) return
+    var n = dirtyCount()
+    if (n && !window.confirm(t('confirmLeave', { n: n }))) return
+    root.remove(); root = null; U = null
+    document.removeEventListener('keydown', onKey)
+    if (S.opener && S.opener.focus) S.opener.focus()
+  }
+
+  // ---------------------------------------------------------------- the button, beside Prices in the Catalogue header
+  function anchor() {
+    var a = document.querySelectorAll('[' + ANCHOR + ']')
+    for (var i = 0; i < a.length; i++) if (shown(a[i])) return a[i]
+    return null
+  }
+  function ensure() {
+    var a = anchor()
+    var have = document.querySelectorAll('[' + BTN + ']')
+    if (!a) { for (var i = 0; i < have.length; i++) have[i].remove(); return }
+    if (have.length === 1 && have[0].parentNode === a.parentNode) return
+    for (var j = 0; j < have.length; j++) have[j].remove()
+    var lang = langOf(a)
+    var b = el('button', a.className || '', (STR[lang] || STR.en).open)
+    b.type = 'button'; b.setAttribute(BTN, '1')
+    b.addEventListener('click', function () { openDialog(b) })
+    a.parentNode.insertBefore(b, a.nextSibling)
+  }
+  function soon() { ensure(); setTimeout(ensure, 150); setTimeout(ensure, 800) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+  } catch (e) { /* a page this block does not know: leave it alone */ }
+})()
+/* ===== ADMIN FABRIC - end ================================================ */
+
 /* ===== ADMIN SPORTA AI - begin ===========================================
  * 10. Sporta AI (owner request 2026-11-11: "make sporta ai setup at backends").
  *

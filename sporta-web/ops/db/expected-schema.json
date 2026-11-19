@@ -402,7 +402,8 @@
   "created_at": {"pos":17,"type":"timestamp","null":false,"def":"current_timestamp()","cs":null,"coll":null,"extra":"","gen":null},
   "updated_at": {"pos":18,"type":"timestamp","null":false,"def":"current_timestamp()","cs":null,"coll":null,"extra":"on update current_timestamp()","gen":null},
   "featured": {"pos":19,"type":"tinyint(1)","null":false,"def":"0","cs":null,"coll":null,"extra":"","gen":null},
-  "featured_sort": {"pos":20,"type":"int(11)","null":false,"def":"0","cs":null,"coll":null,"extra":"","gen":null}
+  "featured_sort": {"pos":20,"type":"int(11)","null":false,"def":"0","cs":null,"coll":null,"extra":"","gen":null},
+  "fabric": {"pos":21,"type":"varchar(160)","null":true,"def":null,"cs":"utf8mb4","coll":"utf8mb4_unicode_ci","extra":"","gen":null}
  },
  "indexes": {"idx_products_brand":{"unique":false,"type":"BTREE","cols":["brand_slug"]},"idx_products_featured":{"unique":false,"type":"BTREE","cols":["featured","featured_sort"]},"PRIMARY":{"unique":true,"type":"BTREE","cols":["id"]},"slug":{"unique":true,"type":"BTREE","cols":["slug"]}},
  "fks": {},
@@ -568,6 +569,7 @@
 "knet-stock.mysql.sql": ["column:orders.stock_released"],
 "payattempt.mysql.sql": ["column:orders.pay_attempt"],
 "productbrand.mysql.sql": ["column:products.brand_slug","column:products.images","index:products.idx_products_brand"],
+"fabric.mysql.sql": ["column:products.fabric"],
 "refunds.mysql.sql": ["check:order_refunds.order_refunds_amount_ck","check:order_refunds.order_refunds_kind_ck","check:order_refunds.order_refunds_scope_ck","check:orders.orders_payment_status_ck","check:payment_alerts.payment_alerts_gateway_ck","check:payment_alerts.payment_alerts_kind_ck","check:payment_alerts.payment_alerts_resolution_ck","check:payment_alerts.payment_alerts_source_ck","column:order_refunds.actor_admin_id","column:order_refunds.actor_email","column:order_refunds.alert_id","column:order_refunds.amount","column:order_refunds.created_at","column:order_refunds.id","column:order_refunds.kind","column:order_refunds.kpay_reference","column:order_refunds.note","column:order_refunds.order_id","column:order_refunds.payment_id","column:order_refunds.request_key","column:order_refunds.scope","column:orders.gateway_attempt_ref","column:orders.refunded_amount","column:payment_alerts.amount","column:payment_alerts.attempt_ref","column:payment_alerts.created_at","column:payment_alerts.gateway","column:payment_alerts.id","column:payment_alerts.kind","column:payment_alerts.order_id","column:payment_alerts.order_payment_id","column:payment_alerts.payment_id","column:payment_alerts.reference","column:payment_alerts.resolution","column:payment_alerts.resolved_at","column:payment_alerts.resolved_by","column:payment_alerts.source","column:payment_alerts.transaction_id","fk:order_refunds.fk_order_refunds_admin","fk:order_refunds.fk_order_refunds_order","fk:payment_alerts.fk_payment_alerts_order","index:order_refunds.PRIMARY","index:order_refunds.fk_order_refunds_admin","index:order_refunds.idx_order_refunds_created","index:order_refunds.idx_order_refunds_order","index:order_refunds.uq_order_refunds_request","index:payment_alerts.PRIMARY","index:payment_alerts.idx_payment_alerts_open","index:payment_alerts.uq_payment_alerts","table:order_refunds","table:payment_alerts"],
 "reviews.mysql.sql": ["check:reviews.reviews_lang_ck","check:reviews.reviews_rating_ck","check:whatsapp_outbox.wa_kind_ck","column:reviews.comment","column:reviews.created_at","column:reviews.id","column:reviews.lang","column:reviews.order_id","column:reviews.published","column:reviews.rating","column:reviews.reward_code","index:reviews.PRIMARY","index:reviews.idx_reviews_created","index:reviews.uq_reviews_order","table:reviews"],
 "stock.mysql.sql": ["column:orders.stock_claimed","column:orders.stock_released","index:orders.idx_orders_stock_sweep"],
@@ -856,6 +858,7 @@
 "product_variants.updated_at": [["admin.php"],[]],
 "products.active": [["admin.php","api.php","assistant.php","dbcenter.php","product-listable.php","returns.php","seo-config.php","seo-page.php","sitemap-index.php","sitemap-products.php","store.php"],[]],
 "products.brand_slug": [["admin.php","api.php","assistant.php"],["admin.php"]],
+"products.fabric": [["admin.php","api.php"],["admin.php"]],
 "products.category": [["admin.php","api.php","assistant.php","store.php"],[]],
 "products.created_at": [["abandoned.php","admin.php","api.php","assistant.php","customer-auth.php","dbcenter.php","returns.php","store.php"],[]],
 "products.desc_ar": [["admin.php","api.php","seo-page.php"],[]],

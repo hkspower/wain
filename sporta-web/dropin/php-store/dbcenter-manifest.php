@@ -65,6 +65,10 @@ return [
             'tables' => [],
             'columns' => ['orders.discount_ids', 'orders.discount_released'],
         ],
+        'fabric.mysql.sql' => [
+            'tables' => [],
+            'columns' => ['products.fabric'],
+        ],
         'inventory.mysql.sql' => [
             'tables' => ['inventory_movements'],
             'columns' => ['inventory_movements.actor_admin_id', 'inventory_movements.actor_email', 'inventory_movements.after_low_stock_threshold', 'inventory_movements.after_stock', 'inventory_movements.after_unit_cost_kwd', 'inventory_movements.before_low_stock_threshold', 'inventory_movements.before_stock', 'inventory_movements.before_unit_cost_kwd', 'inventory_movements.created_at', 'inventory_movements.delta', 'inventory_movements.id', 'inventory_movements.inventory_version', 'inventory_movements.note', 'inventory_movements.sku', 'inventory_movements.type', 'product_variants.inventory_version', 'product_variants.low_stock_threshold', 'product_variants.unit_cost_kwd', 'product_variants.updated_at'],

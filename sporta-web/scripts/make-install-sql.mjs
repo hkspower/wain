@@ -50,6 +50,7 @@ const PARTS = [
   ['outbox-kinds.mysql.sql', 'the warehouse message kinds: cancel and reinstate'],
   ['abandoned.mysql.sql', 'abandoned card orders and the admin follow-up notes'],
   ['admin-passcode.mysql.sql', 'the admin device passcode columns'],
+  ['fabric.mysql.sql', 'the fabric a product is made of, with optional percentages'],
 ]
 
 const FORBIDDEN = [
