@@ -6,7 +6,9 @@
 # The credentials. config.php holds the MySQL password; store.php and the .sql
 # files are includes and import fixtures, not endpoints — nothing loses by
 # denying them, and seed.mysql.sql names every product and cost price.
-<FilesMatch "^(config\.php|config\.example\.php|store\.php|seo-config\.php|seo-runtime\.php|crm\.php|returns\.php|cron-auth\.php|customer-auth\.php|preflight\.php|setup-admin\.php|.*\.sql)$">
+# catalogue.php, site-icon.php and product-listable.php only define functions: requested directly they answered 200 with an empty body (2026-11-19),
+# which is not a secret but is not an endpoint either.
+<FilesMatch "^(config\.php|config\.example\.php|store\.php|seo-config\.php|seo-runtime\.php|crm\.php|returns\.php|cron-auth\.php|customer-auth\.php|preflight\.php|setup-admin\.php|catalogue\.php|site-icon\.php|product-listable\.php|.*\.sql)$">
   Require all denied
 </FilesMatch>
 
@@ -43,6 +45,9 @@ Options -Indexes
 # stale icon version stays no-store too).
 <Files "api.php">
   Header set Cache-Control "public, max-age=31536000, immutable" "expr=%{QUERY_STRING} =~ /(^|&)r=(slide_image|brand_logo|site_icon)(&|$)/ && %{REQUEST_STATUS} == 200"
+  # The live catalogue (?r=catalogue) sends an ETag and "no-cache": the page polls it with If-None-Match and a 304 must keep that header (a 304
+  # updates the stored copy's headers, so no-store there would evict it). A 200 or 304 only: an error (429, 405, 500) stays no-store above.
+  Header set Cache-Control "no-cache" "expr=%{QUERY_STRING} =~ /(^|&)r=catalogue(&|$)/ && (%{REQUEST_STATUS} == 200 || %{REQUEST_STATUS} == 304)"
 </Files>
 
 # /sitemap.xml and /sitemap-products.xml are rewritten (root .htaccess) to these

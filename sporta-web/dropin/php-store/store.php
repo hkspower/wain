@@ -4370,6 +4370,8 @@ function store_review_submit(PDO $db, array $order, int $rating, ?string $commen
 require_once __DIR__ . '/seo-config.php';
 // The favicon the owner picked in the SEO screen (settings rows, no migration): site-icon.php.
 require_once __DIR__ . '/site-icon.php';
+// The live catalogue (/catalogue, the PDF, the crawler's JSON-LD): one builder and the owner's settings row, no migration: catalogue.php.
+require_once __DIR__ . '/catalogue.php';
 
 // ------------------------------------------------- device passcode (quick unlock)
 //

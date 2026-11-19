@@ -98,7 +98,7 @@ function sporta_seo_saved(array $overrides, string $field): string {
     return trim(mb_substr($value, 0, str_starts_with($field, 'description') ? 320 : 120));
 }
 
-function sporta_seo_meta(array $route, string $lang, array $payload, ?array $product): array {
+function sporta_seo_meta(array $route, string $lang, array $payload, ?array $product, ?array $catalogue = null): array {
     $path = $route['path'];
     $kind = $route['kind'];
     $defaults = sporta_seo_defaults($path);
@@ -126,6 +126,14 @@ function sporta_seo_meta(array $route, string $lang, array $payload, ?array $pro
             : 'Shop this product at Sporta Kuwait. View sizes, price and delivery choices.';
         if (empty($override['image'])) $image = sporta_seo_image($product['image'] ?? '');
     }
+    // /catalogue: the owner's own title and intro (settings.catalogue) are the page's wording, so a crawler that runs no script reads them too.
+    // The SEO screen's override below still outranks them.
+    if ($kind === 'page' && $path === '/catalogue' && $catalogue !== null) {
+        $own = sporta_seo_text($catalogue['settings']['title_' . ($isArabic ? 'ar' : 'en')] ?? '', 120);
+        if ($own !== '') $title = $own . ($isArabic ? ' — سبورتا' : ' — Sporta');
+        $intro = sporta_seo_text($catalogue['settings']['intro_' . ($isArabic ? 'ar' : 'en')] ?? '', 320);
+        if ($intro !== '') $description = $intro;
+    }
     $title = sporta_seo_saved($override, $isArabic ? 'title_ar' : 'title_en') ?: $title;
     $description = sporta_seo_saved($override, $isArabic ? 'description_ar' : 'description_en') ?: $description;
     if ($kind === 'private') {
@@ -147,7 +155,7 @@ function sporta_seo_meta(array $route, string $lang, array $payload, ?array $pro
     ];
 }
 
-function sporta_seo_render(string $html, array $meta, string $lang, ?array $payload, ?array $product = null, ?array $icon = null): string {
+function sporta_seo_render(string $html, array $meta, string $lang, ?array $payload, ?array $product = null, ?array $icon = null, ?array $catalogue = null): string {
     // The built shell still contains home metadata. Remove only SEO tags so
     // crawlers never have to guess which duplicate title/canonical wins.
     $html = preg_replace('~<title\b[^>]*>.*?</title\s*>~is', '', $html, 1) ?? $html;
@@ -222,6 +230,11 @@ function sporta_seo_render(string $html, array $meta, string $lang, ?array $payl
         $tags[] = '<script type="application/ld+json" data-sporta-ssr-product="true">'
             . json_encode($schema, $jsonFlags) . '</script>';
     }
+    // /catalogue: CollectionPage + ItemList of the same products and order as ?r=catalogue (store_catalogue_jsonld; nothing when the shop lists none)
+    if ($catalogue !== null) {
+        $ld = store_catalogue_jsonld($catalogue, $lang, $meta['title'], $meta['description']);
+        if ($ld !== null) $tags[] = '<script type="application/ld+json" data-sporta-ssr-catalogue="true">' . json_encode($ld, $jsonFlags) . '</script>';
+    }
     return str_replace('</head>', implode("\n    ", $tags) . "\n  </head>", $html);
 }
 
@@ -275,7 +288,12 @@ function sporta_seo_serve(): void {
     if ($db !== null && $route['kind'] !== 'missing') {
         try { $icon = store_site_icon_urls($db); } catch (Throwable $e) { error_log('Sporta site icon unavailable: ' . get_class($e)); }
     }
-    $meta = sporta_seo_meta($route, $lang, $payload ?? [], $product);
+    // The live catalogue behind /catalogue (catalogue.php), only for that path; a failed read costs the head its JSON-LD, never the page.
+    $catalogue = null;
+    if ($db !== null && $route['kind'] === 'page' && $route['path'] === '/catalogue') {
+        try { $catalogue = store_catalogue_build($db); } catch (Throwable $e) { error_log('Sporta catalogue unavailable: ' . get_class($e)); }
+    }
+    $meta = sporta_seo_meta($route, $lang, $payload ?? [], $product, $catalogue);
     if ($route['path'] === '/track'
         && sporta_seo_track_identified((string)($_SERVER['REQUEST_URI'] ?? ''))) {
         $meta['indexable'] = false;
@@ -292,7 +310,7 @@ function sporta_seo_serve(): void {
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: ' . ($productUnavailable ? 'no-store' : 'no-cache, must-revalidate'));
     if (!$meta['indexable']) header('X-Robots-Tag: noindex, follow');
-    $body = sporta_seo_render($html, $meta, $lang, $payload, $product, $icon);
+    $body = sporta_seo_render($html, $meta, $lang, $payload, $product, $icon, $catalogue);
     // A validator, so "no-cache" costs a 304 instead of the whole page. The
     // hash is of the exact bytes, so any change to the shell, the SEO text or
     // a product's price is a new ETag. mod_deflate/mod_brotli append -gzip/-br

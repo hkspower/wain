@@ -428,7 +428,7 @@ $activityActions = [
     // passcode_set and passcode_clear are NOT listed here: store_passcode_change()
     // writes their row itself, and listing them too wrote every change twice (AUTH-06).
     'content_save', 'returns_policy_save', 'assistant_settings_save', 'shipping_save',
-    'site_icon_save', 'site_icon_reset',
+    'site_icon_save', 'site_icon_reset', 'catalogue_settings_save',
 ];
 if ($method === 'POST' && in_array($r, $activityActions, true)) {
     register_shutdown_function(static function () use ($db, $admin, $r): void {
@@ -3095,6 +3095,19 @@ if ($r === 'topbar_settings') {
 // renderer, never from administrator-supplied text.
 if ($r === 'seo_settings' && $method === 'GET') {
     store_out(store_seo_admin_settings($db));
+}
+
+// THE LIVE CATALOGUE's settings (catalogue.php, settings row `catalogue`): the read carries the settings, every product with its hidden / pinned state and
+// the reason the shop's own rules hide it, the share links and the status; the save takes the whitelisted fields (a field the request leaves out keeps its
+// value), refuses anything that does not match with a token and writes nothing then. Admin-only (session + X-Sporta-Admin, like every route here), JSON
+// only, and logged by the shutdown hook ($activityActions: the action name only, never the text).
+if ($r === 'catalogue_settings' && $method === 'GET') {
+    store_out(store_catalogue_admin($db));
+}
+if ($r === 'catalogue_settings_save' && $method === 'POST') {
+    if (strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0])) !== 'application/json') store_fail('bad_request', 403);
+    if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 65536) store_fail('request_too_large', 413);
+    store_out(store_catalogue_save($db, store_body(65536)));
 }
 
 // THE SITE ICON (favicon), attached to the SEO screen and kept in the database (site-icon.php). The read carries no picture data: the screen shows the

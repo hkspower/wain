@@ -82,6 +82,9 @@ $STORE_LIMITS = [
     // load by sporta-features.js, which keeps a copy in the browser. Same tier as the theme.
     'text_style'      => [120, 60],
     'checkout_config' => [120, 60],
+    // The live catalogue (catalogue.php): one request per visit to /catalogue and one conditional poll a minute from an open tab (a 304 is cheap
+    // but still counted). Same tier as the other public reads.
+    'catalogue'       => [120, 60],
     // The owner's wording and contact details (settings.site_content): one
     // small row, asked for once per page load by sporta-features.js, which
     // keeps a copy in the browser. Same tier as the theme.
@@ -238,6 +241,14 @@ if ($r === 'theme') {
 if ($r === 'text_style') {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') store_fail('bad_request', 405);
     store_out(store_text_style($db));
+}
+
+// THE LIVE CATALOGUE (CATALOGUE-V2.md): what /catalogue and its PDF list, in what order, with which photo, plus the owner's wording and switches
+// (settings.catalogue). `revision` is the ETag, so a page that polls with If-None-Match gets a 304 until something a visitor can see changes.
+// GET (HEAD too); no quantity, SKU, cost or customer field is ever in the answer.
+if ($r === 'catalogue') {
+    if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true)) store_fail('bad_request', 405);
+    store_catalogue_serve($db);
 }
 
 // The words the owner has changed, and the shop's contact details. Public on
