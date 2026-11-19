@@ -1330,6 +1330,240 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
 .purchase-result:is(:has(> p[dir="ltr"]), :has(> div > a[href="/cart"])) { min-height: 42rem; }
 @media (max-width: 480px) { .purchase-result:is(:has(> p[dir="ltr"]), :has(> div > a[href="/cart"])) { min-height: 52rem; } }
 /* ==== end RECEIPT-1112 */
+/* ==== ORDER PAGES 1120 (2026-11-19, owner: "full improve checkout and order page"; proof: npm run test:order-pages-1120) =========
+ * The pages a shopper sees AFTER the checkout: the cash order's confirmation (/payment/result), the tracking page (/track) and, a
+ * step before them, the checkout's order summary (its half is in sporta-checkout-a11y.css, "ORDER PAGES 1120"). Measured on the
+ * captured live build with this repo's add-ons, 390px and 1280px, Arabic and English:
+ *   CONFIRMATION  every real order is cash on delivery and its page was a glyph, one sentence, the order number in 12px type and two
+ *                 buttons inside a card 830px tall on a phone (672px at 1280px): RECEIPT-1112 keeps the KNET receipt's height for
+ *                 every order number, so a cash order stood on ~430px of empty white. The PAYMENT RECEIPT block of sporta-features.js
+ *                 now appends ONE card under the compiled content (order number with Copy, the order summary from the public limited
+ *                 invoice, what happens next, a WhatsApp help link) and marks the container data-sporta-cash once it is there.
+ *   TRACKING      the four step labels were truncated with an ellipsis ("Being prepar..." at 390px), 10.9px, the dates under them
+ *                 9.6px, the figure in the circle 10px, and the two links under the card ("View invoice", "Request return or
+ *                 exchange") 20px tall. Every label was the same near-black (MONO-1112), reached or not, so only the ring told a step
+ *                 still to come from a reached one, and that ring was 1.5:1 on white. In Arabic the connector lines were drawn the
+ *                 wrong way: the build translates each one by -50% of its own width (centre of the previous step to the centre of
+ *                 this one) and never mirrors it, so on a right-to-left page the line of step N ran toward step N+1, the segment
+ *                 between two reached steps was left grey, one segment too many was coloured, and the last one stuck out of the
+ *                 card's left edge (the page's 1px sideways scroll at 390px).
+ * Blocks are numbered [op-name-N] so the suite can cut each one and prove it is load-bearing. No physical left / right. */
+
+/* [op-cash-1] a cash order's card is on the page: the KNET receipt's reservation (RECEIPT-1112) no longer applies, the content decides
+ * the height (:root outranks the :has() rule's specificity at both widths) */
+:root .purchase-result[data-sporta-cash] { min-height: 0; }
+
+/* [op-cash-2] the card: a column of boxes under the compiled buttons, start-aligned (the compiled container centres its text) */
+.purchase-result > .sprc-cash {
+  --opc-ink: #171a1e; --opc-muted: #4b5563; --opc-line: #e5e7eb; --opc-soft: #f8f6f2; --opc-card: #fff;
+  --opc-brand: #ff7b17; --opc-link: #b34d00;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 34rem;
+  margin: 1.75rem auto 0;
+  display: grid;
+  gap: 12px;
+  text-align: start;
+  color: var(--opc-ink);
+}
+.purchase-result > .sprc-cash *, .purchase-result > .sprc-cash *::before { box-sizing: border-box; }
+.sprc-cash__k { color: var(--opc-muted); font-size: .8125rem; font-weight: 600; line-height: 1.4; }
+
+/* [op-cash-3] the order number, in type a shopper can read, with its Copy button (44px); the live region is for the screen reader */
+.sprc-cash__num {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "k copy" "v copy";
+  column-gap: 12px;
+  row-gap: 2px;
+  align-items: center;
+  border: 1px solid var(--opc-line);
+  border-radius: 12px;
+  background: var(--opc-card);
+  padding: 12px 16px;
+}
+.sprc-cash__num > .sprc-cash__k { grid-area: k; }
+.sprc-cash__v {
+  grid-area: v;
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: .02em;
+  font-variant-numeric: tabular-nums;
+  unicode-bidi: isolate;
+  overflow-wrap: anywhere;
+}
+.sprc-cash__copy {
+  grid-area: copy;
+  min-width: 5rem;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid var(--opc-ink);
+  border-radius: 12px;
+  background: var(--opc-card);
+  color: var(--opc-ink);
+  font: inherit;
+  font-size: .9375rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sprc-cash__copy:hover { background: var(--opc-soft); }
+.sprc-cash__live {
+  position: absolute;
+  width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+
+/* [op-cash-4] the panels: the order summary and what happens next */
+.sprc-cash__panel {
+  border: 1px solid var(--opc-line);
+  border-radius: 12px;
+  background: var(--opc-soft);
+  padding: 14px 16px;
+}
+.sprc-cash__panel > h2 { margin: 0 0 10px; font-size: 1rem; font-weight: 800; line-height: 1.4; color: var(--opc-ink); }
+.sprc-cash__lines { margin: 0; padding: 0; list-style: none; }
+.sprc-cash__lines > li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-block: 8px;
+  border-top: 1px solid var(--opc-line);
+  font-size: .9375rem;
+  line-height: 1.5;
+}
+.sprc-cash__lines > li:first-child { border-top: 0; padding-top: 0; }
+.sprc-cash__name { min-width: 0; overflow-wrap: anywhere; color: var(--opc-ink); }
+.sprc-cash__size { font-weight: 700; }
+.sprc-cash__amt { flex: none; font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.sprc-cash__totals { display: grid; gap: 6px; margin: 8px 0 0; padding: 10px 0 0; border-top: 1px solid var(--opc-line); }
+.sprc-cash__row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: .9375rem; color: var(--opc-muted); }
+.sprc-cash__row > dt, .sprc-cash__row > dd { margin: 0; }
+.sprc-cash__row > dd { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sprc-cash__row--grand {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--opc-line);
+  font-size: 1.0625rem;
+  font-weight: 800;
+  color: var(--opc-ink);
+}
+.sprc-cash__to { margin: 10px 0 0; font-size: .875rem; line-height: 1.5; color: var(--opc-ink); }
+
+/* [op-cash-5] "What happens next": three sentences, each behind an orange disc (the shop's one orange, near-black figure) */
+.sprc-cash__steps { counter-reset: opc; display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.sprc-cash__steps > li {
+  counter-increment: opc;
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  font-size: .9375rem;
+  line-height: 1.55;
+  color: var(--opc-ink);
+}
+.sprc-cash__steps > li::before {
+  content: counter(opc);
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--opc-brand);
+  color: #171a1e;
+  font-size: .8125rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.sprc-cash__note { margin: 10px 0 0; font-size: .8125rem; line-height: 1.5; color: var(--opc-muted); }
+
+/* [op-cash-6] the help line: the link is 44px to the finger without making the line taller (padding against a negative margin) */
+.sprc-cash__help { margin: 4px 0 0; text-align: center; font-size: .9375rem; line-height: 1.6; color: var(--opc-muted); }
+.sprc-cash__link {
+  display: inline-block;
+  padding-block: 11px;
+  margin-block: -11px;
+  color: var(--opc-link);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: .2em;
+}
+.sprc-cash__copy:focus-visible, .sprc-cash__link:focus-visible { outline: 2px solid #b34d00; outline-offset: 3px; }
+
+/* [op-cash-7] the dark theme */
+:is(html.dark, html[data-theme="dark"]) .purchase-result > .sprc-cash {
+  --opc-ink: #f2f2f0; --opc-muted: #b6b7bb; --opc-line: #3a3b40; --opc-soft: #1e1f23; --opc-card: #17181b; --opc-link: #ff7b17;
+}
+:is(html.dark, html[data-theme="dark"]) .sprc-cash__copy { border-color: #6b6d73; }
+:is(html.dark, html[data-theme="dark"]) .sprc-cash__copy:focus-visible,
+:is(html.dark, html[data-theme="dark"]) .sprc-cash__link:focus-visible { outline-color: #ff7b17; }
+
+/* [op-track-1] the four steps of /track: labels wrap instead of ending in an ellipsis and are 12px, the dates under them 12px, the
+ * figure in the circle 12px (the build sets 10.9px, 9.6px and 10px) */
+.track-progress > li > span.truncate {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: .75rem;
+  line-height: 1.3;
+}
+.track-progress > li > span[class*="text-[0.6rem]"] { font-size: .75rem; line-height: 1.3; }
+.track-progress > li > span.rounded-full { font-size: .75rem; }
+
+/* [op-track-2] steps still to come keep their place and read as "not yet": label, figure and date a softer grey (#5b6573, 5.9:1 on white;
+ * MONO-1112's near-black, 17.5:1, drew every step alike), the ring #7c8797, 3.6:1 instead of 1.5:1 (a state mark needs 3:1). Light theme
+ * only: slate-400 on the dark surface is already 6.7:1 */
+:root:not([data-theme="dark"]):not(.dark) .track-progress > li > span.text-slate-400 { color: #5b6573 !important; }
+:root:not([data-theme="dark"]):not(.dark) .track-progress > li > span.border-slate-300 { border-color: #7c8797; }
+
+/* [op-track-3] right to left: the connector of step N runs from the centre of step N-1 (to its right) to its own centre, so it is
+ * translated by +50% of its width, not the build's -50% (that one points left on both pages and sticks out of the card in Arabic) */
+:root[dir="rtl"] .track-progress > li > span[aria-hidden="true"] { --tw-translate-x: 50%; }
+
+/* [op-track-4] the help line the TRACK block of sporta-features.js adds at the end of the result card */
+.track-result > .sprc-help {
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+  text-align: center;
+  font-size: .9375rem;
+  line-height: 1.6;
+  color: #4b5563;
+}
+.track-result > .sprc-help > a {
+  display: inline-block;
+  padding-block: 11px;
+  margin-block: -11px;
+  color: #b34d00;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: .2em;
+}
+.track-result > .sprc-help > a:focus-visible { outline: 2px solid #b34d00; outline-offset: 3px; }
+:is(html.dark, html[data-theme="dark"]) .track-result > .sprc-help { border-top-color: #3a3b40; color: #b6b7bb; }
+:is(html.dark, html[data-theme="dark"]) .track-result > .sprc-help > a { color: #ff7b17; }
+:is(html.dark, html[data-theme="dark"]) .track-result > .sprc-help > a:focus-visible { outline-color: #ff7b17; }
+
+/* [op-links-1] the links the build leaves 20px tall: "View invoice" on the confirmation, "View invoice" and "Request return or exchange"
+ * on /track. 44px to the finger by padding against a negative margin, so no line moves (the build's own mt-4 is 1rem above) */
+.purchase-result > a[href^="/invoice/"],
+.track-result > a[href^="/invoice/"],
+.track-result > a[href^="/returns"] {
+  padding-block: 12px;
+  margin-block: calc(1rem - 12px) -12px;
+}
+
+/* [op-inv-1] the invoice's two controls above the sheet: Home was 20px tall and Print / Save as PDF 38px from 640px up */
+.invoice > .no-print > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: .25rem;
+}
+.invoice > .no-print > .btn { min-height: 44px; }
+/* ==== end ORDER PAGES 1120 */
 /* ==== CARD BADGE: the best-seller (and sale or new) badge sits above the product photo
    On the live shop the photo's layer painted over the badge, so only its top edge showed (owner's phone screenshot,
    2026-11-17). Measured on the captured live CSS: the badge is z-index auto, the photo z-index 1, and at 1280 px the

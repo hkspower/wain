@@ -332,6 +332,7 @@
       "knet-ids",
       "knet-refund-ui",
       "payment-receipt",
+      "order-pages-1120",
       "xss-config",
       "arabic",
       "seo",
@@ -2218,7 +2219,7 @@
       "needs": "browser",
       "parallelSafe": true,
       "timeoutSec": 510,
-      "minOk": 126,
+      "minOk": 127,
       "parse": "auto",
       "measuredSec": 163,
       "quick": false,
@@ -2226,6 +2227,21 @@
         "@php-all",
         "@rig",
         "@storefront-js"
+      ]
+    },
+    {
+      "name": "order-pages-1120",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 780,
+      "minOk": 221,
+      "parse": "auto",
+      "measuredSec": 257,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
       ]
     },
     {

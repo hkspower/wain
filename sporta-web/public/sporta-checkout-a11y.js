@@ -751,3 +751,103 @@
   } catch (e) {}
 })()
 /* ==== end TRIM-1112 */
+/* ==== ORDER PAGES 1120: CHECKOUT SUMMARY (2026-11-19, owner: "full improve checkout and order page") ====
+ * The behaviour half of the "ORDER PAGES 1120: CHECKOUT SUMMARY" section of sporta-checkout-a11y.css (read that comment first).
+ * Two nodes of its own in the guest checkout's order summary (.purchase-checkout-summary; the quick checkout has an Edit bag of
+ * its own and is left alone):
+ *   1. a.sporta-editbag (href /cart) right AFTER the bag list. Never between the discount link and the box it folds: U1 finds its
+ *      link as that box's previous sibling.
+ *   2. div.sporta-trust > ul as the LAST child of the summary (under the pay button where there is one): two of the shop's own
+ *      promises, the product page's arrival (24 hours, 1 KWD) and returns (14 days) lines, worded as in WORDS below. Nothing about
+ *      HOW to pay: that is the method's own hint, and the day card payments are switched on a list that promised cash to every
+ *      shopper would be wrong for one who picked KNET.
+ * Rules (the same as the rest of this file): checkout only; React owns the summary and re-renders it on every quote, so this
+ * looks again on every DOM change and on a language change; it places a node only when it is missing or out of place (so its own
+ * insertions cannot loop the observer), removes only its own nodes, never moves or re-texts a node the page owns, writes no field,
+ * price or request. Text exists in Arabic and English (document.documentElement.lang); textContent only. */
+;(function () {
+  'use strict'
+  try {
+  if (window.__sportaCheckoutBag) return
+  window.__sportaCheckoutBag = true
+
+  var BAG = 'sporta-editbag'
+  var TRUST = 'sporta-trust'
+  var WORDS = {
+    // The word "Delivery" / "التوصيل" is not used here on purpose: the summary's own "Delivery: Free" row is asserted to be the one
+    // place that word is read in the summary (test:checkout-ux, "is read once"), and a second copy would be a second thing to read.
+    en: { edit: 'Edit bag', lines: ['Arrives within 24 hours for a 1 KWD fee', '14-day return requests'], label: 'Good to know' },
+    ar: { edit: 'تعديل الحقيبة', lines: ['يصلك خلال ٢٤ ساعة برسوم ١ د.ك', 'طلب إرجاع خلال ١٤ يومًا'], label: 'معلومات مفيدة' }
+  }
+  var obs = null
+
+  function words() { return WORDS[/^ar/i.test(document.documentElement.getAttribute('lang') || '') ? 'ar' : 'en'] }
+  function onCheckout() { return location.pathname.indexOf('/checkout') === 0 }
+  function sweep(cls, keep) {
+    var all = document.querySelectorAll('.' + cls)
+    for (var i = 0; i < all.length; i++) {
+      if (all[i] !== keep && all[i].parentNode) all[i].parentNode.removeChild(all[i])
+    }
+  }
+  function bag(panel, w) {
+    var list = null
+    for (var n = panel.firstElementChild; n && !list; n = n.nextElementSibling) if (n.tagName === 'UL' && !n.classList.contains(TRUST)) list = n
+    if (!list) { sweep(BAG, null); return }
+    var a = list.nextElementSibling
+    if (!(a && a.classList && a.classList.contains(BAG))) {
+      a = document.createElement('a')
+      a.className = BAG
+      a.setAttribute('href', '/cart')
+      list.parentNode.insertBefore(a, list.nextSibling)
+    }
+    sweep(BAG, a)
+    if (a.textContent !== w.edit) a.textContent = w.edit
+  }
+  function trust(panel, w) {
+    // a div around the list: the page's own rules for "every ul directly in the summary" (the 1024px height cap, the scroll stop)
+    // are meant for the bag list and must not reach this one
+    var box = panel.querySelector(':scope > .' + TRUST)
+    if (!box) {
+      box = document.createElement('div')
+      box.className = TRUST
+      panel.appendChild(box)
+    } else if (panel.lastElementChild !== box) panel.appendChild(box)   // whatever the page adds after it (the pay button), it stays last
+    sweep(TRUST, box)
+    var ul = box.firstElementChild
+    if (!ul) {
+      ul = document.createElement('ul')
+      ul.className = TRUST + '__list'
+      box.appendChild(ul)
+    }
+    if (ul.getAttribute('aria-label') !== w.label) ul.setAttribute('aria-label', w.label)
+    var lines = w.lines
+    var items = ul.children
+    var same = items.length === lines.length
+    for (var i = 0; same && i < items.length; i++) if (items[i].textContent !== lines[i]) same = false
+    if (same) return
+    while (ul.firstChild) ul.removeChild(ul.firstChild)
+    for (var j = 0; j < lines.length; j++) {
+      var li = document.createElement('li')
+      li.textContent = lines[j]
+      ul.appendChild(li)
+    }
+  }
+  function run() {
+    var panel = onCheckout() ? document.querySelector('.purchase-checkout-summary') : null
+    if (!panel) { sweep(BAG, null); sweep(TRUST, null); return }
+    try {
+      var w = words()
+      bag(panel, w)
+      trust(panel, w)
+    } catch (e) {
+      if (obs) obs.disconnect()   // the order form must never break because of this file
+    }
+  }
+
+  run()
+  obs = new MutationObserver(run)
+  obs.observe(document.body, { childList: true, subtree: true })
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+  } catch (e) {}
+})()
+/* ==== end ORDER PAGES 1120: CHECKOUT SUMMARY */

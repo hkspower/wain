@@ -3212,8 +3212,24 @@
  * owns is removed, moved or re-texted, so React keeps re-rendering it as before; the box is put back if React replaces the
  * container. The box goes in the moment the container appears (it says "Checking your payment" first, the compiled page's own
  * words), so there is one change on screen, not two, and its minimum height is the receipt's, so the footer below does not
- * move when the answer lands. A cash order steps aside (the compiled "Order confirmed" page is right for it). Without an order
- * number the block does nothing at all.
+ * move when the answer lands. A cash order keeps the compiled "Order confirmed" page exactly as it is and gets ONE additive card
+ * under it (CASH ORDER 1120, below). Without an order number the block does nothing at all.
+ *
+ * CASH ORDER 1120 (2026-11-19, owner: "full improve checkout and order page"). Every real order today is cash on delivery, and
+ * its confirmation was a glyph, one sentence, an order number in 12px type and two buttons, in a card that the receipt's
+ * reservation (RECEIPT-1112) kept 830px tall on a phone: about 430px of empty white. When the status answer says "cod" this
+ * block asks for the public LIMITED invoice (GET /api/api.php?r=invoice&id=<order>, no cookies: the same call as /invoice/<id>,
+ * so no more than that page shows: lines, totals, governorate and area, never the name or the street) and appends ONE card
+ * (section.sprc-cash) as the LAST child of the compiled container, after its buttons: the order number in 18px type with a
+ * Copy button (Clipboard API, a hidden-textarea fallback, a polite "Copied"), the order summary (each line with its size and
+ * quantity, subtotal, discount, delivery, the total due, where it is going), "What happens next" in three sentences the shop
+ * already says elsewhere (updates on WhatsApp, the driver calls before arriving, pay the driver in cash, with the change
+ * note of the checkout) and a help link to the shop's WhatsApp. The number is the footer's own wa.me link (nothing typed
+ * in here; /contact when the footer has none) with the order number in the message. Nothing is drawn until the invoice has
+ * answered or failed (a failed call draws the card without the summary), so the card arrives once, whole, and nothing in it
+ * moves. React's own children are never hidden, moved or re-texted; the card is put back if React replaces the container.
+ * Once it is on the page the container carries data-sporta-cash, which lifts the receipt's reservation for a cash order
+ * (the KNET receipt keeps it). Proven by scripts/order-pages-1120-test.mjs.
  *
  * textContent only (every value is a bank or order reference from the server, shown in a left-to-right span); the key is
  * taken out of the address bar and kept in this tab's sessionStorage only (see unlist);
@@ -3233,6 +3249,8 @@
   var TRACK_RE = /^[A-Za-z0-9]{1,30}$/
   var KEY_RE = /^[0-9]{9,11}\.[a-f0-9]{32}$/
   var WAIT = [3000, 3000, 5000, 8000, 13000]   // pending: checked again by itself, five times, then on request only
+  var CASH = 'sprc-cash'                       // CASH ORDER 1120: the card of a cash order
+  var CMARK = 'data-sporta-cash'               // on the container while that card is on the page (lifts RECEIPT-1112's reservation)
   var T = {
     ar: {
       checking: ['جارٍ التحقق من الدفع', 'نتحقق من حالة الطلب مع البنك. يرجى الانتظار.'],
@@ -3263,7 +3281,17 @@
       kuwait: 'بتوقيت الكويت',
       kwd: 'د.ك',
       results: { CAPTURED: 'مقبولة', 'NOT CAPTURED': 'مرفوضة', CANCELED: 'ملغاة', CANCELLED: 'ملغاة', 'DENIED BY RISK': 'مرفوضة', 'HOST TIMEOUT': 'انتهت المهلة' },
-      retry: 'حاول مجددًا', check: 'تحقق مرة أخرى', track: 'تتبّع الطلب', invoice: 'عرض الفاتورة', home: 'العودة للرئيسية'
+      retry: 'حاول مجددًا', check: 'تحقق مرة أخرى', track: 'تتبّع الطلب', invoice: 'عرض الفاتورة', home: 'العودة للرئيسية',
+      cash: {
+        region: 'طلبك', number: 'رقم الطلب', copy: 'نسخ', copied: 'تم النسخ', copyLabel: 'نسخ رقم الطلب',
+        summary: 'ملخص الطلب', subtotal: 'المجموع الفرعي', discount: 'الخصم', delivery: 'التوصيل', free: 'مجاني',
+        total: 'الإجمالي المستحق عند الاستلام', to: 'التوصيل إلى',
+        next: 'ماذا يحدث بعد ذلك',
+        steps: ['ستصلك تحديثات التوصيل عبر واتساب.', 'يتصل بك المندوب قبل الوصول.', 'ادفع للمندوب نقدًا عند وصول طلبك.'],
+        change: 'يفضّل تجهيز المبلغ بالضبط، فالمندوب قد لا يحمل فكة.',
+        help: 'عندك سؤال عن هذا الطلب؟', wa: 'راسلنا على واتساب', contact: 'تواصل معنا',
+        waText: 'مرحبًا سبورتا، أحتاج مساعدة بخصوص طلبي'
+      }
     },
     en: {
       checking: ['Checking your payment', 'We are confirming the order with the bank. Please wait.'],
@@ -3294,7 +3322,17 @@
       kuwait: 'Kuwait time',
       kwd: 'KWD',
       results: { CAPTURED: 'Approved', 'NOT CAPTURED': 'Declined', CANCELED: 'Cancelled', CANCELLED: 'Cancelled', 'DENIED BY RISK': 'Declined', 'HOST TIMEOUT': 'Timed out' },
-      retry: 'Try again', check: 'Check again', track: 'Track order', invoice: 'View invoice', home: 'Back to home'
+      retry: 'Try again', check: 'Check again', track: 'Track order', invoice: 'View invoice', home: 'Back to home',
+      cash: {
+        region: 'Your order', number: 'Order number', copy: 'Copy', copied: 'Copied', copyLabel: 'Copy order number',
+        summary: 'Order summary', subtotal: 'Subtotal', discount: 'Discount', delivery: 'Delivery', free: 'Free',
+        total: 'Total due on delivery', to: 'Delivering to',
+        next: 'What happens next',
+        steps: ['We will send delivery updates on WhatsApp.', 'The driver calls you before arriving.', 'Pay the driver in cash when your order arrives.'],
+        change: 'Have the exact amount ready if you can — drivers do not always carry change.',
+        help: 'Questions about this order?', wa: 'Message us on WhatsApp', contact: 'Contact us',
+        waText: 'Hello Sporta, I need help with my order'
+      }
     }
   }
   var WHY_OF = { 'NOT CAPTURED': 'declined', CANCELED: 'cancelled', CANCELLED: 'cancelled', 'DENIED BY RISK': 'risk', 'HOST TIMEOUT': 'timeout' }
@@ -3532,12 +3570,210 @@
     box.appendChild(acts)
   }
 
+  /* ---- CASH ORDER 1120 (see the header comment): the additive card of a cash order ---- */
+  var C = { track: '', status: 'idle', data: null, seq: 0, timer: 0, drawn: '' }
+  var kwdFormat = {}
+
+  function plain(v, max) {
+    return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max || 80)
+  }
+  // the build's own money format (Intl, KWD, three decimals, Latin digits), so the card reads like the bag, the track page and the invoice
+  function kwd(v) {
+    var n = Number(v)
+    if (!isFinite(n)) return ''
+    var l = lang()
+    try {
+      if (!kwdFormat[l]) kwdFormat[l] = new Intl.NumberFormat(l === 'ar' ? 'ar-KW' : 'en-KW', { style: 'currency', currency: 'KWD', minimumFractionDigits: 3, maximumFractionDigits: 3, numberingSystem: 'latn' })
+      return kwdFormat[l].format(n)
+    } catch (e) { return money(n.toFixed(3), T[l]) }
+  }
+  // the shop's WhatsApp is the footer's own link: one place to change it, nothing typed in here
+  function waHref(text) {
+    var a = document.querySelector('footer a[href^="https://wa.me/"]')
+    var m = a ? /^https:\/\/wa\.me\/([0-9]{6,15})(?:[?#].*)?$/.exec(a.getAttribute('href') || '') : null
+    return m ? 'https://wa.me/' + m[1] + (text ? '?text=' + encodeURIComponent(text) : '') : ''
+  }
+  // the public LIMITED invoice, reduced to what the card shows; null when it is not a usable answer for THIS order
+  function model(d) {
+    if (!d || typeof d !== 'object' || String(d.track_id || '').toUpperCase() !== C.track.toUpperCase() || !Array.isArray(d.items) || d.items.length < 1 || d.items.length > 60) return null
+    var num = function (v) { var n = Number(v); return v !== null && v !== '' && isFinite(n) && n >= 0 && n < 10000000 ? n : null }
+    var m = { lines: [], subtotal: num(d.subtotal), discount: num(d.discount_amount) || 0, delivery: num(d.delivery_fee), total: num(d.amount), label: plain(d.discount_label || d.discount_code, 40), to: '' }
+    if (m.total === null) return null
+    for (var i = 0; i < d.items.length; i++) {
+      var it = d.items[i]
+      var qty = it ? Number(it.qty) : 0
+      var sum = it ? num(it.line_total) : null
+      if (!it || !(qty >= 1 && qty <= 999 && qty % 1 === 0) || sum === null) return null
+      m.lines.push({ en: plain(it.name_en, 120), ar: plain(it.name_ar, 120), size: plain(it.size, 12), qty: qty, total: sum })
+    }
+    var a = d.address && typeof d.address === 'object' ? d.address : {}
+    m.to = [plain(a.area, 60), plain(a.governorate, 60)].filter(Boolean).join(', ')
+    return m
+  }
+  function askInvoice() {
+    C.status = 'loading'
+    var mine = ++C.seq
+    var ctl = window.AbortController ? new AbortController() : null
+    var guard = setTimeout(function () { if (ctl) ctl.abort(); settleInvoice(mine, null) }, 12000)
+    // the invoice page's own call: the order number alone and no cookies, so what comes back is the LIMITED invoice
+    fetch('/api/api.php?r=invoice&id=' + encodeURIComponent(C.track), { credentials: 'omit', cache: 'no-store', signal: ctl ? ctl.signal : undefined }).then(function (r) {
+      if (!r.ok) throw new Error('http')
+      return r.json()
+    }).then(function (d) {
+      clearTimeout(guard)
+      settleInvoice(mine, d)
+    }).catch(function () {
+      clearTimeout(guard)
+      settleInvoice(mine, null)
+    })
+  }
+  function settleInvoice(mine, d) {
+    if (mine !== C.seq) return
+    C.data = model(d)
+    C.status = C.data ? 'ready' : 'plain'
+    C.drawn = ''
+    schedule()
+  }
+  function copyText(text, done) {
+    function legacy() {
+      var ok = false
+      try {
+        var ta = document.createElement('textarea')
+        ta.value = text
+        ta.setAttribute('readonly', '')
+        ta.style.position = 'fixed'; ta.style.insetBlockStart = '0'; ta.style.insetInlineStart = '-9999px'; ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.select()
+        ta.setSelectionRange(0, text.length)
+        ok = document.execCommand('copy')
+        document.body.removeChild(ta)
+      } catch (e) {}
+      done(ok)
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(function () { done(true) }, legacy); return }
+    } catch (e) {}
+    legacy()
+  }
+  function drawCash(box) {
+    var l = lang(), t = T[l].cash
+    var wa = waHref(t.waText + ' ' + C.track)
+    var key = l + '|' + C.status + '|' + (wa ? 1 : 0)
+    if (C.drawn === key && box.firstChild) return
+    C.drawn = key
+    while (box.firstChild) box.removeChild(box.firstChild)
+    box.setAttribute('aria-label', t.region)
+    box.setAttribute('data-state', C.status)
+
+    // 1. the order number, in type a shopper can read and copy
+    var num = el('div', CASH + '__num')
+    num.appendChild(el('span', CASH + '__k', t.number))
+    var v = el('span', CASH + '__v', C.track)
+    v.setAttribute('dir', 'ltr')
+    num.appendChild(v)
+    var btn = el('button', CASH + '__copy', t.copy)
+    btn.type = 'button'
+    btn.setAttribute('aria-label', t.copyLabel)
+    var live = el('span', CASH + '__live')
+    live.setAttribute('role', 'status')
+    live.setAttribute('aria-live', 'polite')
+    btn.addEventListener('click', function () {
+      copyText(C.track, function (ok) {
+        btn.textContent = ok ? t.copied : t.copy
+        live.textContent = ok ? t.copied : ''
+        if (C.timer) clearTimeout(C.timer)
+        if (ok) C.timer = setTimeout(function () { C.timer = 0; btn.textContent = t.copy; live.textContent = '' }, 2400)
+      })
+    })
+    num.appendChild(btn)
+    num.appendChild(live)
+    box.appendChild(num)
+
+    // 2. the order summary (the public limited invoice; without it the card goes on without this panel)
+    if (C.status === 'ready' && C.data) {
+      var m = C.data
+      var sum = el('div', CASH + '__panel')
+      sum.appendChild(el('h2', null, t.summary))
+      var ul = el('ul', CASH + '__lines')
+      m.lines.forEach(function (ln) {
+        var li = el('li')
+        var nm = el('span', CASH + '__name')
+        nm.setAttribute('dir', 'auto')
+        nm.appendChild(document.createTextNode(l === 'ar' ? (ln.ar || ln.en) : (ln.en || ln.ar)))
+        if (ln.size && ln.size !== 'ONE') nm.appendChild(el('span', CASH + '__size', ' (' + ln.size + ')'))
+        nm.appendChild(document.createTextNode(' × ' + ln.qty))
+        li.appendChild(nm)
+        li.appendChild(el('span', CASH + '__amt', kwd(ln.total)))
+        ul.appendChild(li)
+      })
+      sum.appendChild(ul)
+      var dl = el('dl', CASH + '__totals')
+      var row = function (k, val, cls) {
+        var r = el('div', CASH + '__row' + (cls ? ' ' + CASH + '__row--' + cls : ''))
+        r.appendChild(el('dt', null, k))
+        r.appendChild(el('dd', null, val))
+        dl.appendChild(r)
+      }
+      if (m.subtotal !== null) row(t.subtotal, kwd(m.subtotal))
+      if (m.discount > 0) row(t.discount + (m.label ? ' (' + m.label + ')' : ''), '− ' + kwd(m.discount))
+      if (m.delivery !== null) row(t.delivery, m.delivery === 0 ? t.free : kwd(m.delivery))
+      row(t.total, kwd(m.total), 'grand')
+      sum.appendChild(dl)
+      if (m.to) {
+        var to = el('p', CASH + '__to')
+        to.appendChild(el('span', CASH + '__k', t.to))
+        to.appendChild(document.createTextNode(' '))   // a real space: copied text and a screen reader must not read "toSalmiya"
+        var place = el('span', CASH + '__place', m.to)
+        place.setAttribute('dir', 'auto')
+        to.appendChild(place)
+        sum.appendChild(to)
+      }
+      box.appendChild(sum)
+    }
+
+    // 3. what happens next: sentences the shop already says on its checkout and its confirmation
+    var next = el('div', CASH + '__panel')
+    next.appendChild(el('h2', null, t.next))
+    var ol = el('ol', CASH + '__steps')
+    t.steps.forEach(function (s) { ol.appendChild(el('li', null, s)) })
+    next.appendChild(ol)
+    next.appendChild(el('p', CASH + '__note', t.change))
+    box.appendChild(next)
+
+    // 4. help: the shop's WhatsApp (the footer's link) with the order number in the message, else the contact page
+    var help = el('p', CASH + '__help')
+    help.appendChild(document.createTextNode(t.help + ' '))
+    var a = link(wa || '/contact', CASH + '__link', wa ? t.wa : t.contact)
+    if (wa) { a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener') }
+    help.appendChild(a)
+    box.appendChild(help)
+  }
+  function cashCheck(host) {
+    var mine = document.querySelector('.' + CASH)
+    if (!host || !S.track || S.state !== 'cod') {
+      if (mine && mine.parentNode) mine.parentNode.removeChild(mine)
+      if (host && host.hasAttribute(CMARK)) host.removeAttribute(CMARK)
+      if (C.track && (!S.track || S.state !== 'cod')) { C.track = ''; C.status = 'idle'; C.data = null; C.drawn = ''; C.seq++ }
+      return
+    }
+    if (C.track !== S.track) { C.track = S.track; C.status = 'idle'; C.data = null; C.drawn = ''; C.seq++ }
+    if (C.status === 'idle') askInvoice()
+    // nothing is drawn until the invoice has answered or failed: the card arrives once, whole
+    if (C.status === 'idle' || C.status === 'loading') return
+    if (mine && mine.parentNode !== host) { mine.parentNode.removeChild(mine); mine = null }
+    if (!mine) { mine = el('section', CASH); C.drawn = ''; host.appendChild(mine) }
+    else if (host.lastElementChild !== mine) host.appendChild(mine)   // always the LAST child, whatever React adds
+    if (!host.hasAttribute(CMARK)) host.setAttribute(CMARK, '')
+    drawCash(mine)
+  }
+
   function check() {
     var mine = document.querySelector('.' + BOX)
     if (!onPage()) {
       if (S.timer) { clearTimeout(S.timer); S.timer = 0 }
       S.track = ''
       if (mine) mine.parentNode.removeChild(mine)
+      cashCheck(null)
       return
     }
     readUrl()
@@ -3545,8 +3781,10 @@
     if (!S.track || !host || S.state === 'cod') {
       if (mine) mine.parentNode.removeChild(mine)
       if (host && host.hasAttribute(MARK)) host.removeAttribute(MARK)
+      cashCheck(host)   // a cash order: the compiled page stays as it is and gets its card; no order number or no container: no card
       return
     }
+    cashCheck(null)
     css()
     if (mine && mine.parentNode !== host) { mine.parentNode.removeChild(mine); mine = null }
     if (!mine) {
@@ -3573,6 +3811,71 @@
   } catch (e) {}
 })()
 /* ===== PAYMENT RECEIPT - end ============================================== */
+/* ===== ORDER PAGES 1120: TRACK HELP (2026-11-19, owner: "full improve checkout and order page") =============================
+ * The compiled /track page ends its result card with two links (invoice, return or exchange) and no way to ask about the order.
+ * This block adds one line at the END of the result card: "Questions about this order? Message us on WhatsApp", the link being
+ * the footer's own wa.me link with the order number in the message (nothing typed in here; /contact when the footer has none).
+ * The order number is read from the card itself (its dir=ltr span), reduced to letters and digits. React replaces the card on
+ * every search, so the line is put back whenever the card is new and removed with the card; it is always the card's last child.
+ * Layout of the line and of the steps: "ORDER PAGES 1120" in sporta-shadows.css. textContent only; the link is built from a
+ * validated number; the page is /track only. */
+;(function () {
+  'use strict'
+  try {
+  if (window.__sportaTrackHelp) return
+  window.__sportaTrackHelp = 1
+  if (!window.MutationObserver || !document.querySelector) return
+  var CLS = 'sprc-help'
+  var TX = {
+    ar: { help: 'عندك سؤال عن هذا الطلب؟', wa: 'راسلنا على واتساب', contact: 'تواصل معنا', text: 'مرحبًا سبورتا، أحتاج مساعدة بخصوص طلبي' },
+    en: { help: 'Questions about this order?', wa: 'Message us on WhatsApp', contact: 'Contact us', text: 'Hello Sporta, I need help with my order' }
+  }
+  var queued = false
+  function lang() { return (document.documentElement.lang || 'ar').slice(0, 2) === 'en' ? 'en' : 'ar' }
+  function waHref(text) {
+    var a = document.querySelector('footer a[href^="https://wa.me/"]')
+    var m = a ? /^https:\/\/wa\.me\/([0-9]{6,15})(?:[?#].*)?$/.exec(a.getAttribute('href') || '') : null
+    return m ? 'https://wa.me/' + m[1] + (text ? '?text=' + encodeURIComponent(text) : '') : ''
+  }
+  function place() {
+    var card = /^\/track\/?$/.test(location.pathname) ? document.querySelector('.track-result') : null
+    var mine = document.querySelector('.' + CLS)
+    if (!card) { if (mine && mine.parentNode) mine.parentNode.removeChild(mine); return }
+    var num = card.querySelector('span[dir="ltr"]')
+    var id = num ? String(num.textContent || '').replace(/[^A-Za-z0-9]/g, '') : ''
+    if (!/^[A-Za-z0-9]{6,30}$/.test(id)) { if (mine && mine.parentNode) mine.parentNode.removeChild(mine); return }
+    var t = TX[lang()]
+    var wa = waHref(t.text + ' ' + id)
+    var key = lang() + '|' + id + '|' + (wa ? 1 : 0)
+    if (mine && mine.parentNode !== card) { mine.parentNode.removeChild(mine); mine = null }
+    if (!mine) { mine = document.createElement('p'); mine.className = CLS; card.appendChild(mine) }
+    else if (card.lastElementChild !== mine) card.appendChild(mine)
+    if (mine.getAttribute('data-key') === key && mine.firstChild) return
+    mine.setAttribute('data-key', key)
+    while (mine.firstChild) mine.removeChild(mine.firstChild)
+    mine.appendChild(document.createTextNode(t.help + ' '))
+    var a = document.createElement('a')
+    a.href = wa || '/contact'
+    a.textContent = wa ? t.wa : t.contact
+    if (wa) { a.target = '_blank'; a.rel = 'noopener' }
+    mine.appendChild(a)
+  }
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { queued = false; try { place() } catch (e) {} })
+  }
+  function start() {
+    try { place() } catch (e) {}
+    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
+    new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+    window.addEventListener('popstate', schedule)
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+  else start()
+  } catch (e) {}
+})()
+/* ===== ORDER PAGES 1120: TRACK HELP - end ================================================ */
 /* ===== MOBILE-1112B (2026-11-12, owner: "fix") ==============================
  * The Sporta AI panel no longer moves the page when it opens. Proven by scripts/mobile-1112b-test.mjs on the captured live
  * client. The compiled panel (AssistantPanel chunk) keeps its newest message in view with an empty marker at the end of its
