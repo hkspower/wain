@@ -130,7 +130,7 @@ const STATE = () => {
   const x = b.querySelector(':scope > button:not(.sporta-viewer-btn)')
   const cs = (e, k) => (e ? getComputedStyle(e)[k] : null)
   return {
-    open: true, vw: innerWidth, vh: innerHeight, src: img ? img.getAttribute('src') : null, scale: mm[0], tx: mm[4], ty: mm[5],
+    open: true, vw: innerWidth, vh: innerHeight, rem: parseFloat(getComputedStyle(document.documentElement).fontSize), src: img ? img.getAttribute('src') : null, scale: mm[0], tx: mm[4], ty: mm[5],
     img: img ? { ...R(img), cx: R(img).x + R(img).w / 2, cy: R(img).y + R(img).h / 2 } : null,
     box: { padTop: parseFloat(cs(b, 'paddingTop')), padBottom: parseFloat(cs(b, 'paddingBottom')), anim: cs(b, 'animationName'), imgAnim: cs(img, 'animationName'), strip: b.hasAttribute('data-sporta-strip'), loading: b.hasAttribute('data-sporta-loading'), zoomed: b.hasAttribute('data-sporta-zoomed'), ph: b.style.getPropertyValue('--sporta-viewer-ph') },
     count: cnt ? cnt.textContent : '', cnt: cnt ? R(cnt) : null, cntTop: cnt ? cs(cnt, 'top') : null,
@@ -188,7 +188,7 @@ for (const lang of ['en', 'ar']) for (const w of [390, 1280]) {
   // [vp-2]
   is(s1.strip && s1.strip.role === 'group' && s1.strip.label === (rtl ? 'الصور' : 'Photos'), `${tag}: the strip is a labelled group in the page's language`, JSON.stringify(s1.strip && s1.strip.label))
   is(s1.thumbs.length === 4 && s1.thumbs.every((t, i) => t.label === TXT[lang](i + 1, 4)), `${tag}: one thumbnail per photo, each labelled "${TXT[lang](1, 4)}"...`, JSON.stringify(s1.thumbs.map((t) => t.label)))
-  is(s1.thumbs.every((t) => t.w >= 44 && t.h >= 44 && near(t.w, 56, 1) && t.img && t.loading === 'eager'), `${tag}: every thumbnail is 56px (44px floor) and carries its small photo`, JSON.stringify(s1.thumbs.map((t) => [t.w, t.h, t.loading])))
+  is(s1.thumbs.every((t) => t.w >= 44 && t.h >= 44 && near(t.w, 3.5 * s1.rem, 1) && t.img && t.loading === 'eager'), `${tag}: every thumbnail is 3.5rem (${(3.5 * s1.rem).toFixed(1)}px, 44px floor) and carries its small photo`, JSON.stringify(s1.thumbs.map((t) => [t.w, t.h, t.loading])))
   is(s1.thumbs.every((t) => t.x >= 0 && t.r <= s1.vw && t.y >= 0 && t.b <= s1.vh), `${tag}: every thumbnail is on screen`)
   is(s1.thumbs[0].cur === 'true' && s1.thumbs.slice(1).every((t) => t.cur === 'false'), `${tag}: the first photo's thumbnail is the current one`)
   is(/255, ?123, ?23/.test(s1.thumbs[0].outline) && s1.thumbs[0].outW === '2px' && !/255, ?123, ?23/.test(s1.thumbs[1].outline + (s1.thumbs[1].outW === '0px' ? '' : 'x')), `${tag}: the current thumbnail is ringed in the logo orange, the others are not`, s1.thumbs[0].outline + ' ' + s1.thumbs[0].outW)
@@ -272,7 +272,9 @@ for (const lang of ['en', 'ar']) for (const w of [390, 1280]) {
     const px = b.img.x + b.img.w * 0.3, py = b.img.y + b.img.h * 0.5
     const u = (px - b.img.x) / b.img.w, v = (py - b.img.y) / b.img.h
     await p.mouse.move(px, py)
-    await p.evaluate(([x, y]) => { const img = document.querySelector('.catalog-product-lightbox > img'); img.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, clientX: x, clientY: y, bubbles: true, cancelable: true })) }, [px, py])
+    // three turns: a square test photo at one turn is still narrower than a desktop screen, and the viewer keeps a photo that
+    // is smaller than the screen centred (it only follows the cursor once it is larger than the screen)
+    await p.evaluate(([x, y]) => { const img = document.querySelector('.catalog-product-lightbox > img'); for (let i = 0; i < 3; i++) img.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, clientX: x, clientY: y, bubbles: true, cancelable: true })) }, [px, py])
     await settle(p, 120)
     const a = await st(p)
     const qx = a.img.x + u * a.img.w, qy = a.img.y + v * a.img.h
@@ -376,7 +378,7 @@ head('one photo')
   const o = await open('en', 390, { set: 'single' })
   await openViewer(o, 390)
   const s = await st(o.p)
-  is(s.open && !s.box.strip && !s.strip && s.box.padTop === 16 && s.box.padBottom === 16, 'one photo: no filmstrip and the room stays as it was (16px)', JSON.stringify([s.box.strip, s.box.padTop, s.box.padBottom]))
+  is(s.open && !s.box.strip && !s.strip && near(s.box.padTop, s.rem, 0.5) && near(s.box.padBottom, s.rem, 0.5), 'one photo: no filmstrip and the room stays as it was (1rem)', JSON.stringify([s.box.strip, s.box.padTop, s.box.padBottom]))
   is(s.cnt === null || s.cnt.y > s.img.b - 1, 'one photo: no counter at all, or it stays below the photo as before')
   await key(o.p, 'Home'); await settle(o.p, 200)
   is((await st(o.p)).open, 'one photo: Home does nothing and the viewer stays open')
@@ -388,7 +390,7 @@ head('a phone on its side (844 x 390)')
   await openViewer(o, 844)
   const s = await st(o.p)
   is(s.open && s.box.strip && s.thumbs.length === 4, 'a short screen: the filmstrip is there')
-  is(s.box.padTop === 16 && s.thumbs.every((t) => near(t.w, 44, 1) && t.y >= 0 && t.b <= s.vh), 'a short screen: no room is given up (16px) and the thumbnails are 44px, on screen', JSON.stringify([s.box.padTop, s.thumbs[0] && s.thumbs[0].w]))
+  is(near(s.box.padTop, s.rem, 0.5) && s.thumbs.every((t) => near(t.w, 2.75 * s.rem, 1) && t.w >= 44 && t.y >= 0 && t.b <= s.vh), 'a short screen: no room is given up (1rem) and the thumbnails are 2.75rem (44px floor), on screen', JSON.stringify([s.box.padTop, s.thumbs[0] && s.thumbs[0].w]))
   is(s.cnt && s.cnt.y > s.vh / 2, 'a short screen: the counter stays at the foot')
   await o.ctx.close()
 }
@@ -439,7 +441,7 @@ const MUTS = [
     const r = await o.p.evaluate(() => { const img = document.querySelector('.catalog-product-lightbox > img'), q = img.getBoundingClientRect(); for (let i = 0; i < 10; i++) img.dispatchEvent(new WheelEvent('wheel', { deltaY: -10, ctrlKey: true, clientX: q.left + q.width / 2, clientY: q.top + q.height / 2, bubbles: true, cancelable: true })); const m = getComputedStyle(img).transform; return m && m !== 'none' ? +m.match(/matrix\(([^)]+)\)/)[1].split(',')[0] : 1 })
     await o.ctx.close(); return r > 2.3
   }],
-  ['the whole CSS section removed', null, async (js, css) => { const o = await open('en', 1280, { css }); await openViewer(o, 1280); const s = await st(o.p); await o.ctx.close(); return s.open && s.strip && s.strip.pos === 'absolute' && s.thumbs.every((t) => near(t.w, 56, 1)) && s.box.padTop > 60 }],
+  ['the whole CSS section removed', null, async (js, css) => { const o = await open('en', 1280, { css }); await openViewer(o, 1280); const s = await st(o.p); await o.ctx.close(); return s.open && s.strip && s.strip.pos === 'absolute' && s.thumbs.every((t) => near(t.w, 3.5 * s.rem, 1)) && s.box.padTop > 4 * s.rem }],
 ]
 for (const [label, js, check] of MUTS) {
   const real = await check(JS, SH)
