@@ -260,8 +260,9 @@ const PROBES = {
   'u3-4': async (variant) => {
     const o = await open(variant, { lang: 'en', w: 390, h: 844 }); await pdp(o); await o.pg.evaluate(INSTALL)
     await chooseSize(o.pg); await o.pg.locator('.product-purchase-row .btn-primary').click()
-    await o.pg.waitForSelector('.navbar-cart[data-sporta-bump]', { timeout: 20000 }).catch(() => {})
-    const m = await o.pg.evaluate(() => { const c = document.querySelector('.app-header .navbar-cart'); const s = c.querySelector(':scope > span'); return { anim: c.hasAttribute('data-sporta-bump') ? getComputedStyle(c.querySelector(':scope > svg')).animationName : 'no-bump', ring: s ? getComputedStyle(s).boxShadow : '' } })
+    // a product page has no header (PRODUCT BACK 1120), so the button is not visible there: wait for the pulse mark INSIDE the page (a wait
+    // for a visible element would sit out its whole timeout) and read the rules the CSS block gives it
+    const m = await o.pg.evaluate(async () => { const c = document.querySelector('.app-header .navbar-cart'); for (let i = 0; i < 1500 && !c.hasAttribute('data-sporta-bump'); i++) await new Promise((r) => setTimeout(r, 10)); const s = c.querySelector(':scope > span'); return { anim: c.hasAttribute('data-sporta-bump') ? getComputedStyle(c.querySelector(':scope > svg')).animationName : 'no-bump', ring: s ? getComputedStyle(s).boxShadow : '' } })
     await o.ctx.close(); return { ok: m.anim === 'sporta-u3-bump' && /rgb\(23, 26, 30\)/.test(m.ring), detail: JSON.stringify(m) }
   },
   // [u3-5] the size card answers a tap with no size
