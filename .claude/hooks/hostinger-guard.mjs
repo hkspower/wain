@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * PreToolUse guard for the Hostinger connector (`mcp__ppok__execute` and
- * `mcp__ppok__multi-execute`).
+ * PreToolUse guard for the Hostinger connector (`mcp__rosa__execute` and `mcp__ppok__execute`, and their multi-execute forms;
+ * the connector name changed twice, 14 October and 19 November).
  *
  * Every Hostinger operation goes through those two tools, so a permission
  * rule can only say yes or no to ALL of them — deleting a website and listing

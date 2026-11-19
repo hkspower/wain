@@ -49,7 +49,6 @@
       "Bash(git fetch*)",
       "Bash(git add*)",
       "Bash(git commit*)",
-      "Bash(git checkout -- *)",
       "Bash(git push -u origin claude/wainkw-design-issues-2bggdi)",
       "Bash(git push origin claude/wainkw-design-issues-2bggdi)",
       "Bash(npm run *)",
@@ -75,6 +74,7 @@
       "Bash(mkdir -p*)",
       "mcp__wain__*",
       "mcp__ppok__search",
+      "mcp__rosa__search",
       "mcp__Claude_Code_Remote__send_later",
       "Bash(git branch)",
       "Bash(git branch --show-current)",
@@ -116,7 +116,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__ppok__execute|mcp__ppok__multi-execute",
+        "matcher": "mcp__(ppok|rosa)__(execute|multi-execute)",
         "hooks": [
           {
             "type": "command",

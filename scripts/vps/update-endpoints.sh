@@ -84,7 +84,9 @@ docker exec "$running" sh -c 'cd /var/www/html && find . -type f -exec sha256sum
   | grep -Ev "$skip" | sort -k2 >"$WORK/image.sums"
 (cd "$SITE/public_html" && find . -type f -exec sha256sum {} +) | grep -Ev "$skip" | sort -k2 >"$WORK/folder.sums"
 if ! cmp -s "$WORK/image.sums" "$WORK/folder.sums"; then
-  changed=$(diff "$WORK/image.sums" "$WORK/folder.sums" | grep -E '^[<>]' | awk '{print $3}' | sort -u)
+  # diff exits 1 when the files differ, and grep exits 1 with no match: under
+  # set -e either would end the script here without a word (19 November).
+  changed=$(diff "$WORK/image.sums" "$WORK/folder.sums" | grep -E '^[<>]' | awk '{print $3}' | sort -u || true)
   echo "== public_html/ differs from the running site in $(printf '%s\n' "$changed" | grep -c .) file(s):"
   printf '%s\n' "$changed" | head -40
   [ "${FORCE_REBUILD:-}" = "yes" ] || die "a rebuild would publish those too; set FORCE_REBUILD=yes only if they are meant to go live"
@@ -119,6 +121,18 @@ echo "== in the container: $api"
 docker compose -f "$COMPOSE" exec -T wain php "$api" version
 docker compose -f "$COMPOSE" exec -T wain php "$api" migrate
 docker compose -f "$COMPOSE" exec -T wain php "$api" selftest
-echo "== ping"; curl -fsS https://www.wainkw.com/api/wain.php?a=ping; echo
+# Traefik answers 404 while the new container is still starting (19 November),
+# so wait for the healthcheck, then retry the ping before calling it a failure.
+W=$(docker ps -q -f label=com.docker.compose.project=apache -f label=com.docker.compose.service=wain | head -1)
+i=0
+until [ "$(docker inspect -f '{{.State.Health.Status}}' "$W")" = healthy ] || [ $i -ge 30 ]; do i=$((i + 1)); sleep 3; done
+echo "== wain health: $(docker inspect -f '{{.State.Health.Status}}' "$W")"
+pinged=no
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -fsS https://www.wainkw.com/api/wain.php?a=ping; then pinged=yes; break; fi
+  sleep 3
+done
+echo
+[ "$pinged" = yes ] || { echo "== ping never answered; the files are replaced and the container is up: check it by hand"; exit 1; }
 echo
 echo "Undo: copy storage/endpoint-backups/<name>.$STAMP back over public_html/api/<name>, then rerun the two docker lines above."

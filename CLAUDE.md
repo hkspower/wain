@@ -6765,3 +6765,11 @@ A customer's cancel and the shop's status change are serialised by the same `ord
 Checked and sound: the queue number and the one-ticket-per-phone check are under the `queue` lock; the rate counters hold `flock` across their read and write; votes, submissions and place saves run in transactions; the TTS cache has a striped lock.
 
 Not changed, low severity: a double tap on «join the queue» sends the same ticket id twice, and the second answer is `duplicate`, shown as an error that points to «دوري» even though the first press made the ticket. The place save is last-write-wins between two admins. The `flock` result on the counters isn't checked. `test:backend` failed with React #418 when the board also refreshed on refusal, so that refresh is not in this change; the board's poll picks the new status up on its next pass.
+
+## The scan's repository fixes — 19 November (in the repository; the VPS is not changed)
+
+- **The Hostinger guard now covers the connector in use.** `.claude/hooks/hostinger-guard.mjs` was matched to `mcp__ppok__*` only, so every `mcp__rosa__*` call made today ran without it. The matcher covers both now, and the guard was checked on a denied archive replace and an allowed cron listing.
+- **`git checkout -- *` is no longer pre-approved.** It discards uncommitted work, so it asks like `reset --hard` does.
+- **`update-endpoints.sh` waits for the container's healthcheck before pinging**, retries the ping, and no longer ends silently when `public_html/` differs (the diff and grep under `set -e`). `FORCE_REBUILD=yes` can now take effect.
+
+Not changed, each needing a decision or a VPS yes: the deployer's wain rebuild (it does nothing since the compose change, so a deploy reports success); the trusted-proxy gateway for the shared rate bucket; which layer owns the CSP (Traefik's label replaces the origin's); the panel's TOTP seed and session secret in its compose environment; `/privacy` against the search, GPS and hover-preconnect behaviour; and the ElevenLabs agents, which were not scanned.
