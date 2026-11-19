@@ -1232,6 +1232,27 @@ Built and pushed to `claude/sporta-integration-tveo8b`. NOTHING BELOW IS LIVE un
 - **Admin photo upload limit** (`sporta-web/dropin/php-store/photo-limits.php`, used by `admin.php product_image_upload`): refuses photos over 6000 px a side or 24 megapixels; never resizes. Proof: `test:photo-limits` (11). Not live: API release.
 - **Storefront image display sizes**: NOT DONE. Needs a live measurement first. Making the small product copies needs `scripts/make-image-variants.mjs --write` run on the server's photo folder: the owner's yes, a backup, originals untouched. The hero downloaded twice on phones is in the compiled build, not in this repo's source.
 
+**DEPLOYED 2026-11-19 17:37 UTC (owner: "full deploy with checker", then "hold until V2 passes review"): `deploy-20261119T173728Z-e5224be`, DEPLOY_OK**
+(undo `compose --rollback` that name; 32 replaced, 4 added, no shrink, health identical before and after, products API 32). Scope:
+`--only .htaccess,api,knet,pay` + the add-ons `birthday.js, boot.js, sporta-admin-brands.js, sporta-admin-brands.full.js, sporta-cat-tiles.css,
+sporta-catalogue.js, sporta-checkout-a11y.js, sporta-clock.js, sporta-features.js, sporta-footer-call.js, sporta-gov-autopick.js,
+sporta-home-trim.css, sporta-product-fix.css, sporta-shadows.css, sporta-ui-colours.css`. **THE LIVE BASELINE (api, knet, pay AND every add-on
+above) IS NOW COMMIT `e5224bea`.** This SUPERSEDES every "Built, NOT deployed" / "NOT LIVE" line above for: catalogue V2 (route `?r=catalogue`,
+settings, QR, searchable PDF text layer, admin dialog), the include-only deny list, session storage (`store_session_dir`), `store_config_int`,
+the JS guards, SEO live check, FEATURES BAND 1119, the inventory editor, the colour fixes, the photo pixel cap, and the fabric code. Fabric is
+live as CODE only: `products.fabric` is NOT in the live database (the route answers 409 `fabric_not_migrated`, the public API sends `fabric: null`)
+until the owner approves `fabric.mysql.sql` (backup first). Gate: two independent reviews (catalogue code sound; non-catalogue backend SHIP, no
+blocker), the 13-suite check-in 4,257 ok / 0 FAIL, catalogue-api 201, catalogue-e2e 48, catalogue-live 131, catalogue-page 251, catalogue-pdf 131,
+pdf-text-layer 23, qr 14, admin-catalogue-settings 213, multi-replica 34, fabric 29/45/23, photo-limits 11, htaccess-rules 961 / 0 FAIL. Live config
+read (one job, deleted): `stock_hold_minutes`, `cod_hold_hours`, `order_cooldown_seconds`, the session dirs and both hide switches are ABSENT, so
+code defaults apply (stock hold 120 min, same as before). Post-deploy probe (read-only, deleted): 22 pages and routes 200, `?r=catalogue` 200 with
+ETag and `no-cache` and 32 products (no SKU, cost or quantity key), 17 include-only files 403, admin routes 401 without a session, the engine
+carries the QR encoder and the text layer. The static `sitemap-pages.xml` (with /catalogue and /support) went out earlier the same day
+(`deploy-20261119T162938Z-e5224be`). STILL OPEN: Safari and Firefox never tested (only Chromium on the rig); the QR not scanned by a real phone;
+review minors (a product with no size rows reads `in_stock: true`; JSON-LD `numberOfItems` counts the 100-item slice; the engine falls back
+silently to the old routes on a 404; `customer_session_start` would end an ADMIN session if admin.php ever loaded customer-auth.php; a
+`session_name()` check would close it); the one customer account was signed out once by the session move.
+
 Rules learned this session (apply):
 - `sporta-web/dropin/php-store/install.mysql.sql` is GENERATED. Never hand-edit it: add a part to `PARTS` in `scripts/make-install-sql.mjs`, then run that script. Then regenerate `dbcenter-manifest.php` (`node scripts/make-dbcenter-manifest.mjs`) and record the column in `sporta-web/ops/db/expected-schema.json`.
 - New columns: append with no `AFTER` clause, so every database ends with the same column order and the recorded positions do not shift.
