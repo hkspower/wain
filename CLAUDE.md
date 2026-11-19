@@ -579,6 +579,25 @@
      the images scan knows `-800.webp`; `photo-uploader-live-check.mjs` follows chunk names to the end (it stopped one hop short and falsely reported the
      Catalogue headers absent; live: 49 of 49 chunks, the panel can find the screen). Check-in the same day: native failed one rate-limit check in a
      batch run beside other suites and passed 682/0 alone (as noted: run it alone).
+     **Deployed 2026-11-19, owner: "update live" then "fix them" (three small releases, each plan -> apply -> read-only check, undo = `compose --rollback` the name):**
+     (1) `deploy-20261119T055353Z-ab82418`: `robots.txt` alone (2,841 -> 3,514 bytes: the AdsBot-Google / AdsBot-Google-Mobile group, which ignore the `*` group).
+     (2) `deploy-20261119T055838Z-de5c7f1`: `llms.txt` alone (9,423 -> 9,429): the live file had the careful wording ("payment methods are shown at checkout",
+     "within 24 hours · KWD 1 delivery", "returns within 14 days subject to the published policy") but `scripts/generate-seo.mjs` still wrote "checkout is via KNET",
+     "same-day delivery" and "free exchange/return", so shipping the generated file would have made it worse; the generator now says what the live file says and
+     carries the owner's brand list (ATE out, AHED and NBA in). The catalogue part still lists all 46 products (14 of them are hidden from the shop: dead links for
+     an AI crawler; the generator does not know about photos). (3) `deploy-20261119T060144Z-269a373` (API release, gate: independent review SHIP, sizes-selector 102,
+     variants-create 34, product-new 199, stock-tools 85, js-audit 50, inventory-price 26, save-smoke 6, loader, photo-uploader, native 682/0, live sizes re-read
+     first): `api/admin.php` 189,060 -> 189,845 and `sporta-admin-brands.full.js` 1,317,018 -> 1,317,854. **`variants_create` only takes the nine sizes
+     S M L XL 2XL 3XL 4XL 5XL ONE (INVENTORY-SCAN INV-02: XS and numeric sizes were created and then refused at checkout); the sizes picker offers only those (quick sets:
+     Clothes S-2XL, Clothes S-5XL, One size) and folds xxl/xxxl.** The live API baseline for `api/` is now commit `269a3737` (only `admin.php` differs from
+     `eb97a4bd`), the live add-on `sporta-admin-brands.full.js` is `269a3737`'s. Review notes left: ONE can be mixed with other sizes on one product (not a regression;
+     the storefront's ladder behaviour is not checked); a "No sizes" product and a ONE-row product both exist.
+     **Held back on purpose, owner decision needed:** the seven root brand files (ee733597, "smaller logos"): `logo.png` is halved to 400 px wide and `logo-white.webp`
+     cut to 450 px (a measured RMSE of 4.9% / 3.4% against the live ones, so a softer logo on a high-DPI phone: the owner asked for the max-resolution pass in July),
+     `apple-touch-icon.png` is a different opaque design (RMSE 83% on white), `backends-offline.css` is a "WIP do not deploy" snapshot. The 14 products with no photo
+     file: no photo for them was found in Dropbox by name (the old-shop folders are named by product code); each needs a real photo or the owner's confirmation of a match.
+     The hostinger-vps connector timed out at session start on 2026-11-19 (it starts fine by hand); these deploys went through the session's `rosa` Hostinger
+     connector, the same API and VM 2058651 (a read-only `vps_docker_list` first).
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
