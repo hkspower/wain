@@ -91,3 +91,64 @@ same listable products and order as the route, escaped with `JSON_HEX_TAG | JSON
 | B | page + PDF engine | `public/sporta-catalogue.js`, the CATALOGUE-1118 block of `public/sporta-features.js` (route/menu/loader only if needed) | extend `catalogue-page-test.mjs`, `catalogue-pdf-test.mjs`; new `catalogue-live-test.mjs` |
 | C | admin | block ADMIN CATALOGUE PDF in `public/sporta-admin-brands.js` | extend `admin-catalogue-pdf-test.mjs`; new `admin-catalogue-settings-test.mjs` (fake API) |
 | D | spike | `scripts/lib/pdf-text-layer-spike.mjs` + a report in the scratch directory | poppler evidence, no repo test until integrated |
+
+## Status (integrator, 2026-11-19): BUILT, NOT DEPLOYED
+
+Nothing is live. The release is an API release plus add-on files; the gate (independent review, the suites below, the read-only live schema diff) still applies, and the owner's "deploy" comes after it.
+
+### What was built
+
+* **Server (A)**: `dropin/php-store/catalogue.php` (new include), `store.php` (requires it), `api.php` (`?r=catalogue`, limit [120, 60]), `admin.php` (`catalogue_settings`, `catalogue_settings_save`, activity log), `seo-page.php` (JSON-LD, owner title and intro in the `/catalogue` head), api `.htaccess` (no-cache for a 200/304 of the route; `catalogue.php`, `site-icon.php`, `product-listable.php` denied by name). No migration, no config key.
+* **Engine and page (B)**: `public/sporta-catalogue.js` version 2: reads the route (falls back to the three old reads on a 404, a 500 or a body that is not a catalogue), the address is the view, filters, the 60 s `If-None-Match` poll with in-place updates, PDF options (view, prices, sold-out, 6/9/12 a page, cover, the owner's wording), print.
+* **Admin (C)**: block ADMIN CATALOGUE PDF of `public/sporta-admin-brands.js` (both names): the dialog with Content, Products, Share and Status tabs and one Save.
+* **PDF text layer (D1, integrated)**: every drawn string (name, brand, price, sizes, cover, footer) is also written as INVISIBLE text (render mode 3, a 230-byte glyphless TrueType font, a ToUnicode map, `/Text` in the page's ProcSet). Poppler's `pdftotext` finds an Arabic and an English product name; `pdftoppm` pages are md5-identical with and without the layer. `buildPdf({ textLayer: false })` writes the image-only file; the result says `textLayer: true|false`; a layer that throws leaves the image-only file.
+* **QR (D2, integrated)**: `SportaCatalogue.qr(text, ecc)` returns `{ size, rows, version, ecc }` or `null` (level M, then L; a level asked for is tried first; versions 1-10, so up to 213 bytes at M). The PDF cover carries a QR of the page link of the view (and it is a link annotation to the same address); the admin Share tab shows a QR button for every address.
+* **How the spikes live in the engine**: `scripts/lib/qr-spike.mjs` and `scripts/lib/pdf-text-layer-spike.mjs` stay the tested sources; the engine holds a verbatim copy (exports removed) between `EMBED` markers, each inside its own function scope and `try/catch`. `node scripts/lib/embed-catalogue-spikes.mjs --write` rewrites the copies, `--check` fails when they drift (both new suites run it). Size: the engine went from 100,388 to 135,265 bytes (QR block 11.8 kB, text layer 18.4 kB; gzip 4.1 + 6.8 kB, 42.7 kB for the whole file). It loads only on `/catalogue` and in the admin dialog.
+* **One documented test hook**: `window.__sportaCataloguePollMs` (a number, 500 to 60000, read at each scheduling) makes the poll run that often instead of every 60 s. It can only speed the poll up, never below 500 ms; nothing in the shop sets it. `catalogue-e2e` uses it.
+* **Integration fixes**: the 4-link/QR change in `catalogue-pdf-test` (the cover has one more link), the "no back-off" mutation of `catalogue-live-test` (the poll delay is now `pollMs()`), and the admin Share test (`qr` is now real; a stub engine proves the canvas drawing, an engine with `qr` null proves "no button").
+
+### The shapes as built
+
+Public `GET /api/api.php?r=catalogue` (GET/HEAD; `ETag: "<12 hex>"`, `Cache-Control: no-cache`, 304 on a matching `If-None-Match` also with `-gzip`, `W/`, a list or `*`):
+`{ revision, generated_at, count, settings{title_ar,title_en,intro_ar,intro_en,note_ar,note_en,show_prices,show_sold_out,show_sizes,show_brand,cover,per_page}, categories[{slug,name_ar,name_en,count}], brands[{slug,name_ar,name_en,logo,count}], products[{slug,name_ar,name_en,category,brand,price,list_price,pct_off,on_sale,featured,pinned,in_stock,sizes[{size,in_stock}],image,image_small,images[]}] }`.
+A product with no size rows reads `in_stock: true, sizes: []`. Order: pinned (the owner's order), then featured, then the owner's category order, then name; a featured product floats above the category order, so a client must not assume the list is grouped by category (the PDF groups it).
+`settings.catalogue` (one `settings` row): the twelve fields above plus `categories_order`, `hidden_categories`, `hidden_slugs`, `pinned_slugs` (known slugs, at most 200 each). `catalogue_settings` (GET) answers `{settings, defaults, limits, categories[], products[], share{page, pdf, categories[], brands[]}, status{revision, generated_at, listed, in_catalogue, on_sale, sold_out, hidden_by_owner, hidden_by_rules, pinned}}`; `catalogue_settings_save` (POST, body the settings or `{settings: {...}}`) answers the same. A field left out keeps its value; a bad value is `400 {error: invalid_<field> | unknown_product | unknown_category}` with nothing written (413 `request_too_large`).
+Engine API: `load, buildPdf, download, mountPage, pdfLink, pageLink, viewOf, applyView, blankView, isDefaultView, describeView, qr, fold, groups, text, price, fileName`; `buildPdf` resolves `{ blob, name, pages, bytes, count, description, textLayer, textRuns }`.
+
+### Proof (every suite run alone, 2026-11-19, on the rig)
+
+| Suite | Result |
+|---|---|
+| `test:catalogue-api` (real PHP + MariaDB, 26 mutants) | 199 / 0 |
+| `test:catalogue-page` (real compiled storefront) | 232 / 0 |
+| `test:catalogue-pdf` (poppler, 15+ mutants) | 122 / 0 |
+| `test:catalogue-live` (fake route with ETag/304, clock-driven poll) | 124 / 0 (first run 123/1: a mutation's cut text had moved; fixed in the test) |
+| `test:catalogue-seo` | 32 / 0 |
+| `test:catalogue-e2e` (NEW: real MariaDB + PHP + seo-page.php + compiled storefront + engine + Chromium + poppler + zbar; 3 mutants incl. one in the PHP) | 48 / 0 |
+| `test:pdf-text-layer` (NEW: poppler, pixel md5, 6 mutants) | 21 / 0 |
+| `test:qr` (NEW: zbarimg decodes 120 links and the cover of the PDF, 5 mutants) | 14 / 0 |
+| `test:admin-catalogue-pdf` | 38 / 0 |
+| `test:admin-catalogue-settings` | 205 / 0 |
+| `test:js-guard` / `test:admin-js-audit` / `test:admin-loader` | 46 / 50 / all pass |
+| `test:addons-brands` / `test:home-features` / `test:prices-1118` | 141 / 332 / 71, all 0 failed |
+| `test:config-rules` / `test:config` | PASS (7 known gaps unchanged) / ALL OK |
+| `test:sitemap-check` | 121 ok, 0 FAIL, 4 GAP (unchanged) |
+| `test:htaccess-rules` | 938 checks: 871 ok, 67 expected-fail, 0 FAIL |
+| `test:native` (alone) / `test:native-e2e` / `test:install-sql` | 682 ok / pass / pass |
+| `test:admin-seo-check` | 75 / 0 |
+| `test:iconset` (alone) | 7,627 / 0 |
+
+What the end-to-end suite proves, in one stack: the page shows exactly the products of `?r=catalogue`; a price and a sold-out size changed in the database show on the open page within one poll (the poll sends `If-None-Match` and gets 304 while nothing changes; the DOM node of an untouched card survives; no navigation); settings saved through the real admin route change the page heading, lead, note, hidden and pinned products and the category chips, and the PDF (cover title and intro, hidden product absent, pages in the owner's category order, footer note); the `/catalogue` head from the real `seo-page.php` lists the same products in the same order in both languages and follows the settings; `/catalogue?cat=men&sale=1&pdf=en` downloads by itself a PDF with only that view's product and the right prices and a QR that decodes to that view's page link; with `show_prices` off the PDF prints no price; against an API that answers 404 to the route the page and its PDF still work from the three old reads. It cleans up after itself (private database dropped, servers killed, files removed).
+
+Text layer evidence (poppler): `pdffonts` lists the embedded CID TrueType Identity-H font with a ToUnicode map; pages are md5-identical with and without it; the image-only file yields no text. Overhead on the test files: +14 kB English and +25 kB Arabic on about 0.55-0.59 MB of tiny fixture photos; on a real catalogue of JPEG pages (2-4 MB) the D1 measure is about 23 kB for 128 items, under 1%. Not Flate-compressed (that needs an async step; about 1.3 kB per 100 items if added later).
+
+### What is NOT done, and why
+
+* **No deploy, no commit.** The API release ships `api.php`, `admin.php`, `store.php`, `catalogue.php`, `seo-page.php` and the api `.htaccess` together; add-ons `sporta-catalogue.js`, and both `sporta-admin-brands` names. No migration; the live schema diff and the independent review still come first.
+* **Not seen on a real phone, in a real print preview, or in Safari/Firefox.** Print is checked through emulated print media and a stubbed `window.print`.
+* **The text layer is verified in poppler (and, in the D1 spike, pdf.js) only**: Chrome's PDF viewer, Acrobat and Apple Preview are unverified. Known viewer differences: `pdftotext -layout` re-orders an Arabic line the way a screen shows it (`-raw` and stream-order readers get the logical text, `12.000 د.ك.`); pdf.js drops the space between two Arabic words and reverses an Arabic currency tail beside a number. Prices are laid out left to right on purpose (an RTL-laid price breaks poppler). Selection boxes of right-to-left words are proportional, not glyph-exact.
+* **The QR has not been scanned by a phone camera** (zbar, jsQR and OpenCV decode it in the spike; zbar in `test:qr`). Byte mode only, versions 1-10 (213 bytes at level M); a longer link gets no QR (the cover shows none, the admin button is hidden for it). The N4 balance rule has no mutant that kills it (it rarely changes the mask choice).
+* **Live site**: 14 of the 46 live products have no photo file and stay AUTO-HIDDEN, so the live catalogue lists 32 until photos arrive (or `'hide_products_without_photo' => false` is set). `/catalogue` is in the dynamic products sitemap but not in the static `sitemap-pages.xml` (a file of the foreign build).
+* **Still answering 200 with an empty body over HTTP** (known htaccess-13, left as it was; this change denied only the three the contract named): `profiles.php`, `support.php`, `assistant.php`, `dbcenter.php`, `payment-records.php`, `xbrl.php` and other include-only files.
+* **Wording**: the Arabic of the admin dialog and of the page was written by the build and has not had a native-speaker pass. A category with no Arabic name from the server and none in the engine's four-name map would be drawn with its slug (the server always sends one).
+* "Updated n min ago" is the time of the last successful check, including a 304 (the contract's `generated_at` changes on every request). On the legacy fallback there is no ETag, so every poll re-reads the three routes.
