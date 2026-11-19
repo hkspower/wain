@@ -178,7 +178,9 @@ it was timed under.
 
 `press/unreal/black-demon/stand-in/` holds the Black Demon's shots made
 by the renderers this repository can run: `cycles-hero.jpg`,
-`cycles-side.jpg`, `cycles-rear.jpg` from the Blender studio, and
+`cycles-side.jpg`, `cycles-rear.jpg` from the Blender studio (the hero is
+from 19 November's car; the side and rear are older, from before the
+rear tyres grew, and need the 3ds Max pack to be rendered again), and
 `web-night-city.jpg`, `web-night-coast.jpg` from the game itself
 (`CAR=black-demon PAINT=factory node tools/shots/ik4k.mjs`). Every
 car's Cycles hero is `press/renders/<id>.png`
@@ -193,7 +195,7 @@ lives on the render board.
 | `grn_showcase.py` | Runs inside the editor: `probe`, `build [id\|all]`, `report`. |
 | `grn_night.py`, `init_unreal.py` | The night shot's Movie Render Queue executor; it runs the game, not a map. |
 | `run.sh` | The Mac wrapper: finds the engine, runs each step, keeps the logs. |
-| `black-demon.glb` | The one car carried in git, 8 MB, exported again on 31 October from the game as it builds now (bevel normals welded: same triangles, bounds and nose as the 8 October file); the other 16 come from `run.sh export` and are git-ignored. |
+| `black-demon.glb` | The one car carried in git, 7.4 MB, exported again on 19 November from the game as it builds now (rear tyres 1.4 times the fleet's and the rear quarters cut for them, the nose tyre's brake caliper in place; it was 8 MB on 31 October); the other 16 come from `run.sh export` and are git-ignored. Unreal's own car factory still builds four wheels at one radius (`GRNCarFactory.cpp`), so the three-wheeler's tyre sizes are in this file and not yet in the engine's car. |
 | `test_showcase_math.py`, `test_dry_run.py` | `npm run test:showcase`: the arithmetic, every exported GLB, and `build all` against a stand-in engine. |
 | `../../tools/shots/ue-compare.mjs` | The Blender-against-Unreal sheet; `npm run cars:ue-compare:rules` checks the tool. |
 | `../Source/GulfRoadNights/GRNShowcase.*` | The game's handle for the night shot: select the car, dress it, park it, clear the road. |

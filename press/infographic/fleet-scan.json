@@ -19,8 +19,8 @@
       2.4,
       11.5
     ],
-    "triangles": 5025118,
-    "glbBytes": 179204516,
+    "triangles": 5018392,
+    "glbBytes": 177338748,
     "rendersGraded": 24,
     "rendersPublished": 0,
     "drive": {
@@ -95,11 +95,11 @@
       "rival": null,
       "scan": {
         "file": "press/renders/glb/black-demon.glb",
-        "bytes": 9233236,
-        "widthM": 2.061,
+        "bytes": 7367468,
+        "widthM": 2.064,
         "heightM": 1.479,
         "lengthM": 4.66,
-        "triangles": 312476,
+        "triangles": 305750,
         "materials": 42,
         "headLampNodes": 4,
         "tailLampNodes": 14,
