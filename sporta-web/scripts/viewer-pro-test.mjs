@@ -266,19 +266,19 @@ for (const lang of ['en', 'ar']) for (const w of [390, 1280]) {
   is(pinch2.prevented === 10 && pinch2.s > 2.3 && pinch2.s <= 4, `${tag}: a trackpad pinch (ctrl + wheel) zooms in fine steps and the page does not zoom (ten pinches: x${pinch2.s.toFixed(2)})`)
   await key(p, '0'); await settle(p, 400)
 
-  // [vp-9] the point under the cursor stays under it
+  // [vp-9] the point under the cursor stays under it. Zoomed in first (with the keys, about the centre) until the photo is larger
+  // than the screen both ways: a photo smaller than the screen is kept centred by the viewer, which is not what is measured here.
   {
+    await key(p, '+'); await key(p, '+'); await key(p, '+'); await settle(p, 450)
     const b = await st(p)
-    const px = b.img.x + b.img.w * 0.3, py = b.img.y + b.img.h * 0.5
+    const px = b.vw * 0.36, py = b.vh * 0.42
     const u = (px - b.img.x) / b.img.w, v = (py - b.img.y) / b.img.h
     await p.mouse.move(px, py)
-    // three turns: a square test photo at one turn is still narrower than a desktop screen, and the viewer keeps a photo that
-    // is smaller than the screen centred (it only follows the cursor once it is larger than the screen)
-    await p.evaluate(([x, y]) => { const img = document.querySelector('.catalog-product-lightbox > img'); for (let i = 0; i < 3; i++) img.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, clientX: x, clientY: y, bubbles: true, cancelable: true })) }, [px, py])
+    await p.evaluate(([x, y]) => { const img = document.querySelector('.catalog-product-lightbox > img'); img.dispatchEvent(new WheelEvent('wheel', { deltaY: -60, clientX: x, clientY: y, bubbles: true, cancelable: true })) }, [px, py])
     await settle(p, 120)
     const a = await st(p)
     const qx = a.img.x + u * a.img.w, qy = a.img.y + v * a.img.h
-    is(a.scale > 1.2 && near(qx, px, 2.5) && near(qy, py, 2.5), `${tag}: a wheel zoom keeps the point under the cursor still (${Math.abs(qx - px).toFixed(1)}, ${Math.abs(qy - py).toFixed(1)} px off)`)
+    is(b.img.w > b.vw && b.img.h > b.vh && a.scale > b.scale + 0.2 && near(qx, px, 2.5) && near(qy, py, 2.5), `${tag}: a wheel zoom keeps the point under the cursor still (${Math.abs(qx - px).toFixed(1)}, ${Math.abs(qy - py).toFixed(1)} px off, x${b.scale.toFixed(2)} -> x${a.scale.toFixed(2)})`)
     await key(p, '0'); await settle(p, 400)
   }
 

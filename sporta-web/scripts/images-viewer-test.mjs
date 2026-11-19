@@ -223,7 +223,8 @@ for (const lang of ['ar', 'en']) for (const w of [390, 768, 1280]) for (const da
     // controls
     const small = s.btns.filter((b) => b.w < 43.5 || b.h < 43.5 || b.x < 0 || b.r > s.vw + 0.5 || b.y < 0 || b.b > s.vh + 0.5)
     if (on) {
-      is(s.btns.length === 7 && !small.length, `${lab}: close, zoom, previous, next and the zoom bar's three: every control 44px and on screen`, `${s.btns.length} ${JSON.stringify(small)}`)
+      // 7 + the filmstrip's four thumbnails (PRO-1119: test:viewer-pro proves the strip itself; here it is only counted as a control)
+      is(s.btns.length === 11 && !small.length, `${lab}: close, zoom, previous, next, the zoom bar's three and the filmstrip's four thumbnails: every control 44px and on screen`, `${s.btns.length} ${JSON.stringify(small)}`)
       is(s.prev && s.next && s.prev.label === (rtl ? 'الصورة السابقة' : 'Previous photo') && s.next.label === (rtl ? 'الصورة التالية' : 'Next photo'), `${lab}: previous / next are labelled in the page's language`)
       is(s.prev && (rtl ? s.prev.x > s.next.x : s.prev.x < s.next.x), `${lab}: previous on the reading direction's start side, next on the end side`)
       is(s.prev && (rtl ? /chevron-right/.test(s.prev.mask) && /chevron-left/.test(s.next.mask) : /chevron-left/.test(s.prev.mask) && /chevron-right/.test(s.next.mask)), `${lab}: the glyphs point the way they go (the set's chevrons)`)
