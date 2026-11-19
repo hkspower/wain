@@ -379,6 +379,8 @@ const M = {
     stock_hold_minutes: { def: '120; floor 15; no ceiling' }, cod_hold_hours: { def: '24; 0 = off; 0..720' },
     order_cooldown_seconds: { def: '60; 0 = off; 0..3600' }, order_client_units: { def: '40; 0 = off; 0..1000' },
     admin_session_dir: { def: "'' → /var/lib/sporta/admin-sessions, else beside the web root, else temp" },
+    customer_session_dir: { def: "'' → /var/lib/sporta/customer-sessions, else beside the web root, else temp (swept after 7 days)" },
+    google_session_dir: { def: "'' → /var/lib/sporta/google-sessions, else beside the web root, else temp (swept after 1 hour)" },
     ai_key: { def: "'' → no language model", secret: true }, ai_url: { def: "'' → no language model (no host allow-list)" }, ai_model: { def: "'claude-haiku-5-5'" },
     tts_key: { def: "'' → no voice", secret: true, bare: 'read only after a non-empty test (assistant.php:3767)' },
     tts_voice_id: { def: "'' → no voice", bare: 'read only after the tts_key/tts_voice_id test' },

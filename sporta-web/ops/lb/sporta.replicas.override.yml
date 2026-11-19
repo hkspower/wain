@@ -1,0 +1,12 @@
+# NOT APPLIED - a server change needs the owner's explicit yes (CLAUDE.md, item 4). Read ops/lb/README.md first.
+#
+# STEP A: the second web container, and nothing else. Merged over the `sporta` service of /docker/apache/docker-compose.yml:
+#     docker compose -f docker-compose.yml -f sporta.replicas.override.yml up -d sporta
+# Compose leaves a container alone when its configuration is unchanged, and the replica count is not part of that configuration, so the plan
+# (`up --dry-run`) must say `apache-sporta-1 Running` and `apache-sporta-2 Created`: the shop is not restarted. If the plan says `Recreate` for -1, stop.
+# Nothing else in that shared project (apache, wain, mawsoool, almuhallab) is touched; `sporta` has no container_name, which is what lets it be scaled.
+# Traefik finds the new container by the labels it copies from the service and adds it to the same load-balanced service as soon as its health check passes.
+services:
+  sporta:
+    deploy:
+      replicas: 2                 # apache-sporta-1 (the host cron keeps exec-ing into this one) and apache-sporta-2

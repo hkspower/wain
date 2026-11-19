@@ -666,6 +666,35 @@
      must-revalidate`, `/` `/shop` `/shop?lang=en` `/cart` `/about` `/contact` link all four. NOT yet seen in a real phone browser on the live site: run
      `scripts/live-home-brands-probe.mjs` (brands strip: the live strip had two 477-512 px tiles and a 19 px slit before), `scripts/live-product-audit.mjs` and
      `scripts/live-add-to-cart-probe.mjs`. The items marked "Built ... NOT deployed" for NO ZOOM BADGE, VIEWER PRO, BRANDS-1119 and NAMES-1119 above are now live.
+     **Built 2026-11-19, NOT deployed (owner: "fix all", "make seo data fetching", "Load Balancing / caching / fix مميزات سبورتا layout"); all of it is committed on the branch and waits for the owner's "deploy":**
+     (1) JS-01 / JS-02 (`JS-SCAN-2026-11-19.md`, status section): every top-level block of the ten add-on scripts is ONE `try { ... } catch (e) {}` after its `'use strict'` (118 inserted lines, none removed; the rule is read
+     with rolldown's parser in `scripts/lib/js-blocks.mjs`; `npm run test:js-guard` 46; `node scripts/guard-blocks.mjs --write` re-applies it; a block added later without the guard fails the suite), and
+     `sporta-catalogue.js` opens its fallback window with `noopener`. Add-on release, no API.
+     (2) Config bookkeeping (`CONFIG-SCAN-2026-11-19.md`, status section): `store_config_int()` (absent, '' or junk is the DEFAULT, never 0 = off) behind `order_cooldown_seconds`, `cod_hold_hours`, `order_client_units`,
+     `stock_hold_minutes`, `assistant_late_hours`; a BOM or stray output in `api-config.php` can no longer stop headers; `SPORTA_PRIVATE_CONFIG_DIR="0"` refused; `store_json()` substitutes what `json_encode()` cannot
+     write; both bank callbacks default `result_page_url`; `theme.dark` read as a boolean spelling; the example files list the live keys. `npm run test:config-rules` 161 ok, 0 failing, 7 known gaps (`config-9` is a money-path
+     change in four gateway files for the review gate; `config-10/11/14/15` need a migration or the owner). API release, behind the gate.
+     (3) SEO live page check: /backends -> SEO -> "Check live pages" (block ADMIN SEO LIVE CHECK in `sporta-admin-brands.js`, both names; reads robots.txt, the sitemaps and up to 240 pages as a crawler, GET only, no key, no
+     route; `SEO-LIVE-CHECK-2026-11-19.md`; `test:admin-seo-check` 75). First live read (read-only probe `scripts/live-seo-check-probe.mjs`): 84 pages, 0 errors, 65 warnings, every one a product description under
+     35 characters (data: write real descriptions in the Catalogue).
+     (4) FEATURES BAND 1119 (`sporta-home-trim.css`, `[fb-1..3]`; the "مميزات سبورتا" band of the home page): on a phone each card's icon-and-text group is centred in its row (43-72% of every card was empty before) with the
+     text start-aligned inside the group, the tiles are one column of equal height, one line each, and the rows from 960 px are unchanged. CENTER-1118's `[center-1]` rule had centred each line inside the row layout;
+     the new text rule beats it by specificity. Proof: `test:home-features` 332 (loads the real `[center-1]` rule; six mutants). Related suites green (why-section 6, shape-1111 14,908, words-colours 355, colours-1118 15,
+     home-brands 144, cat-tiles-crop, images-frames 48, about-page 354); `test:icons-polish` now allows the three feature icons 3.6 px of displacement (a centred group reflows when the polish makes an icon 1 px wider).
+     Ships with `sporta-home-trim.css` alone.
+     (5) LOAD BALANCING / CACHING (`LOAD-CACHE-REPORT-2026-11-19.md`, `ops/lb/`, `ops/LOAD-CACHE-PROBE.md`; measured read-only on the VPS): the VPS is **Duesseldorf** (data centre `dus`), KVM 4, load 0.00, 14.6 of 16 GB
+     free; the shop's container is `apache-sporta-1` (image `apache-sporta`: PHP 8.4.27 + Apache 2.4.69 prefork, MaxRequestWorkers 150, OPcache on with `validate_timestamps` and `revalidate_freq` 2, brotli and deflate, no
+     `mod_cache`, `zend.assertions=1` but no `assert()` in the code, no php.ini: `session.save_path` empty and `gc_maxlifetime` 1440), mounts `/docker/sporta/site`, the product photos, `private/config`,
+     `private/api-config.php`, the mail and database secret files and `private/voice` as `/var/lib/sporta`; no resource limits. Server time is 2-8 ms per request, so the answer is: no load balancer is needed for
+     capacity (Traefik already is one); caching is already tiered (hashed assets immutable, photos and fonts a month, HTML and the 23 add-on files revalidated, API `no-store`); what a Kuwait visitor pays is the distance
+     (about 3 round trips to the first byte, an estimate: 300-360 ms), which only a CDN edge near them or a nearer server changes (owner decision: CDN, HTTP/3 on the shared Traefik, or nothing). **Code change (API
+     release): the customer session moved from the container's own /tmp (swept after 24 minutes although the account code allows 8 hours idle and 7 days; lost on every rebuild; invisible to a second container) to
+     `customer_session_dir`, default `/var/lib/sporta/customer-sessions`, swept after 7 days; the Google sign-in flow likewise (`google_session_dir`, 1 hour); one rule `store_session_dir($kind)` in `store.php`; an empty
+     session made by a forged cookie is ended at once.** The one existing customer account is signed out once when it lands. `npm run test:multi-replica` (34 checks: two PHP servers with their own temp directory and
+     session path, one MariaDB, shared directories; 11 checks fail on the old code; admin and Google flow cross containers; sign-in limits add up across containers; a control with an unshared directory fails as it must).
+     `ops/lb/` holds the NOT APPLIED second-container plan: step A `sporta.replicas.override.yml` (`deploy.replicas: 2`, no restart of the first container; the plan must say `apache-sporta-1 Running`), step B
+     `sporta.hardening.override.yml` (worker cap 75 each, `oom_score_adj -500`, Traefik's own health check; recreates the containers, quiet hour). Cron stays on `apache-sporta-1`. Applying either is a shared-compose
+     change: the owner's explicit yes. If a CDN is ever put in front, its address ranges MUST be added to `trusted_proxy_ips` first (one shared rate-limit bucket per CDN node otherwise).
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`

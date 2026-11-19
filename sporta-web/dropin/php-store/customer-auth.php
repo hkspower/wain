@@ -307,18 +307,33 @@ function customer_authenticate(PDO $db, string $email, string $password): ?array
     return $user && $valid ? $user : null;
 }
 
+// How long a signed-in customer's session lives: 8 hours without use, 7 days
+// from sign-in whatever the use. The session FILES must live at least as long as
+// the longer one (customer_session_start() sets the sweep to it), or a sweep
+// would end a session the checks below still accept.
+const CUSTOMER_IDLE_SECONDS     = 8 * 3600;
+const CUSTOMER_ABSOLUTE_SECONDS = 7 * 86400;
+
 function customer_session_valid(array $session, ?array $user, int $now): bool {
     $started = (int)($session['customer_started_at'] ?? 0);
     $seen = (int)($session['customer_seen_at'] ?? 0);
     $fingerprint = (string)($session['customer_fingerprint'] ?? '');
     return $user !== null && (int)($session['customer_id'] ?? 0) === (int)$user['id']
         && $started > 0 && $seen > 0 && $started <= $now && $seen <= $now
-        && $now - $seen <= 8 * 3600 && $now - $started <= 7 * 86400
+        && $now - $seen <= CUSTOMER_IDLE_SECONDS && $now - $started <= CUSTOMER_ABSOLUTE_SECONDS
         && $fingerprint !== '' && hash_equals(hash('sha256', $user['password_hash']), $fingerprint);
 }
 
 function customer_session_start(): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
+    // A directory of their own that every web container shares and a rebuild
+    // keeps (see store_session_dir()), swept only once a file is older than any
+    // session it could still hold. Null (nothing usable): PHP's default, as before.
+    $dir = store_session_dir('customer');
+    if ($dir !== null) {
+        ini_set('session.save_path', $dir);
+        ini_set('session.gc_maxlifetime', (string)CUSTOMER_ABSOLUTE_SECONDS);
+    }
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
     ini_set('session.use_trans_sid', '0');
@@ -347,7 +362,16 @@ function customer_current_user(PDO $db): ?array {
     $cookie = store_is_https() ? '__Host-sporta_customer' : 'sporta_customer';
     if (session_status() !== PHP_SESSION_ACTIVE && !isset($_COOKIE[$cookie])) return null;
     customer_session_start();
-    if (empty($_SESSION['customer_id'])) return null;
+    if (empty($_SESSION['customer_id'])) {
+        // A cookie that names no stored session (stale, forged, a scanner on
+        // ?r=me): strict mode has just made an EMPTY session and its file. The
+        // sweep now keeps files for the 7 days a customer may stay signed in,
+        // so such a file is ended here (file deleted, cookie expired) instead of
+        // being left for a week: 120 requests a minute from one address would
+        // otherwise be ~170,000 inodes a day in the directory.
+        store_session_end();
+        return null;
+    }
     $query = $db->prepare('select id, name, email, phone, password_hash from customer_accounts where id = ?');
     $query->execute([(int)$_SESSION['customer_id']]);
     $user = $query->fetch(PDO::FETCH_ASSOC);

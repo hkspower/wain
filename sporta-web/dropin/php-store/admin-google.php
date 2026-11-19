@@ -36,9 +36,20 @@ function google_oauth_session(): void {
     // requests now name the same place, and the short flow session is never in
     // the directory whose files must outlive a month (or swept by a request
     // that thinks a day is long enough).
-    $host = store_session_host_defaults();
-    ini_set('session.save_path', $host['save_path']);
-    ini_set('session.gc_maxlifetime', $host['gc_maxlifetime']);
+    //
+    // 2026-11-19: the flow's own directory, shared by every web container
+    // (store_session_dir()): `start` on one container and the callback on the
+    // other is the same flow. A flow is good for 300 s, so an hour is the sweep.
+    // Nothing usable there: the host's own path and lifetime, as before.
+    $dir = store_session_dir('google');
+    if ($dir !== null) {
+        ini_set('session.save_path', $dir);
+        ini_set('session.gc_maxlifetime', '3600');
+    } else {
+        $host = store_session_host_defaults();
+        ini_set('session.save_path', $host['save_path']);
+        ini_set('session.gc_maxlifetime', $host['gc_maxlifetime']);
+    }
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
     $secure = store_is_https();

@@ -59,7 +59,7 @@
 //   G8  low     a newline in the note is deleted, not replaced, so two lines of directions run together
 //   G9  low     register answers 409 account_not_created: it says which emails are customers
 //   G10 low     a browser that thinks it is signed in but has a dead session places a guest order, silently
-//   G10b medium customer sessions fall to PHP's default 1440 s garbage collection, not the 8 h / 7 d the code states
+//   G10b medium customer sessions fall to PHP's default 1440 s garbage collection, not the 8 h / 7 d the code states (FIXED 2026-11-19: customer_session_dir, swept after 7 days)
 //   G11 low     the order number is in every status / invoice / pay.php URL, so in every access log
 //   G12 low     the order response returns the sequential database id (reveals order volume)
 //   G13 low     ?r[]=x answers 500 {"error":"failed"}
@@ -955,12 +955,14 @@ await section('6  guest vs account: does a later account see, claim or leak a gu
   defect('G10', !(stale.status === 200 && staleRow.account === null && !('signed_in' in (stale.json ?? {}))),
     'an order sent by a browser that believes it is signed in, with a dead session, says it was NOT placed on the account',
     `HTTP ${stale.status}, customer_account_id ${staleRow.account}, answer fields ${Object.keys(stale.json ?? {}).join()}: the order silently becomes a guest order and never shows under "my orders"`)
-  // The session the app promises (8 h idle, 7 days) lives in PHP's DEFAULT session store:
-  // customer_session_start() never sets session.gc_maxlifetime, so PHP's own 1440 s decides.
-  // This server only makes the default 1% garbage collection deterministic (1/1) and puts the
-  // session files where the test can age them; the lifetime is untouched.
+  // The session the app promises (8 h idle, 7 days). Until 2026-11-19 it lived in PHP's DEFAULT session store and
+  // customer_session_start() never set session.gc_maxlifetime, so PHP's own 1440 s decided (G10b). It now has its own
+  // directory (customer_session_dir) and a sweep of 7 days. This server makes the 1% garbage collection deterministic
+  // (1/1) and puts BOTH the default path and customer_session_dir where the test can age the files; the lifetime is
+  // the code's own. (Were customer_session_dir not named here, the files would be in the rig's own directory, the
+  // ageing below would touch nothing, and the check would pass without proving anything.)
   const csess = join(TMP, 'csess'); mkdirSync(csess)
-  const SS = await startStore('sess', { order_cooldown_seconds: 0, trusted_proxy_ips: LOOP }, ['-d', `session.save_path=${csess}`, '-d', 'session.gc_probability=1', '-d', 'session.gc_divisor=1'])
+  const SS = await startStore('sess', { order_cooldown_seconds: 0, trusted_proxy_ips: LOOP, customer_session_dir: csess }, ['-d', `session.save_path=${csess}`, '-d', 'session.gc_probability=1', '-d', 'session.gc_divisor=1'])
   const sj = { c: '' }
   const cu2 = async (route, o = {}) => {
     const res = await request(SS.base, o.method ?? (o.body === undefined ? 'GET' : 'POST'), `/customer.php?r=${route}`, { headers: { 'X-Forwarded-For': newIp(), ...(o.body !== undefined ? CUST : {}), ...(sj.c ? { Cookie: sj.c } : {}) }, body: o.body })
@@ -971,6 +973,7 @@ await section('6  guest vs account: does a later account see, claim or leak a gu
   await cu2('register', { body: { name: 'Idle Shopper', email: E2, password: pw } })
   is((await cu2('me')).json?.email === E2, 'a signed-in shopper is recognised straight after signing in')
   const files = readdirSync(csess).filter((f) => f.startsWith('sess_'))
+  is(files.length === 1, 'the signed-in shopper\'s session file is in the directory the test ages (so the idle check below proves something)', `${files.length} file(s)`)
   const old = new Date(Date.now() - 30 * 60 * 1000)
   for (const f of files) (await import('node:fs')).utimesSync(join(csess, f), old, old)
   await cu2('me')                       // the first request after the idle spell: PHP reads, then collects

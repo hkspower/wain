@@ -115,6 +115,12 @@ return [
     // for the automatic choice: /var/lib/sporta/admin-sessions on the VPS,
     // else sporta-admin-sessions in the account home, else the temp dir.
     'admin_session_dir' => '',
+    // The same for a signed-in CUSTOMER (7 days) and for the Google sign-in flow
+    // (minutes): /var/lib/sporta/customer-sessions and /var/lib/sporta/google-sessions on
+    // the VPS, else beside the web root, else the temp dir. A directory every web
+    // container mounts is what lets a second container serve the same visitors.
+    'customer_session_dir' => '',
+    'google_session_dir'   => '',
 
     // Where a sign-in attempt the owner did not make is mailed (at most one
     // mail every five minutes; every attempt is in the Activity log). Left

@@ -339,8 +339,14 @@ client the same way.
   at the 240/minute limit. Sessions are created only where they must be (a
   granted sign-in, the pending phone-code and password-change steps), and a
   cookie that names no stored session is ended on the spot
-  (`store_session_resume()`). The Google sign-in flow session lives in PHP's
-  default path, never in the admin directory. Proven by
+  (`store_session_resume()`). The Google sign-in flow session and the
+  CUSTOMER session each have a directory of their own too (2026-11-19, so a second
+  web container sees them and a rebuilt one keeps them): `google_session_dir`
+  (swept after an hour) and `customer_session_dir` (swept after the 7 days a
+  customer may stay signed in), both resolved by `store_session_dir()` like the
+  admin one (`/var/lib/sporta/<kind>-sessions` on the VPS). Never PHP's default
+  path, and never the admin directory. `npm run test:multi-replica` proves it with two
+  containers. Proven by
   `npm run test:admin-session`.
   Orders, inventory, stats, COD settlement all read MySQL.
 - **Stock:** edit in the admin's Inventory tab, or directly in phpMyAdmin

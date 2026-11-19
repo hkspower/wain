@@ -1125,15 +1125,40 @@ const STORE_ADMIN_ABSOLUTE_SECONDS = 365 * 86400;
 // directory that is not inside the web root. None usable: PHP's default,
 // i.e. what it did before.
 function store_admin_session_dir(): ?string {
-    static $dir = false;
-    if ($dir !== false) return $dir;
-    $cfg = trim((string)(store_config()['admin_session_dir'] ?? ''));
+    return store_session_dir('admin');
+}
+
+// The same rule for every kind of session this backend opens, each in a
+// directory of its OWN (a sweep deletes by the lifetime of whichever request
+// ran it, so two kinds with different lifetimes must never share one):
+//   'admin'    config 'admin_session_dir'    a year
+//   'customer' config 'customer_session_dir' seven days (CUSTOMER_ABSOLUTE_SECONDS)
+//   'google'   config 'google_session_dir'   the Google sign-in flow, minutes
+//
+// WHY A SHARED, PERSISTENT DIRECTORY AT ALL (2026-11-19, "Load Balancing"):
+// PHP's default save path is the container's own /tmp (the live image loads no
+// php.ini: session.save_path empty, gc_maxlifetime 1440). That has three costs
+// that only show up when the shop is more than one container, or is rebuilt:
+//   - a second web container would not see the first one's sessions: a
+//     customer signed in on one is signed out on the next request that lands on
+//     the other, and the Google link flow (start on one, callback on the other)
+//     ends in ?google=invalid;
+//   - a rebuilt container starts with an empty /tmp: every customer signed out;
+//   - a customer idle for 24 minutes was swept out, although the account code
+//     allows 8 hours idle and 7 days in all (customer_session_valid()).
+// /var/lib/sporta is the persistent private mount (the host's
+// /docker/sporta/private/voice) that a second container mounts too.
+function store_session_dir(string $kind): ?string {
+    static $dirs = [];
+    if (array_key_exists($kind, $dirs)) return $dirs[$kind];
+    if (!preg_match('/^[a-z]{3,16}$/D', $kind)) return $dirs[$kind] = null;
+    $cfg = trim((string)(store_config()[$kind . '_session_dir'] ?? ''));
     $docroot = realpath((string)($_SERVER['DOCUMENT_ROOT'] ?? '')) ?: null;
     $candidates = array_values(array_filter([
         $cfg !== '' ? $cfg : null,
-        is_dir('/var/lib/sporta') ? '/var/lib/sporta/admin-sessions' : null,
-        dirname(__DIR__, 2) . '/sporta-admin-sessions',
-        rtrim(sys_get_temp_dir(), '/') . '/sporta-admin-sessions',
+        is_dir('/var/lib/sporta') ? '/var/lib/sporta/' . $kind . '-sessions' : null,
+        dirname(__DIR__, 2) . '/sporta-' . $kind . '-sessions',
+        rtrim(sys_get_temp_dir(), '/') . '/sporta-' . $kind . '-sessions',
     ]));
     foreach ($candidates as $c) {
         if (!is_dir($c)) @mkdir($c, 0700, true);
@@ -1142,9 +1167,9 @@ function store_admin_session_dir(): ?string {
         // Never a directory the web server would SERVE: a session file is a
         // bearer credential.
         if ($docroot !== null && ($real === $docroot || str_starts_with($real . '/', rtrim($docroot, '/') . '/'))) continue;
-        return $dir = $real;
+        return $dirs[$kind] = $real;
     }
-    return $dir = null;
+    return $dirs[$kind] = null;
 }
 
 // What PHP's session settings were BEFORE this file touched them: the host's

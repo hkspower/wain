@@ -1,0 +1,19 @@
+# NOT APPLIED. STEP B, a separate and later decision: guard rails for the two containers. Merge it AFTER step A, together with it:
+#     docker compose -f docker-compose.yml -f sporta.replicas.override.yml -f sporta.hardening.override.yml up -d sporta
+# Unlike step A this CHANGES the containers' configuration, so Compose recreates them (each is a restart of about 15 s, the start_period of its health check). Do it in a
+# quiet hour (02:00-06:00 Kuwait), and read the plan first. Whether Compose recreates the two at once or one after the other was not measured on this host: expect up to ~30 s
+# of 502 answers, not none.
+services:
+  sporta:
+    # If the host ever runs short of memory, the kernel should end a neighbour (ollama, a Unity job) before it ends the shop.
+    oom_score_adj: -500
+    volumes:
+      - /docker/sporta/zz-sporta-workers.conf:/etc/apache2/conf-enabled/zz-sporta-workers.conf:ro   # 75 + 75 = the 150 workers one container has today
+    labels:
+      # Traefik already drops a container whose Docker health check says "unhealthy" (that check is in the compose file: curl http://127.0.0.1/, 30 s, 3 tries,
+      # so up to ~90 s to notice). This is the faster second look: Traefik asks each replica itself every 10 s, as the real host name, and stops sending to one
+      # that does not answer in 3 s. A 301 counts as alive (the .htaccess redirects any other spelling of the host).
+      - traefik.http.services.sporta.loadbalancer.healthcheck.path=/
+      - traefik.http.services.sporta.loadbalancer.healthcheck.hostname=www.sporta.com.kw
+      - traefik.http.services.sporta.loadbalancer.healthcheck.interval=10s
+      - traefik.http.services.sporta.loadbalancer.healthcheck.timeout=3s

@@ -89,8 +89,10 @@ return [
     // The suites place orders back to back from one address; the one-order-
     // a-minute cooldown is proven on its own store by test:order-cooldown.
     'order_cooldown_seconds' => 0,
-    // Admin sessions in a scratch directory, never inside the repo.
+    // Admin, customer and Google-flow sessions in scratch directories, never inside the repo.
     'admin_session_dir' => '/tmp/sporta-sandbox-admin-sessions',
+    'customer_session_dir' => '/tmp/sporta-sandbox-customer-sessions',
+    'google_session_dir' => '/tmp/sporta-sandbox-google-sessions',
 ];
 PHP
 fi
@@ -106,6 +108,13 @@ if ! grep -q "admin_session_dir" "$SQL/config.php"; then
     $s = preg_replace("/\];\s*$/", "    \x27admin_session_dir\x27 => \x27/tmp/sporta-sandbox-admin-sessions\x27,\n];\n", $s, 1);
     file_put_contents($f, $s);' "$SQL/config.php" || say '!! could not add admin_session_dir to the test config'
 fi
+for K in customer google; do
+  if ! grep -q "${K}_session_dir" "$SQL/config.php"; then
+    php -r '$f = $argv[1]; $k = $argv[2]; $s = file_get_contents($f);
+      $s = preg_replace("/\];\s*$/", "    \x27" . $k . "_session_dir\x27 => \x27/tmp/sporta-sandbox-" . $k . "-sessions\x27,\n];\n", $s, 1);
+      file_put_contents($f, $s);' "$SQL/config.php" "$K" || say "!! could not add ${K}_session_dir to the test config"
+  fi
+done
 # The listing rule (product-listable.php, owner 2026-11-18 "auto hide any products without price, SKU, name and image") has two switches that are ON
 # unless the config says exactly false. The photo rule stays on in the rig (the suites that prove it hide a product with no photo need it). The SKU
 # rule is OFF in the rig: the seed catalogue keeps its accessories (backpack, cap, phone strap) with NO size rows, the live shop gives them a size ONE,

@@ -59,7 +59,10 @@ const HEADER = new Set(['header.ai', 'header.bag', 'header.globe'])
 // icons beside a label whose ink alignment is asserted (id -> kind)
 const LABELLED = ['header.ai', 'header.globe', 'footer.club', 'footer.cod', 'drawer.note', 'product.sizeguide', 'product.r1', 'product.r2', 'product.r3', 'product.oos']
 // the most an icon may move (px) between the live CSS and the section, per id: the box snap and the alignment nudge
-const MOVE = { 'product.r1': 2.6, 'product.r2': 2.6, 'product.r3': 2.6 }
+// The three feature-band icons are the exception: FEATURES BAND 1119 (sporta-home-trim.css) CENTRES each icon-and-text group on a phone, so a group whose
+// English text breaks onto a different line once the icon is one pixel wider (320 and 390 px, repo wording) changes width by a few pixels and its centre
+// moves by half of that: measured 3.41, 1.72 and 3.08 px. That is the layout working as designed, not the icon moving inside its box.
+const MOVE = { 'product.r1': 2.6, 'product.r2': 2.6, 'product.r3': 2.6, 'home.feature0': 3.6, 'home.feature1': 3.6, 'home.feature2': 3.6, 'home.feature3': 3.6 }
 
 const suite = async (br, overrides, label) => {
   const BEFORE = Object.fromEntries(FILES.map((f) => [f, cut(read(f))]))
