@@ -146,7 +146,7 @@
     --sporta-ring: #ff7b17;
     padding-inline-start: var(--sporta-bar-s);
     padding-inline-end: var(--sporta-bar-e);
-    border-radius: 1.25rem 1.25rem 0 0;
+    border-radius: 1rem 1rem 0 0;   /* PRODUCT SHAPE 1119: the card radius (was 1.25rem) */
     box-shadow: 0 -12px 28px -14px rgba(23, 26, 30, .38);
   }
   html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar {
@@ -171,7 +171,7 @@
     background: #171a1e;
     color: #ff7b17;
     border: 0;
-    border-radius: 999px;
+    border-radius: .75rem;   /* PRODUCT SHAPE 1119: the shop's control shape (was a 999px pill) */
     box-shadow: none;
   }
   /* sporta-ui-colours.css paints every text of the shop near-black with !important (white only on its own list of dark
@@ -771,7 +771,7 @@ body:has(.action-bar) .sporta-u3-toast {
   background: #171a1e;
   color: #ff7b17 !important;
   border: 0;
-  border-radius: 999px;
+  border-radius: .75rem;   /* PRODUCT SHAPE 1119 (was a 999px pill) */
   font-weight: 800;
 }
 .catalog-product-page .action-bar > a[data-sporta-viewbag] { flex: 1 1 100%; width: 100%; }
@@ -800,3 +800,52 @@ body:has(.action-bar) .sporta-u3-toast {
 .catalog-product-page .campaign-brand-plate .campaign-brand-plate__owner { display: none; }
 .catalog-product-page .campaign-brand-plate .campaign-brand-plate__maker[data-sporta-ownbrand] { display: none; }
 /* ==== end PRODUCT BRAND-1118 */
+
+/* ==== PRODUCT SHAPE 1119 (2026-11-19, owner: "make products page only one shape and center name"; proof: npm run test:product-shape-1119) ====
+ * The product page drew four silhouettes: rounded rectangles of 16px (the panels), 12px (the size and fit buttons, the stepper, Add), pills
+ * (Buy now in the phone bar, the "view bag" link, the colour swatches), circles (the wishlist heart, the swatches' dots, the lightbox close)
+ * and a 20px sheet. It is now ONE shape, the rounded rectangle of the shop's own system (SHAPE-1111): 16px for a card or a sheet, 12px for a
+ * control, 8px for a chip or a dot, and no pill, no circle. The two 999px rules above ([u3-1]'s Buy now, BAG-LINK's view-bag link) and the sheet's
+ * radius were edited in place; the rest is here.
+ *  - [ps-1] the wishlist heart, the colour swatches, the lightbox close button: 12px (control).
+ *  - [ps-2] the swatches' colour dot: an 8px (chip) rounded square, not a circle; the 16px colour dot beside the colour's name in the details: a
+ *    4px rounded square; the slider's dots: 2px rounded bars.
+ *  - [ps-3] the "!" mark of the size message: a 6px rounded square (it was a disc).
+ *  - [ps-4] THE NAME IS CENTRED ON THE COLUMN. The title sat in a flex row beside the heart, so it was centred in what the heart left (the
+ *    heart is 44px plus a 1rem gap): 18px left of the column's middle on a phone, 23px on a desktop. The heart now sits at the end corner,
+ *    out of the flow, and the title keeps a padding on both sides equal to the heart's room, so its box is the column and its middle is the
+ *    column's middle in both languages. A long name wraps inside the same box (it is balanced by NAMES-1111).
+ * Logical properties only (RTL and LTR). */
+/* [ps-1] */
+:root .catalog-product-page :is(.catalog-product-summary > div > button[aria-pressed], .catalog-colour-swatch),
+:root .catalog-product-lightbox > button {
+  border-radius: .75rem;
+}
+/* [ps-2] */
+:root .catalog-product-page .catalog-colour-swatch__dot {
+  border-radius: .5rem;
+}
+:root .catalog-product-page .catalog-gallery > div > button > span {
+  border-radius: 2px;
+}
+:root .catalog-product-page span.h-4.w-4.rounded-full {
+  border-radius: .25rem;
+}
+/* [ps-3] */
+:root #product-size-options > p[role="alert"]::before {
+  border-radius: .375rem;
+}
+/* [ps-4] */
+:root .catalog-product-page .catalog-product-summary > div:has(> .catalog-product-title) {
+  position: relative;
+}
+:root .catalog-product-page .catalog-product-summary > div:has(> .catalog-product-title) > button[aria-pressed] {
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-start: .125rem;
+}
+:root .catalog-product-page .catalog-product-title {
+  padding-inline: 3.5rem;
+  text-align: center;
+}
+/* ==== end PRODUCT SHAPE 1119 */

@@ -13,7 +13,7 @@
 //
 // What it proves, every line a measurement (ar and en, 320/360/390 phone, 768 and 1280):
 //   1  the phone bar holds ONE button (BUYBAR-1118b, owner 2026-11-18: "buy now black with orange text, centered, remove price and
-//      choice size"): Buy now, full width between the 1rem side paddings, a 3rem pill, label centred, near-black with the logo orange
+//      choice size"): Buy now, full width between the 1rem side paddings, a 3rem control (12px corners: PRODUCT SHAPE 1119 replaced the pill), label centred, near-black with the logo orange
 //      text; the price is not drawn and Add ("Choose size") is back in the page row, full width under the quantity; the bar is as
 //      tall as before (4.5rem + 1px), no sideways scroll; from 768px Add stays in the row
 //   2  the labels: "Choose size" until a size is chosen, the words drawn by CSS with aria-label equal to them (label in name), the
@@ -128,7 +128,7 @@ const cutCss = (re, to = '') => { const c = CSS.replace(re, to); if (c === CSS) 
 // BUYBAR-1118b: the price hidden, the orange text, the pill's full width, and Add full width in the row
 VAR.noBarNoPrice = { css: { [CSS_F]: cutCss(/  \.storefront-root \.catalog-product-page \.action-bar > span \{\n    display: none;\n  \}\n/) } }
 VAR.noBuyOrange = { css: { [CSS_F]: cutCss(/\.action-bar > \.btn-primary:not\(:disabled\) \{\n    color: #ff7b17 !important;/, '.action-bar > .btn-primary:not(:disabled) {\n    color: #fff !important;') } }
-VAR.noBuyPill = { css: { [CSS_F]: cutCss(/    border: 0;\n    border-radius: 999px;/, '    border: 0;\n    border-radius: 0;') } }
+VAR.noBuyPill = { css: { [CSS_F]: cutCss(/    border: 0;\n    border-radius: \.75rem;   \/\* PRODUCT SHAPE 1119[^\n]*\n/, '    border: 0;\n    border-radius: 0;\n') } }
 VAR.noAddFull = { css: { [CSS_F]: cutCss(/    grid-column: 1 \/ -1;\n    order: 2;\n    width: 100%;\n/) } }
 VAR.noToastWrap = { css: { [CSS_F]: cutCss(/\n  flex-wrap: wrap;\n  row-gap: \.25rem;\n  padding: \.375rem/, '\n  padding: .375rem') } }
 VAR.noToastSmall = { css: { [CSS_F]: cutCss(/font-size: \.875rem;\n  font-weight: 600;\n  color: #d3d7dd;/, 'font-size: .8125rem;\n  font-weight: 600;\n  color: #d3d7dd;') } }
@@ -371,9 +371,9 @@ function barOk(m, vw) {
   // the price is not drawn, and Add is not in the bar: it is in the page row, in the bundle's own place (not fixed)
   if (m.priceDisp !== 'none') bad.push(`the price is still drawn (${m.priceDisp})`)
   if (m.addPos === 'fixed' || within(m.add, m.bar, 0) || !within(m.add, m.row, 1)) bad.push(`Add is not back in the page row (position ${m.addPos})`)
-  // Buy now is the whole bar: edge to edge between the 1rem side paddings, a pill (radius at least half its height)
+  // Buy now is the whole bar: edge to edge between the 1rem side paddings, with the shop's control corners (12px; no longer a pill: PRODUCT SHAPE 1119)
   if (!(edge(m.buy.l, m.rem) && edge(m.buy.r, vw - m.rem))) bad.push(`Buy now does not run from edge to edge (${f1(m.buy.l)}..${f1(m.buy.r)} of ${vw}, 1rem = ${f1(m.rem)}px)`)
-  if (!(m.buyRad >= m.buy.h / 2 - 1)) bad.push(`Buy now is not a pill (radius ${f1(m.buyRad)} of ${f1(m.buy.h)}px)`)
+  if (!(m.buyRad >= m.rem * 0.75 - 1 && m.buyRad <= m.rem * 0.75 + 1)) bad.push(`Buy now does not have the control corners (radius ${f1(m.buyRad)}px, 12px = .75rem of ${f1(m.rem)}px expected)`)
   // near-black with the logo orange for the text, label in the middle
   if (!(m.buyBg === INK && m.buyColor === ORANGE && m.buyRatio >= 6.5)) bad.push(`Buy now is not near-black with orange text (${m.buyBg} / ${m.buyColor}, ${f1(m.buyRatio)}:1)`)
   if (!(m.buyDx <= 2)) bad.push(`the label is ${f1(m.buyDx)}px off the middle of the button`)
@@ -850,7 +850,7 @@ try {
       }
       await pair('hiding the price of the bar (ar 390px)', CHECKS.barAt, 'noBarNoPrice', ['ar', 390])
       await pair('the !important orange label of Buy now, which must outrank sporta-ui-colours.css (en 390px)', CHECKS.barAt, 'noBuyOrange', ['en', 390])
-      await pair('Buy now as a pill (ar 360px)', CHECKS.barAt, 'noBuyPill', ['ar', 360])
+      await pair('Buy now with the control corners (ar 360px)', CHECKS.barAt, 'noBuyPill', ['ar', 360])
       await pair('Add full width under the stepper (en 390px)', CHECKS.barAt, 'noAddFull', ['en', 390])
       await pair('the notice dropping its button under the text (en 320px, 130%)', CHECKS.toastBig, 'noToastWrap', ['en'])
       await pair('the notice following the bar\'s real height (en 320px, 130%)', CHECKS.toastBig, 'noBarMeasure', ['en'])
