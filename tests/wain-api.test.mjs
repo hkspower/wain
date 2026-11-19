@@ -137,6 +137,13 @@ try {
     writeFileSync(bad, JSON.stringify([basePlace({ slug: "Bad Slug" })]));
     const s3 = cli("seed", bad);
     ok("a row the schema would refuse is reported, not inserted", s3.ok && s3.inserted === 0 && s3.refused.length === 1 && s3.refused[0].field === "slug", j(s3));
+    /* A range in a refusal names both numbers. "$min–$max" read `$min–` as one
+       variable (PHP allows bytes over 0x7F in a name), so the message said
+       "name_ar must be  characters"; the live VPS copy had this fixed by hand. */
+    const shortRow = join(dir, "short.json");
+    writeFileSync(shortRow, JSON.stringify([basePlace({ slug: "short-name", name_ar: " " })]));
+    const s4 = cli("seed", shortRow);
+    ok("a range in a refusal names both of its numbers", /\d+–\d+/.test(s4.refused?.[0]?.why ?? ""), j(s4));
     const v = cli("version");
     ok("version reports the engine, the empty secret and the stage", v.engine.driver === "sqlite" && v.adminSecret === "ABSENT" && v.stage === "production", j(v));
   }

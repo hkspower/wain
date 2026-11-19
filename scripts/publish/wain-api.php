@@ -673,7 +673,7 @@ function vStr(array $in, string $k, int $min, int $max, bool $trim = true): stri
     if (!is_string($v)) throw new Invalid($k, "$k must be a string");
     if ($trim) $v = trim($v);
     $n = mb_strlen($v);
-    if ($n < $min || $n > $max) throw new Invalid($k, "$k must be $min–$max characters");
+    if ($n < $min || $n > $max) throw new Invalid($k, "$k must be {$min}–{$max} characters");
     return $v;
 }
 
@@ -687,7 +687,7 @@ function vInt(array $in, string $k, int $min, int $max, ?int $default = null): i
     $v = $in[$k] ?? $default;
     if (is_string($v) && preg_match('/^-?\d+$/', $v)) $v = (int) $v;
     if (is_float($v) && floor($v) === $v) $v = (int) $v;
-    if (!is_int($v) || $v < $min || $v > $max) throw new Invalid($k, "$k must be an integer $min–$max");
+    if (!is_int($v) || $v < $min || $v > $max) throw new Invalid($k, "$k must be an integer {$min}–{$max}");
     return $v;
 }
 
@@ -699,7 +699,7 @@ function vNum(array $in, string $k, float $min, float $max, bool $nullable = fal
     }
     if (is_string($v) && is_numeric($v)) $v = (float) $v;
     if (is_int($v)) $v = (float) $v;
-    if (!is_float($v) || !is_finite($v) || $v < $min || $v > $max) throw new Invalid($k, "$k must be a number $min–$max");
+    if (!is_float($v) || !is_finite($v) || $v < $min || $v > $max) throw new Invalid($k, "$k must be a number {$min}–{$max}");
     return $v;
 }
 
