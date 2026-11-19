@@ -14,6 +14,7 @@
 # It stops, changing nothing, when:
 #   - the site folder, its Dockerfile or the live file cannot be found;
 #   - a downloaded file does not match the sha256 below;
+#   - the Dockerfile does not copy public_html/ (the only folder replaced);
 #   - storage/admin.secret is shorter than 32 characters (the new endpoint
 #     would lock the board: 503 admin_weak). Fix it first, docs/admin-setup.md.
 # The live files differ from every committed version (read 2 November), so the
@@ -37,6 +38,7 @@ die() { echo "STOP: $*" >&2; exit 1; }
 
 [ -d "$SITE" ] || die "$SITE not found"
 [ -f "$SITE/Dockerfile" ] || die "$SITE/Dockerfile not found"
+grep -q "^COPY public_html/ " "$SITE/Dockerfile" || die "the Dockerfile no longer copies public_html/; read it before replacing anything"
 [ -f "$COMPOSE" ] || die "$COMPOSE not found"
 echo "== Dockerfile"; cat "$SITE/Dockerfile"; echo
 
@@ -45,12 +47,13 @@ WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 declare -A TARGET
 for row in "${FILES[@]}"; do
   IFS='|' read -r src name sum <<<"$row"
-  live=$(find "$SITE" -path "$SITE/storage" -prune -o -type f -path "*/api/$name" -print)
-  n=$(printf '%s\n' "$live" | grep -c . || true)
-  if [ "$n" -eq 0 ]; then
-    echo "== $name: not in $SITE — skipped (installing it is a separate decision)"; continue
+  # The Dockerfile copies public_html/ alone; the folder also holds dozens of
+  # release-*/ and public_html.rollback-*/ copies (read 19 November), which
+  # never reach the image and must not be touched.
+  live="$SITE/public_html/api/$name"
+  if [ ! -f "$live" ]; then
+    echo "== $name: not in $SITE/public_html/api — skipped (installing it is a separate decision)"; continue
   fi
-  [ "$n" -eq 1 ] || die "more than one api/$name under $SITE: $live"
   curl -fsS -o "$WORK/$name" "$RAW/$src" || die "could not download $src"
   echo "$sum  $WORK/$name" | sha256sum -c --quiet - || die "$src does not match its sha256"
   TARGET[$name]=$live
