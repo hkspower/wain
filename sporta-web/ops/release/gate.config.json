@@ -1011,9 +1011,10 @@
       "needs": "browser",
       "parallelSafe": false,
       "timeoutSec": 900,
-      "minOk": 14908,
+      "minOk": 14652,
       "parse": "auto",
       "quick": false,
+      "note": "14908 -> 14652 on 2026-11-20 (TOPBAR ACCOUNT 1120): the top bar's Sporta AI icon is hidden, so its shape checks are no longer drawn (256 checks, 0 FAIL either way); bring the icon back (delete [tacc-1] of sporta-shadows.css) and this goes back to 14908",
       "triggers": [
         "@storefront-js",
         "@storefront-css",
