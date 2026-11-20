@@ -1401,6 +1401,24 @@ stay an escape in a file is built from a backslash in a patch script (this cost 
 for scripts that were not registered (fabric, photo-limits, catalogue-*, qr, admin-inventory-editor, ...); the integration commit registers those 12 (measured once through the
 gate: 804 ok lines, 0 FAIL) and the suite reads 204 passed, 0 failed.
 
+**Integrated 2026-11-19/20, NOT deployed (owner: "full improve checkout and orde page / register and user profile / product page ux ui", "remove sporta ai icons from topbar put account profile icons", "full test"):**
+PRODUCT BACK, TOPBAR ACCOUNT, ACCOUNT, ORDER PAGES and PRODUCT UX 1120 are all on `claude/sporta-integration-tveo8b` (merge commits `3fb79474`, `4c5e1cc3`, `d6dc26be`). Full release gate on
+`f5dc29b2` (153 suites; the worker restarted once at suite 12, which killed the run, so it was resumed with the 141 suites left plus the three that had regressed): 124 PASS, 10 KNOWN,
+1 FLAKE (catalogue-page: a layout-shift number 0.0141 against 0.0111, passes alone), 2 FIXED, 7 REGRESSION. Every regression was traced and closed (`7532b693`, `7fe8a7e7`):
+(1) `shape-1111` 14,908 -> 14,652 ok and `storefront-polish` 1,289 -> 1,273 ok are the hidden Sporta AI icon's checks (256 and 16), measured: with `[tacc-1]` removed they read 14,908 and 1,289 / 8 FAIL
+again; registry / record minimums lowered with a note. (2) `file-names` 28 vs 21 recorded: seven example import paths in the gate's own library and test, nothing from this work. `abandoned-ui`
+15-16 FAIL then a TimeoutError crash (the commit before today's merges, `293a8eaa`, does the same: 14 FAIL then the crash); its record was rewritten (names, `contains`, flaky). (3) `admin-buttons` [6]:
+the Fabric launcher was 53 px high beside a 40 px Prices button (also at `293a8eaa`): a real defect, fixed in the ADMIN FABRIC block (four inline properties); the suite reads 32 ok, 1 FAIL ([7], recorded).
+(4) `admin-footer`: the test waited for the English word "Saving" while the editor says it in Arabic, so it raced the response (a pass or a fail by timing, 3 of 3 failed at HEAD, passed at `293a8eaa`): the wait
+now takes either word (191/0). (5) `photo-uploader` "byte-for-byte what it was" (262/1 at `293a8eaa` too): ADMIN FABRIC puts its button back on a click or popstate and the fixture's `fx.go()` is neither;
+the test sends the click a tab press would (263/0). (6) `admin-shipping` and `admin-ai-switch` pass now: their records are removed. `sizes-weight` and `checkout-split` had one extra failure under load that cleared on the
+rerun. The 12 suites that were not registered at all (fabric, photo-limits, catalogue-api/live/e2e, admin-catalogue-settings, pdf-text-layer, qr, admin-inventory-editor, admin-fabric, fabric-storefront,
+admin-hide-email-hint) are in the registry now (804 ok, 0 FAIL). After the fixes the 18 suites whose result or record changed were run again at `7fe8a7e7`: 13 PASS, 5 KNOWN, 0 regression.
+**The whole gate has not been run again in one piece on the final HEAD**: deploy readiness wants `npm run gate`-style full green for the HEAD (about 2.5 h on this 4-CPU box), so run it once more before the
+owner's "deploy". Release scope for the add-on lanes when the owner says "deploy": `--only boot.js,sporta-features.js,sporta-shadows.css,sporta-product-fix.css,sporta-checkout-a11y.css,sporta-checkout-a11y.js,birthday.js,
+sporta-admin-brands.js,sporta-admin-brands.full.js` (the live bytes of each are commit `e5224bea`'s, so the plan's byte line must show no shrink); no API, no migration. The 20:17 UTC check-in (13 suites) read
+4,258 ok / 0 FAIL on this tree.
+
 Rules learned this session (apply):
 - `sporta-web/dropin/php-store/install.mysql.sql` is GENERATED. Never hand-edit it: add a part to `PARTS` in `scripts/make-install-sql.mjs`, then run that script. Then regenerate `dbcenter-manifest.php` (`node scripts/make-dbcenter-manifest.mjs`) and record the column in `sporta-web/ops/db/expected-schema.json`.
 - New columns: append with no `AFTER` clause, so every database ends with the same column order and the recorded positions do not shift.
