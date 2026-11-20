@@ -21,14 +21,17 @@ import { fileURLToPath } from 'node:url'
 const B = process.env.CHECK_BASE || 'https://www.sporta.com.kw'   // CHECK_BASE: a local copy of the captured storefront, to test this checker itself
 const PUB = process.env.CHECK_PUB || join(dirname(fileURLToPath(import.meta.url)), '..', 'public')
 const FILES = ['birthday.js', 'boot.js', 'sporta-checkout-a11y.css', 'sporta-checkout-a11y.js', 'sporta-features.js', 'sporta-product-fix.css', 'sporta-shadows.css']
-let bad = 0
+let bad = 0, okN = 0, secOk = 0, secName = ''
+const QUIET = process.env.CHECK_QUIET === '1'   // the Hostinger API keeps 300 log lines: on the VPS only failures and one count per section are printed
 const say = (s) => console.log(s)
-const is = (ok, msg, d = '') => { if (!ok) bad++; say((ok ? 'ok   ' : 'FAIL ') + msg + (!ok && d ? '  - ' + d : '')) }
+const is = (ok, msg, d = '') => { if (ok) { okN++; secOk++; if (!QUIET) say('ok   ' + msg) } else { bad++; say('FAIL ' + msg + (d ? '  - ' + d : '')) } }
+const section = (name) => { if (QUIET && secName) say(`ok   [${secName}] ${secOk} checks passed`); secName = name; secOk = 0 }
 const info = (msg) => say('info ' + msg)
 const sha = (buf) => createHash('sha256').update(buf).digest('hex')
 const get = async (path) => { const r = await fetch(`${B}${path}${path.includes('?') ? '&' : '?'}v=${Date.now()}`, { headers: { 'accept-encoding': 'identity' } }); return { status: r.status, buf: Buffer.from(await r.arrayBuffer()), headers: r.headers } }
 
 // ---- 1 the files
+section('files and markers')
 for (const f of FILES) {
   const mine = sha(readFileSync(join(PUB, f)))
   const r = await get('/' + f)
@@ -70,6 +73,7 @@ async function open(path, { lang = 'en', w = 390, h = 900, cart = null } = {}) {
 }
 
 // ---- 2 the top bar
+section('top bar, six pages x two languages x two widths')
 const WORD = { en: /^Account$/, ar: /^حسابي$/ }
 for (const lang of ['ar', 'en']) for (const w of [390, 1280]) for (const path of ['/', '/shop', '/about', '/contact', '/cart', '/account']) {
   const tag = `${path} ${lang} ${w}px`
@@ -102,6 +106,7 @@ for (const lang of ['ar', 'en']) for (const w of [390, 1280]) for (const path of
 }
 
 // ---- 3 a click on it opens /account without a reload
+section('account link click')
 {
   const o = await open('/shop', { lang: 'en', w: 390 })
   try {
@@ -118,6 +123,7 @@ for (const lang of ['ar', 'en']) for (const w of [390, 1280]) for (const path of
 }
 
 // ---- 4 the product page
+section('product page, two languages x two widths')
 for (const lang of ['en', 'ar']) for (const w of [390, 1280]) {
   const tag = `/product/${slug} ${lang} ${w}px`
   const o = await open(`/product/${slug}`, { lang, w })
@@ -155,6 +161,7 @@ for (const lang of ['en', 'ar']) for (const w of [390, 1280]) {
 }
 
 // ---- 5 /account, signed out
+section('account page')
 {
   const o = await open('/account', { lang: 'en', w: 390 })
   try {
@@ -181,6 +188,7 @@ for (const lang of ['en', 'ar']) for (const w of [390, 1280]) {
 }
 
 // ---- 6 the checkout summary (informational: the quick layout keeps its own Edit bag)
+section('checkout summary')
 for (const w of [390, 1280]) {
   const price = Number(prod.sale_price || prod.price || 5) || 5
   const cart = [{ key: `${slug}__M__-`, slug, size: 'M', fit: null, name: { en: slug, ar: slug }, price, image: '/product-photo-unavailable.svg', qty: 1 }]
@@ -202,5 +210,6 @@ for (const w of [390, 1280]) {
 }
 
 await browser.close()
-say(`RELEASE_CHECK_DONE bad=${bad}`)
+section('')
+say(`RELEASE_CHECK_DONE bad=${bad} ok=${okN}`)
 process.exitCode = bad ? 1 : 0
