@@ -1419,6 +1419,28 @@ owner's "deploy". Release scope for the add-on lanes when the owner says "deploy
 sporta-admin-brands.js,sporta-admin-brands.full.js` (the live bytes of each are commit `e5224bea`'s, so the plan's byte line must show no shrink); no API, no migration. The 20:17 UTC check-in (13 suites) read
 4,258 ok / 0 FAIL on this tree.
 
+**DEPLOYED 2026-11-20 01:31 UTC (owner: "deploy", after "remove sporta ai icons from topbar put account profile icons"): `deploy-20261120T013130Z-95d8de3`, DEPLOY_OK** (undo
+`compose --rollback deploy-20261120T013130Z-95d8de3`; backup `/docker/sporta/backups/deploy-20261120T013130Z-95d8de3`, 8 files; `--only birthday.js,boot.js,sporta-admin-brands.js,
+sporta-admin-brands.full.js,sporta-checkout-a11y.css,sporta-checkout-a11y.js,sporta-features.js,sporta-product-fix.css,sporta-shadows.css`: 8 replaced, 0 added, the loader
+`sporta-admin-brands.js` unchanged and "same"; health identical before and after, products API 32). The plan's live bytes were exactly the baseline commit `e5224bea`'s source sizes
+(22,605 / 8,372 / 1,480,186 / 35,052 / 38,043 / 280,737 / 48,234 / 136,930) and went to 22,640 / 14,369 / 1,480,558 / 38,467 / 43,228 / 336,544 / 61,567 / 161,202: no shrink, so the release
+carried exactly `git diff e5224bea 95d8de3d` for those files. **THE LIVE FILES birthday.js, boot.js, sporta-admin-brands.full.js, sporta-checkout-a11y.css, sporta-checkout-a11y.js,
+sporta-features.js, sporta-product-fix.css and sporta-shadows.css ARE NOW COMMIT `95d8de3d`'s**; every other add-on and all of api/, knet/, pay/ stay at `e5224bea` or older (see
+`ops/release/live-baseline.json`, moved in the same session). This SUPERSEDES the "Built, NOT deployed" lines above for PRODUCT BACK 1120, TOPBAR ACCOUNT 1120, ACCOUNT 1120, ORDER PAGES 1120,
+PRODUCT UX 1120 and the Fabric button fix (the Catalogue header's Fabric button was 53 px high beside a 40 px Prices button; both are 40 px now). **Live now: the Sporta AI icon is not in the top bar
+(an account icon is), so no visitor can open the assistant until `[tacc-1]` of `sporta-shadows.css` is deleted.** NOT shipped on purpose: the three review-minor PHP files (`abandoned.php`,
+`catalogue.php`, `customer-auth.php` of `bb26b321` / `293a8eaa`) and the `console.warn` line of `sporta-catalogue.js`: they are an API release behind the review gate, still waiting.
+Gate before the deploy: the full gate on `f5dc29b2` (7 regressions, all traced and closed) and 18 affected suites at `7fe8a7e7` (13 PASS, 5 KNOWN); the only shipped code that changed after the
+full run is the Fabric button's four inline properties (admin-fabric 45, admin-buttons 32 / 1 recorded, admin-js-audit 50, admin-loader, photo-uploader 263 / 0, admin-footer 191 / 0); the whole
+gate was NOT run again in one piece on `95d8de3d` (the gate's own readiness check says so: no `.gate/last-full.json`). Read-only live check afterwards (`ops/live-release-check-1120.mjs` in the
+Playwright image on the VPS, GET only, the one-shot projects deleted): **248 checks, 0 FAIL**: the eight files equal the release by sha256 and carry their markers and `no-cache`; on `/`, `/shop`,
+`/about`, `/contact`, `/cart` and `/account`, in Arabic and English at 390 and 1280 px, ONE account link in the tool cluster (to /account, named, 44 px), the Sporta AI button in the page but not
+drawn, no sideways scroll, no page error; a click on the link opens /account without a reload and marks it current; a product page opened directly (`cagliari-calcio-sweatshirt-navy`, four views):
+no header, Back (44 px), the Share control and the WhatsApp ask, and Back from a direct visit goes to the shop; /account signed out: the length meter and the `?verified=1` notice; /checkout with one
+line in the bag at 390 and 1280 px: the Edit bag link and the two reassurance lines. NOT looked at: a real phone, Safari, Firefox; the cash order card and the track page (they need a real order number,
+and the checker never submits one); the signed-in account page (e-mail banner, Resend); the admin Catalogue header (needs a sign-in). The Hostinger connector `hostinger-vps` was down again, so the
+deploy and the check went through the session's `rosa` connector (the same API and VM 2058651, a read-only `vps_docker_list` first), plan then apply.
+
 Rules learned this session (apply):
 - `sporta-web/dropin/php-store/install.mysql.sql` is GENERATED. Never hand-edit it: add a part to `PARTS` in `scripts/make-install-sql.mjs`, then run that script. Then regenerate `dbcenter-manifest.php` (`node scripts/make-dbcenter-manifest.mjs`) and record the column in `sporta-web/ops/db/expected-schema.json`.
 - New columns: append with no `AFTER` clause, so every database ends with the same column order and the recorded positions do not shift.
