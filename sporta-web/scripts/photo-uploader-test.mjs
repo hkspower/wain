@@ -294,7 +294,14 @@ head('the panel is on the Catalogue screen only')
   // The Suggested prices button (admin-suggested-prices, its own suite) is put back by its own code a moment after the
   // route change, so the comparison waits for it. Everything else on the screen must be byte-for-byte what it was.
   await pg.waitForSelector('[data-sporta-sugg-open]', { state: 'attached', timeout: 3000 }).catch(() => {})
-  is(await shellHtml(pg) === before, 'the screen without the panel is byte-for-byte what it was')
+  // The Fabric button (ADMIN FABRIC) is put back on a click or a popstate (the compiled admin's tabs are buttons, so a visitor's tab press is
+  // both); the fixture's fx.go() is neither, so send the click a tab press would, then wait for the button, which comes up to 800 ms later.
+  await pg.evaluate(() => document.body.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+  await pg.waitForSelector('[data-sporta-fab-open]', { state: 'attached', timeout: 3000 }).catch(() => {})
+  const afterHtml = await shellHtml(pg)
+  const firstDiff = (() => { let i = 0; while (i < before.length && i < afterHtml.length && before[i] === afterHtml[i]) i++; return i })()
+  is(afterHtml === before, 'the screen without the panel is byte-for-byte what it was',
+    `first difference at ${firstDiff} of ${before.length}/${afterHtml.length}: BEFORE ...${before.slice(Math.max(0, firstDiff - 60), firstDiff + 160)}... AFTER ...${afterHtml.slice(Math.max(0, firstDiff - 60), firstDiff + 160)}...`)
   is(await pg.evaluate(() => document.querySelectorAll('[data-sporta-savebar]').length) === 0, 'the Save bar of block 5 is not triggered by the panel')
   is(api.st.calls.filter((c) => c.r === 'products_all').length >= 1, 'products are read from products_all')
   is(await pg.locator(`${SEL} [role=status]`).count() >= 2, 'status text is in aria-live regions')

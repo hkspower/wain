@@ -448,7 +448,8 @@ head('the save: double click, errors')
     await type(pg, 'brand.tagline', 'en', 'Premium sport, Kuwait. ' + name)
     W.next = resp
     await pg.click('[data-role="save"]')
-    await pg.waitForFunction((s) => !/Saving/.test(document.querySelector('.sfe-status').textContent), null, { timeout: 5000 })
+    // the editor says "Saving…" in Arabic while the request is out; waiting for the English word alone returned at once and raced the response
+    await pg.waitForFunction((s) => !/Saving|جارٍ الحفظ/.test(document.querySelector('.sfe-status').textContent), null, { timeout: 5000 })
     const st = await pg.locator('.sfe-status').textContent()
     is(re.test(st) && (await pg.locator('.sfe-status').getAttribute('data-bad')) === '1', `${name}: worded`, st)
     is(await pg.locator('[data-role="save"]').isEnabled() && /غير محفوظة/.test(await pg.locator('.sfe-dirty').textContent()), `${name}: the editor stays dirty and can save again`)

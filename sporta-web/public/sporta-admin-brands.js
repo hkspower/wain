@@ -13431,6 +13431,9 @@
     var lang = langOf(a)
     var b = el('button', a.className || '', (STR[lang] || STR.en).open)
     b.type = 'button'; b.setAttribute(BTN, '1')
+    // The Prices button carries these four inline (its classes alone do not fix the box): copying only its class list left this one at
+    // the browser's own height, which wrapped to 53px at 1280 beside a 40px Prices button (test:admin-buttons [6]).
+    b.style.whiteSpace = 'nowrap'; b.style.flexShrink = '0'; b.style.height = '2.5rem'; b.style.lineHeight = '1.25rem'
     b.addEventListener('click', function () { openDialog(b) })
     a.parentNode.insertBefore(b, a.nextSibling)
   }
