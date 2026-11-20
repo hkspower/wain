@@ -1,27 +1,16 @@
 {
   "schema": 1,
   "comment": "What is LIVE on the VPS, read from the \"Deployed ...\" records in CLAUDE.md on 2026-11-19. DATA THE PERSON UPDATES AFTER EACH DEPLOY (edit it in the commit that records the deploy). The gate reads \"ref\" for --changed (the oldest live ref, so it errs on running more) and the per-area refs for the readiness diff (git diff --name-status <ref> HEAD for each file). Files not named below fall back to the area default. A wrong entry only mis-lists what a release contains: the plan's \"live bytes -> release bytes\" line is the real check.",
-  "updated": "2026-11-19",
+  "updated": "2026-11-20",
   "ref": "e7db91439fa991f27f551783efeb7d56c7994390",
   "refNote": "the 2026-11-18 13:05 full backend release; every live add-on and the API are at or after it except the few files listed below with older refs",
   "api": {
-    "ref": "eb97a4bdfdfcfcba57fa8e86f4a22a9100ea1812",
-    "deploy": "deploy-20261119T000155Z-eb97a4b",
+    "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
+    "deploy": "deploy-20261119T173728Z-e5224be",
     "date": "2026-11-19",
-    "note": "dropin/php-store equals eb97a4bd except admin.php (269a3737, deploy-20261119T060144Z-269a373). api/, knet/ and pay/ were last copied from e7db9143 (knet, pay unchanged since).",
-    "knetPayRef": "e7db91439fa991f27f551783efeb7d56c7994390",
-    "files": {
-      "dropin/php-store/admin.php": {
-        "ref": "269a373774dfcfe61452be6e9f1c412fbced4bfd",
-        "deploy": "deploy-20261119T060144Z-269a373",
-        "date": "2026-11-19"
-      },
-      "dropin/php-knet/knet.php": {
-        "ref": "e7db91439fa991f27f551783efeb7d56c7994390",
-        "deploy": "deploy-20261118T130519Z-e7db914",
-        "date": "2026-11-18"
-      }
-    }
+    "note": "api/, knet/ and pay/ were all copied from e5224bea (the 2026-11-19 17:37 UTC full release: --only .htaccess,api,knet,pay plus 15 add-ons); nothing in them changed after it",
+    "knetPayRef": "e5224bead829ffca8472764ada7917f0cf7a93de",
+    "files": {}
   },
   "addons": {
     "default": {
@@ -32,9 +21,9 @@
     },
     "files": {
       "public/sporta-features.js": {
-        "ref": "88bccf54cc7ad7c8f82af85c176ac7fa344370c2",
-        "deploy": "deploy-20261119T092115Z-88bccf5",
-        "date": "2026-11-19"
+        "ref": "95d8de3df4c79b2a04a70d21f0e1f5e68d77aaf9",
+        "deploy": "deploy-20261120T013130Z-95d8de3",
+        "date": "2026-11-20"
       },
       "public/sporta-images.css": {
         "ref": "88bccf54cc7ad7c8f82af85c176ac7fa344370c2",
@@ -42,38 +31,38 @@
         "date": "2026-11-19"
       },
       "public/sporta-product-fix.css": {
-        "ref": "88bccf54cc7ad7c8f82af85c176ac7fa344370c2",
-        "deploy": "deploy-20261119T092115Z-88bccf5",
-        "date": "2026-11-19"
+        "ref": "95d8de3df4c79b2a04a70d21f0e1f5e68d77aaf9",
+        "deploy": "deploy-20261120T013130Z-95d8de3",
+        "date": "2026-11-20"
       },
       "public/sporta-shadows.css": {
-        "ref": "88bccf54cc7ad7c8f82af85c176ac7fa344370c2",
-        "deploy": "deploy-20261119T092115Z-88bccf5",
-        "date": "2026-11-19"
+        "ref": "95d8de3df4c79b2a04a70d21f0e1f5e68d77aaf9",
+        "deploy": "deploy-20261120T013130Z-95d8de3",
+        "date": "2026-11-20"
       },
       "public/sporta-ui-colours.css": {
-        "ref": "bfa628e1098db24ea43d2d57e58e87b57f15e80d",
-        "deploy": "deploy-20261119T053329Z-bfa628e",
+        "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
+        "deploy": "deploy-20261119T173728Z-e5224be",
         "date": "2026-11-19"
       },
       "public/sporta-home-trim.css": {
-        "ref": "bfa628e1098db24ea43d2d57e58e87b57f15e80d",
-        "deploy": "deploy-20261119T053329Z-bfa628e",
+        "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
+        "deploy": "deploy-20261119T173728Z-e5224be",
         "date": "2026-11-19"
       },
       "public/sporta-admin-brands.js": {
-        "ref": "3aa05cc21fec44b08466470c6a0a751c774c2b1c",
-        "deploy": "deploy-20261118T164133Z-3aa05cc",
-        "date": "2026-11-18"
-      },
-      "public/sporta-admin-brands.full.js": {
-        "ref": "269a373774dfcfe61452be6e9f1c412fbced4bfd",
-        "deploy": "deploy-20261119T060144Z-269a373",
+        "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
+        "deploy": "deploy-20261119T173728Z-e5224be",
         "date": "2026-11-19"
       },
+      "public/sporta-admin-brands.full.js": {
+        "ref": "95d8de3df4c79b2a04a70d21f0e1f5e68d77aaf9",
+        "deploy": "deploy-20261120T013130Z-95d8de3",
+        "date": "2026-11-20"
+      },
       "public/sporta-catalogue.js": {
-        "ref": "eb97a4bdfdfcfcba57fa8e86f4a22a9100ea1812",
-        "deploy": "deploy-20261119T000155Z-eb97a4b",
+        "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
+        "deploy": "deploy-20261119T173728Z-e5224be",
         "date": "2026-11-19"
       },
       "public/sporta-brand-theme.css": {
@@ -87,9 +76,9 @@
         "date": "2026-11-18"
       },
       "public/sporta-checkout-a11y.css": {
-        "ref": "21516fa637d83514bd3355a9312925139bfe71b0",
-        "deploy": "deploy-20261118T145743Z-21516fa",
-        "date": "2026-11-18"
+        "ref": "95d8de3df4c79b2a04a70d21f0e1f5e68d77aaf9",
+        "deploy": "deploy-20261120T013130Z-95d8de3",
+        "date": "2026-11-20"
       },
       "public/sporta-cart-drawer.css": {
         "ref": "21516fa637d83514bd3355a9312925139bfe71b0",
@@ -102,19 +91,39 @@
         "date": "2026-11-18"
       },
       "public/sporta-checkout-a11y.js": {
-        "ref": "af02d71ae179f101e2b4ed3a69583e090fb8d697",
-        "deploy": "deploy-20261111T191035Z-af02d71",
-        "date": "2026-11-11"
+        "ref": "95d8de3df4c79b2a04a70d21f0e1f5e68d77aaf9",
+        "deploy": "deploy-20261120T013130Z-95d8de3",
+        "date": "2026-11-20"
       },
       "public/sporta-footer-call.js": {
-        "ref": "d14d1347ff20ad23db9af1a73057a51be30dce87",
-        "deploy": "deploy-20261111T194653Z-d14d134",
-        "date": "2026-11-11"
+        "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
+        "deploy": "deploy-20261119T173728Z-e5224be",
+        "date": "2026-11-19"
       },
       "public/sporta-gov-autopick.js": {
-        "ref": "8bf600168ea085743d45f9231bbfe560105dc0c4",
-        "deploy": "deploy-20261103T104853Z-8bf6001",
-        "date": "2026-11-03"
+        "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
+        "deploy": "deploy-20261119T173728Z-e5224be",
+        "date": "2026-11-19"
+      },
+      "public/birthday.js": {
+        "ref": "95d8de3df4c79b2a04a70d21f0e1f5e68d77aaf9",
+        "deploy": "deploy-20261120T013130Z-95d8de3",
+        "date": "2026-11-20"
+      },
+      "public/boot.js": {
+        "ref": "95d8de3df4c79b2a04a70d21f0e1f5e68d77aaf9",
+        "deploy": "deploy-20261120T013130Z-95d8de3",
+        "date": "2026-11-20"
+      },
+      "public/sporta-cat-tiles.css": {
+        "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
+        "deploy": "deploy-20261119T173728Z-e5224be",
+        "date": "2026-11-19"
+      },
+      "public/sporta-clock.js": {
+        "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
+        "deploy": "deploy-20261119T173728Z-e5224be",
+        "date": "2026-11-19"
       }
     }
   },
@@ -167,6 +176,7 @@
   "notes": [
     "sporta-cat-tiles.css holds unreviewed WIP: do not deploy that file without a review (CLAUDE.md).",
     "robots.txt and llms.txt were shipped file-level with the owner's yes (deploy-20261119T055353Z-ab82418, deploy-20261119T055838Z-de5c7f1); they belong to the foreign storefront otherwise and are never part of a normal release.",
-    "The live API baseline moved: dcd2b28b -> 011ae562 snapshot -> f42ff575 -> e7db9143 (2026-11-18 13:05) -> eb97a4bd (2026-11-19 00:01) -> admin.php 269a3737 (06:01)."
+    "The live API baseline moved: dcd2b28b -> 011ae562 snapshot -> f42ff575 -> e7db9143 (2026-11-18 13:05) -> eb97a4bd (2026-11-19 00:01) -> admin.php 269a3737 (06:01).",
+    "The live API baseline is e5224bea (2026-11-19 17:37, all of api/, knet/, pay/); the 2026-11-20 01:31 add-on release (95d8de3d, deploy-20261120T013130Z-95d8de3: birthday.js boot.js sporta-admin-brands.full.js sporta-checkout-a11y.css sporta-checkout-a11y.js sporta-features.js sporta-product-fix.css sporta-shadows.css) moved those eight files; the three review-minor PHP files (abandoned.php, catalogue.php, customer-auth.php) and sporta-catalogue.js of 293a8eaa / bb26b321 are NOT live."
   ]
 }
