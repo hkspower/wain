@@ -8,6 +8,7 @@ import { formatKWD } from '../lib/format'
 import { discountPercent } from '../lib/discount'
 import { fetchStockTable } from '../lib/stock'
 import { photoFit } from '../lib/productImage'
+import { productAlt } from '../lib/productAlt'
 import { SIZE_LADDER, fitsFor } from '../lib/options'
 
 // Modern retail grid card (Gymshark-style): the photo IS the card — portrait
@@ -115,7 +116,7 @@ export default function ProductCard({ product }) {
             picture is the product, and the link beside it carries the same name. */}
         <img
           src={product.image}
-          alt={product.name[lang]}
+          alt={productAlt(product, lang)}
           loading="lazy"
           // decoding="async" keeps the decode off the main thread. Without it a
           // card entering the viewport decoded during the scroll frame, and the
