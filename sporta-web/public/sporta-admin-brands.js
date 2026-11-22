@@ -7222,7 +7222,12 @@
     for (k in b) if (Object.prototype.hasOwnProperty.call(b, k) && a[k] !== b[k]) return false
     return true
   }
-  function contentDirty() { return !same(S.draft, S.saved) || !same(S.contact, S.contactSaved) }
+  function contentDirty() { return !same(S.draft, S.saved) || !same(S.contact, S.contactSaved) || !same(S.share, S.shareSaved) }
+  /** The product page's Share button (store_content_share_read on the server): shown or not, and the words it shares. */
+  function shareOf(x) {
+    x = x && typeof x === 'object' ? x : {}
+    return { enabled: x.enabled !== false, text_en: typeof x.text_en === 'string' ? x.text_en : '', text_ar: typeof x.text_ar === 'string' ? x.text_ar : '' }
+  }
   /** The size of the content document as the server measures it: json_encode (escapes "/" and U+2028/2029, UTF-8 bytes) plus the 12 bytes it reserves for the version. */
   function contentBytes(list) {
     var json = JSON.stringify({ v: 0, overrides: list, contact: S.contact }).replace(/\//g, '\\/').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')
@@ -7309,6 +7314,7 @@
       var v = doc.contact && typeof doc.contact[f[0]] === 'string' ? doc.contact[f[0]] : ''
       S.contact[f[0]] = v; S.contactSaved[f[0]] = v
     })
+    S.share = shareOf(doc.share); S.shareSaved = shareOf(doc.share)
     if (doc.returns !== undefined || !S.ret) adoptReturns(doc.returns)
     S.loaded = true
   }
@@ -7358,7 +7364,7 @@
     draw()
     var DONE = 'تم الحفظ. يظهر للزوار عند فتح الصفحة التالية.'
     // two rows on the server, so two requests, one after the other; each only when its part was changed
-    var first = contentDirty() ? request('content_save', { v: S.v, overrides: list, contact: S.contact }) : Promise.resolve(null)
+    var first = contentDirty() ? request('content_save', { v: S.v, overrides: list, contact: S.contact, share: S.share }) : Promise.resolve(null)
     first.then(function (r) {
       if (r) {
         if (!(r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides))) { S.saving = false; S.note = { text: failText(r), bad: true }; draw(); return }
@@ -7593,6 +7599,7 @@
   function syncContact() {
     if (!refs) return
     CONTACT.forEach(function (f) { refs.contact[f[0]].value = S.contact[f[0]] || '' })
+    if (S.share && refs.shareOn) { refs.shareOn.checked = S.share.enabled; refs.shareEn.value = S.share.text_en; refs.shareAr.value = S.share.text_ar }
   }
   /** The returns card: the simple fields, then the two lists of points (rows of our own, rebuilt on add / remove). */
   function drawPoints(lang) {
@@ -7784,6 +7791,28 @@
     })
     c4.appendChild(g4)
     form.appendChild(c4)
+
+    // 4b. the Share button on the product page (settings.site_content.share)
+    var c4b = el('div', 'ssc-card')
+    c4b.appendChild(el('h2', '', 'زر المشاركة في صفحة المنتج'))
+    c4b.appendChild(el('p', 'ssc-hint', 'يظهر الزر بجانب زر واتساب في صفحة كل منتج. اترك النص فارغا لمشاركة اسم المنتج. لا تكتب سعرا في النص.'))
+    var l4b = el('label', 'ssc-check')
+    refs.shareOn = el('input'); refs.shareOn.type = 'checkbox'; refs.shareOn.name = 'ssc_share_on'
+    refs.shareOn.addEventListener('change', function () { if (S.share) { S.share.enabled = refs.shareOn.checked; drawFoot() } })
+    l4b.appendChild(refs.shareOn)
+    l4b.appendChild(el('span', '', ' إظهار زر المشاركة'))
+    c4b.appendChild(l4b)
+    var g4b = el('div', 'ssc-grid')
+    refs.shareAr = el('input'); refs.shareAr.type = 'text'; refs.shareAr.name = 'ssc_share_ar'; refs.shareAr.maxLength = 200; refs.shareAr.autocomplete = 'off'
+    refs.shareAr.setAttribute('dir', 'rtl')
+    refs.shareAr.addEventListener('input', function () { if (S.share) { S.share.text_ar = refs.shareAr.value.trim(); drawFoot() } })
+    refs.shareEn = el('input'); refs.shareEn.type = 'text'; refs.shareEn.name = 'ssc_share_en'; refs.shareEn.maxLength = 200; refs.shareEn.autocomplete = 'off'
+    refs.shareEn.setAttribute('dir', 'ltr')
+    refs.shareEn.addEventListener('input', function () { if (S.share) { S.share.text_en = refs.shareEn.value.trim(); drawFoot() } })
+    g4b.appendChild(field('النص عند المشاركة (عربي)', refs.shareAr))
+    g4b.appendChild(field('النص عند المشاركة (English)', refs.shareEn))
+    c4b.appendChild(g4b)
+    form.appendChild(c4b)
 
     // 5. returns & exchange
     var c5 = el('div', 'ssc-card')
