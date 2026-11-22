@@ -3456,6 +3456,18 @@
       ]
     },
     {
+      "name": "photo-library",
+      "needs": "none",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 27,
+      "parse": "auto",
+      "measuredSec": 0,
+      "quick": true,
+      "note": "PHP CLI with its own MariaDB database (sporta_photo_test, created and dropped); the root-only move-failure check is SKIP, not counted",
+      "triggers": []
+    },
+    {
       "name": "photo-limits",
       "needs": "none",
       "parallelSafe": true,

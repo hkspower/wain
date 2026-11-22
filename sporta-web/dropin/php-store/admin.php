@@ -429,6 +429,8 @@ $activityActions = [
     // writes their row itself, and listing them too wrote every change twice (AUTH-06).
     'content_save', 'returns_policy_save', 'assistant_settings_save', 'shipping_save',
     'site_icon_save', 'site_icon_reset', 'catalogue_settings_save',
+    // A photograph renamed or removed from the shop's folder is an administrator change.
+    'photo_rename', 'photo_delete',
 ];
 if ($method === 'POST' && in_array($r, $activityActions, true)) {
     register_shutdown_function(static function () use ($db, $admin, $r): void {
@@ -1752,6 +1754,35 @@ if ($r === 'product_image_upload' && $method === 'POST') {
         'bytes' => strlen($bytes),
         'mime' => $mime,
     ]);
+}
+
+// THE PHOTO LIBRARY (photo-library.php): the photographs on disk, read; renamed with every product that
+// shows them repointed; removed only when no product shows them. Uploads stay in product_image_upload.
+if ($r === 'photo_list' && $method === 'GET') {
+    require_once __DIR__ . '/photo-library.php';
+    store_out(['photos' => photo_list($db, dirname(__DIR__) . '/images/products')]);
+}
+if (($r === 'photo_rename' || $r === 'photo_delete') && $method === 'POST') {
+    require_once __DIR__ . '/photo-library.php';
+    $b = store_body();
+    $dir = dirname(__DIR__) . '/images/products';
+    try {
+        if ($r === 'photo_rename') {
+            store_out(photo_rename($db, $dir, $b['from'] ?? null, $b['to'] ?? null));
+        }
+        photo_delete($db, $dir, $b['name'] ?? null);
+        store_out(['deleted' => true, 'name' => (string)($b['name'] ?? '')]);
+    } catch (PhotoInUse $e) {
+        store_out(['error' => 'photo_in_use', 'products' => $e->slugs], 409);
+    } catch (RuntimeException $e) {
+        $code = $e->getMessage();
+        store_fail($code, match ($code) {
+            'photo_not_found' => 404,
+            'photo_name_taken' => 409,
+            'photo_rename_failed', 'photo_delete_failed' => 500,
+            default => 400,
+        });
+    }
 }
 
 if ($r === 'product_save' && $method === 'POST') {
