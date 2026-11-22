@@ -267,6 +267,7 @@
       "admin-hide-email-hint",
       "admin-inventory-editor",
       "admin-inventory-photos",
+      "admin-inventory-product-editor",
       "admin-fabric",
       "admin-catalogue-settings"
     ],
@@ -3107,6 +3108,20 @@
       "minOk": 28,
       "parse": "auto",
       "measuredSec": 30,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-inventory-product-editor",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 300,
+      "minOk": 1,
+      "parse": "auto",
+      "measuredSec": 60,
       "quick": false,
       "triggers": [
         "@admin-addon",

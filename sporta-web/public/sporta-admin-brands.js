@@ -13535,6 +13535,374 @@
 })()
 /* ===== ADMIN INVENTORY PHOTOS - end ========================================= */
 
+/* ===== ADMIN INVENTORY PRODUCT EDITOR - begin ===========================
+ * 20. Product editor in the Inventory screen (owner request 2026-11-22: "make product editor at invetory, no catalogue").
+ *
+ * WHAT THIS ADDS: an "Edit product" button in the Inventory header. It opens the shop's product list (search by English or
+ * Arabic name, or by web name). Choosing one opens the editor: the product's photo as the shop serves it (large, with its file
+ * name, or a note when there is no file yet), the English and Arabic names, the price and optional sale price (KWD), the
+ * category, the English and Arabic descriptions (280 characters at most, as product_save requires) and the "In the shop"
+ * switch (active). Anything the editor does not change (photos, featured, brand, sale dates) is sent back exactly as
+ * admin.php?r=products_all returned it. Save is ONE POST admin.php?r=product_save. The Catalogue's own product editor is not
+ * changed, and no photo is uploaded, moved or resized here.
+ *
+ * READS: products_all when the list opens, and again when a product is chosen (so the editor starts from the current row).
+ * Photos: a HEAD request per candidate file, only when the editor opens. Nothing is stored in the browser.
+ * Drawn with DOM calls and textContent only; no innerHTML. No timer, no observer except one that keeps the header button.
+ */
+;(function () {
+  'use strict'
+  try {
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaInvEditor) return
+  try { Object.defineProperty(window, '__sportaInvEditor', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php', DIR = '/images/products/', BTN = 'data-sporta-inv-product', STYLE_ID = 'spt-pe-style'
+  var CSS = [
+    '.admin-shell .admin-page .spt-pe-open{box-sizing:border-box;min-height:2.75rem;padding:0 1rem;border:0;border-radius:.75rem;background:#4f46e5;color:#fff;font:inherit;font-weight:700;cursor:pointer}',
+    '.spt-pe{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(15,23,42,.72);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:#0f172a}',
+    '.spt-pe-dlg{box-sizing:border-box;display:flex;flex-direction:column;gap:.75rem;width:min(46rem,100%);max-height:calc(100vh - 2rem);overflow:auto;padding:1rem;border-radius:1rem;background:#fff;box-shadow:0 20px 50px rgba(15,23,42,.35)}',
+    '.spt-pe-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}',
+    '.spt-pe-title{margin:0;font-size:1rem;font-weight:800;overflow-wrap:anywhere}',
+    '.spt-pe-sub{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8125rem;color:#64748b;overflow-wrap:anywhere}',
+    '.spt-pe-btn{box-sizing:border-box;min-height:2.75rem;min-width:2.75rem;padding:0 1rem;border:1px solid #cbd5e1;border-radius:.75rem;background:#fff;color:#0f172a;font:inherit;font-weight:700;cursor:pointer}',
+    '.spt-pe-input{box-sizing:border-box;width:100%;min-height:2.75rem;padding:.5rem .7rem;border:1px solid #cbd5e1;border-radius:.6rem;background:#fff;color:#0f172a;font:inherit}',
+    '.spt-pe textarea.spt-pe-input{min-height:5rem;resize:vertical}',
+    '.spt-pe button:focus-visible,.spt-pe input:focus-visible,.spt-pe textarea:focus-visible,.spt-pe select:focus-visible{outline:3px solid #4f46e5;outline-offset:2px}',
+    '.spt-pe-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.25rem}',
+    '.spt-pe-pick{box-sizing:border-box;display:flex;width:100%;min-height:2.75rem;align-items:center;justify-content:space-between;gap:.75rem;padding:.5rem .75rem;border:1px solid #e2e8f0;border-radius:.6rem;background:#fff;color:#0f172a;font:inherit;font-weight:700;text-align:start;cursor:pointer}',
+    '.spt-pe-slug{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.75rem;font-weight:400;color:#64748b;overflow-wrap:anywhere}',
+    '.spt-pe-status{margin:0;font-size:.875rem;color:#475569}',
+    '.spt-pe-status[data-bad="1"]{color:#b91c1c;font-weight:600}',
+    '.spt-pe-body{display:flex;flex-direction:column;gap:.75rem}',
+    '.spt-pe-fig{margin:0;display:flex;flex-direction:column;gap:.35rem}',
+    '.spt-pe-cap{font-size:.75rem;font-weight:700;color:#475569}',
+    '.spt-pe-pic{display:flex;align-items:center;justify-content:center;min-height:12rem;max-height:50vh;border:1px solid #e2e8f0;border-radius:.75rem;background:#f8fafc;overflow:hidden}',
+    '.spt-pe-img{display:block;max-width:100%;max-height:50vh;width:auto;height:auto;object-fit:contain}',
+    '.spt-pe-none{margin:0;padding:1rem;text-align:center;color:#64748b;font-size:.875rem}',
+    '.spt-pe-form{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}',
+    '.spt-pe-field{display:flex;flex-direction:column;gap:.25rem;min-width:0}',
+    '.spt-pe-wide{grid-column:1 / -1}',
+    '.spt-pe-lab{font-size:.75rem;font-weight:700;color:#475569}',
+    '.spt-pe-err{font-size:.75rem;font-weight:600;color:#b91c1c}',
+    '.spt-pe-check{flex-direction:row;align-items:center;gap:.5rem;min-height:2.75rem}',
+    '.spt-pe-check input{width:1.25rem;height:1.25rem}',
+    '.spt-pe-actions{grid-column:1 / -1;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:.5rem}',
+    '.spt-pe-save{box-sizing:border-box;min-height:2.75rem;padding:0 1.25rem;border:0;border-radius:.75rem;background:#4f46e5;color:#fff;font:inherit;font-weight:700;cursor:pointer}',
+    '.spt-pe-save:disabled{opacity:.6;cursor:progress}',
+    '@media (max-width:640px){.spt-pe-form{grid-template-columns:1fr}}'
+  ].join('\n')
+
+  var T = {
+    en: { button: 'Edit product', pickTitle: 'Edit a product', editTitle: 'Edit product', search: 'Search by name or web name', searchLabel: 'Search products',
+      none: 'No product matches.', loading: 'Loading…', readFail: 'Could not read the products. Try again.', close: 'Close', save: 'Save product', saving: 'Saving…',
+      saved: 'Saved. Refresh the Inventory to see the change.', nameEn: 'Name (English)', nameAr: 'Name (Arabic)', price: 'Price (KWD)',
+      sale: 'Sale price (KWD, optional)', category: 'Category', descEn: 'Description (English)', descAr: 'Description (Arabic)', active: 'In the shop',
+      photo: 'Photo', noPhoto: 'No photo file for this product yet. Add one with the photo uploader in the Catalogue.', slug: 'Web name',
+      reqName: 'Enter the English name.', nameLong: 'The name is over 160 characters.', badPrice: 'Enter a price above 0, with at most three decimals.',
+      badSale: 'The sale price must be above 0 and below the price, or empty.', descLong: 'The description is over 280 characters.',
+      catLong: 'The category is over 40 characters.', saveFail: 'The product was not saved', noAnswer: 'the server did not answer',
+      dirty: 'Close without saving your changes?', noChange: 'Nothing has changed.' },
+    ar: { button: 'تعديل منتج', pickTitle: 'تعديل منتج', editTitle: 'تعديل المنتج', search: 'ابحث بالاسم أو الرابط', searchLabel: 'ابحث في المنتجات',
+      none: 'لا يوجد منتج مطابق.', loading: 'جارٍ التحميل…', readFail: 'تعذّرت قراءة المنتجات. حاول مرة أخرى.', close: 'إغلاق', save: 'حفظ المنتج', saving: 'جارٍ الحفظ…',
+      saved: 'تم الحفظ. حدّث صفحة المخزون لرؤية التغيير.', nameEn: 'الاسم (إنجليزي)', nameAr: 'الاسم (عربي)', price: 'السعر (دينار)',
+      sale: 'سعر التخفيض (دينار، اختياري)', category: 'الفئة', descEn: 'الوصف (إنجليزي)', descAr: 'الوصف (عربي)', active: 'معروض في المتجر',
+      photo: 'الصورة', noPhoto: 'لا يوجد ملف صورة لهذا المنتج بعد. أضف صورة من رافع الصور في الكتالوج.', slug: 'الرابط',
+      reqName: 'أدخل الاسم الإنجليزي.', nameLong: 'الاسم أطول من 160 حرفًا.', badPrice: 'أدخل سعرًا أكبر من صفر، بثلاث خانات عشرية كحد أقصى.',
+      badSale: 'سعر التخفيض يجب أن يكون أكبر من صفر وأقل من السعر، أو فارغًا.', descLong: 'الوصف أطول من 280 حرفًا.',
+      catLong: 'الفئة أطول من 40 حرفًا.', saveFail: 'لم يُحفظ المنتج', noAnswer: 'لم يرد الخادم',
+      dirty: 'إغلاق دون حفظ التغييرات؟', noChange: 'لا توجد تغييرات.' }
+  }
+
+  var picker = null, editor = null
+
+  function lang() { return (document.documentElement.getAttribute('lang') || 'en').slice(0, 2).toLowerCase() === 'ar' ? 'ar' : 'en' }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function styleOnce() {
+    if (document.getElementById(STYLE_ID)) return
+    var s = el('style'); s.id = STYLE_ID; s.textContent = CSS; document.head.appendChild(s)
+  }
+  function call(route, body) {
+    var init = { credentials: 'same-origin', method: body ? 'POST' : 'GET', headers: { 'X-Sporta-Admin': '1' } }
+    if (body) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body) }
+    return fetch(API + '?r=' + route, init).then(function (res) {
+      return res.json().then(function (j) { return { ok: res.ok, status: res.status, body: j } }, function () { return { ok: res.ok, status: res.status, body: null } })
+    }, function () { return { ok: false, status: 0, body: null } })
+  }
+  function listProducts() {
+    return call('products_all').then(function (r) { return r.ok && Array.isArray(r.body) ? r.body : null })
+  }
+  /** "12.5" / "12,500" -> "12.500"; null when product_save would refuse it (above 0, at most three decimals). */
+  function money(v) {
+    var s = clean(v).replace(',', '.')
+    if (!/^\d+(\.\d{1,3})?$/.test(s)) return null
+    var n = Number(s)
+    if (!(n > 0) || n > 9999999.999) return null
+    return n.toFixed(3)
+  }
+  function photoUrls(row) {
+    var full = []
+    function add(x) { var s = clean(x); if (s.charAt(0) === '/' && s.charAt(1) !== '/' && full.indexOf(s) < 0) full.push(s) }
+    add(row.image)
+    if (row.images) add(String(row.images).split(',')[0])
+    ;['.jpg', '.jpeg', '.png', '.webp'].forEach(function (ext) { add(DIR + row.slug + ext) })
+    return full
+  }
+  function firstPhoto(urls) {
+    return urls.reduce(function (acc, u) {
+      return acc.then(function (found) {
+        return found || fetch(u, { method: 'HEAD', credentials: 'same-origin' }).then(function (r) { return r.ok ? u : null }, function () { return null })
+      })
+    }, Promise.resolve(null))
+  }
+  function visible(n) { return !!(n && n.getClientRects && n.getClientRects().length) }
+  function focusables(root) {
+    return Array.prototype.slice.call(root.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled])')).filter(visible)
+  }
+  /** One dialog frame: overlay, panel, heading. Escape and Tab are handled here; `close` decides whether it may close. */
+  function frame(titleId, title, close) {
+    styleOnce()
+    var root = el('div', 'spt-pe')
+    var dlg = el('div', 'spt-pe-dlg')
+    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', titleId)
+    var head = el('div', 'spt-pe-head')
+    var h = el('h2', 'spt-pe-title', title); h.id = titleId
+    var x = el('button', 'spt-pe-btn', T[lang()].close); x.type = 'button'
+    head.appendChild(h); head.appendChild(x)
+    dlg.appendChild(head); root.appendChild(dlg); document.body.appendChild(root)
+    x.addEventListener('click', close)
+    root.addEventListener('click', function (e) { if (e.target === root) close() })
+    function onKey(e) {
+      if (!root.isConnected) { document.removeEventListener('keydown', onKey, true); return }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close() }
+      else if (e.key === 'Tab') {
+        var f = focusables(dlg)
+        if (!f.length) return
+        var first = f[0], last = f[f.length - 1]
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+      }
+    }
+    document.addEventListener('keydown', onKey, true)
+    return { root: root, dlg: dlg, x: x }
+  }
+  /** The header button, beside the Inventory screen's own actions (Edit sizes). */
+  function ensureButton() {
+    var have = document.querySelector('[' + BTN + ']')
+    var host = null, acts = document.querySelectorAll('.inventory-heading__actions')
+    for (var i = 0; i < acts.length; i++) if (visible(acts[i])) { host = acts[i]; break }
+    if (!host) { if (have) have.remove(); return }
+    if (have && have.isConnected && have.parentNode === host && have.getAttribute(BTN) === lang()) return
+    if (have) have.remove()
+    styleOnce()
+    var b = el('button', 'spt-pe-open', T[lang()].button); b.type = 'button'; b.setAttribute(BTN, lang())
+    b.addEventListener('click', function () { openPicker(b) })
+    host.appendChild(b)
+  }
+
+  // ------------------------------------------------------------------- the product list
+  function openPicker(opener) {
+    if (picker || editor) return
+    var t = T[lang()]
+    var list = el('ul', 'spt-pe-list'), status = el('p', 'spt-pe-status', t.loading), q = el('input', 'spt-pe-input')
+    var all = null, d = null
+    function done() {
+      if (!picker) return
+      picker = null
+      d.root.remove()
+      if (opener && opener.isConnected) opener.focus()
+    }
+    d = frame('spt-pe-ptitle', t.pickTitle, done)
+    q.type = 'search'; q.placeholder = t.search; q.setAttribute('aria-label', t.searchLabel)
+    d.dlg.appendChild(q); d.dlg.appendChild(status); d.dlg.appendChild(list)
+    picker = { done: done }
+    function draw() {
+      list.textContent = ''
+      if (!all) return
+      var needle = clean(q.value).toLowerCase()
+      var shown = all.filter(function (p) {
+        return !needle || (clean(p.name_en) + ' ' + clean(p.name_ar) + ' ' + clean(p.slug)).toLowerCase().indexOf(needle) >= 0
+      })
+      status.textContent = shown.length ? '' : t.none
+      status.removeAttribute('data-bad')
+      shown.slice(0, 300).forEach(function (p) {
+        var li = el('li'), b = el('button', 'spt-pe-pick')
+        b.type = 'button'
+        b.appendChild(el('span', '', clean(p.name_en) || clean(p.slug)))
+        b.appendChild(el('span', 'spt-pe-slug', clean(p.slug)))
+        b.addEventListener('click', function () { var slug = clean(p.slug); done(); openEditor(slug, opener) })
+        li.appendChild(b); list.appendChild(li)
+      })
+    }
+    q.addEventListener('input', draw)
+    listProducts().then(function (rows) {
+      if (!picker || picker.done !== done) return
+      if (!rows) { status.textContent = t.readFail; status.setAttribute('data-bad', '1'); return }
+      all = rows
+      draw()
+    })
+    q.focus()
+  }
+
+  // ------------------------------------------------------------------- the editor
+  function openEditor(slug, opener) {
+    if (editor || picker) return
+    var t = T[lang()]
+    var body = el('div', 'spt-pe-body', t.loading)
+    var st = { dirty: function () { return false } }
+    function finish() { if (!editor) return; editor = null; f.root.remove(); if (opener && opener.isConnected) opener.focus() }
+    function tryClose() { if (st.dirty() && !window.confirm(t.dirty)) return; finish() }
+    var f = frame('spt-pe-etitle', t.editTitle, tryClose)
+    f.dlg.appendChild(body)
+    editor = { close: finish }
+    listProducts().then(function (rows) {
+      if (!editor) return
+      var row = rows && rows.filter(function (p) { return clean(p.slug) === slug })[0]
+      if (!row) { body.textContent = t.readFail; return }
+      build(body, row, t, st)
+    })
+  }
+  /** The form. `st.dirty` says whether anything differs from what was read. */
+  function build(body, row, t, st) {
+    body.textContent = ''
+    var fig = el('figure', 'spt-pe-fig')
+    fig.appendChild(el('figcaption', 'spt-pe-cap', t.photo))
+    var pic = el('div', 'spt-pe-pic', t.loading)
+    fig.appendChild(pic)
+    body.appendChild(fig)
+    body.appendChild(el('p', 'spt-pe-sub', t.slug + ': ' + clean(row.slug)))
+
+    var form = el('form', 'spt-pe-form'); form.noValidate = true
+    var F = {}
+    function field(key, label, input, wide) {
+      var w = el('label', 'spt-pe-field' + (wide ? ' spt-pe-wide' : ''))
+      w.appendChild(el('span', 'spt-pe-lab', label))
+      w.appendChild(input)
+      var err = el('span', 'spt-pe-err'); err.id = 'spt-pe-err-' + key; err.setAttribute('aria-live', 'polite')
+      input.setAttribute('aria-describedby', err.id)
+      w.appendChild(err)
+      form.appendChild(w)
+      F[key] = { input: input, err: err }
+    }
+    function text(v, max) { var i = el('input', 'spt-pe-input'); i.type = 'text'; i.value = v == null ? '' : String(v); if (max) i.maxLength = max; return i }
+    function area(v) { var a = el('textarea', 'spt-pe-input'); a.rows = 3; a.value = v == null ? '' : String(v); return a }
+    field('name_en', t.nameEn, text(row.name_en, 160))
+    field('name_ar', t.nameAr, text(row.name_ar, 160))
+    var price = text(row.price == null ? '' : String(row.price)); price.inputMode = 'decimal'
+    field('price', t.price, price)
+    var sale = text(row.sale_price ? String(row.sale_price) : ''); sale.inputMode = 'decimal'
+    field('sale', t.sale, sale)
+    field('category', t.category, text(row.category, 40))
+    field('desc_en', t.descEn, area(row.desc_en), true)
+    field('desc_ar', t.descAr, area(row.desc_ar), true)
+    var cb = el('input'); cb.type = 'checkbox'; cb.checked = String(row.active) === '1' || row.active === true
+    field('active', t.active, cb, false)
+    form.lastChild.classList.add('spt-pe-check')
+    var status = el('p', 'spt-pe-status'); status.setAttribute('role', 'status')
+    var save = el('button', 'spt-pe-save', t.save); save.type = 'submit'
+    var actions = el('div', 'spt-pe-actions')
+    actions.appendChild(status); actions.appendChild(save)
+    form.appendChild(actions)
+    body.appendChild(form)
+
+    function values() {
+      var o = {}
+      Object.keys(F).forEach(function (k) { o[k] = k === 'active' ? F[k].input.checked : F[k].input.value })
+      return o
+    }
+    var initial = JSON.stringify(values())
+    st.dirty = function () { return JSON.stringify(values()) !== initial }
+
+    firstPhoto(photoUrls(row)).then(function (url) {
+      if (!pic.isConnected) return
+      pic.textContent = ''
+      if (!url) { pic.appendChild(el('p', 'spt-pe-none', t.noPhoto)); return }
+      var img = el('img', 'spt-pe-img')
+      img.alt = clean(row.name_en) || clean(row.slug)
+      img.src = url
+      pic.appendChild(img)
+      var cap = el('span', 'spt-pe-sub', url)
+      pic.parentNode.insertBefore(cap, pic.nextSibling)
+    })
+
+    function check() {
+      var errs = {}
+      var nameEn = clean(F.name_en.input.value), nameAr = clean(F.name_ar.input.value)
+      if (!nameEn) errs.name_en = t.reqName
+      else if (nameEn.length > 160 || nameAr.length > 160) errs[nameEn.length > 160 ? 'name_en' : 'name_ar'] = t.nameLong
+      var p = money(F.price.input.value)
+      if (!p) errs.price = t.badPrice
+      var sRaw = clean(F.sale.input.value), s = null
+      if (sRaw) { s = money(sRaw); if (!s || (p && Number(s) >= Number(p))) errs.sale = t.badSale }
+      if (String(F.desc_en.input.value).trim().length > 280) errs.desc_en = t.descLong
+      if (String(F.desc_ar.input.value).trim().length > 280) errs.desc_ar = t.descLong
+      if (clean(F.category.input.value).length > 40) errs.category = t.catLong
+      Object.keys(F).forEach(function (k) {
+        F[k].err.textContent = errs[k] || ''
+        F[k].input.setAttribute('aria-invalid', errs[k] ? 'true' : 'false')
+      })
+      if (Object.keys(errs).length) return null
+      return {
+        id: Number(row.id) || 0,
+        slug: clean(row.slug),
+        name_en: nameEn,
+        name_ar: nameAr,
+        desc_en: String(F.desc_en.input.value).trim(),
+        desc_ar: String(F.desc_ar.input.value).trim(),
+        price: p,
+        sale_price: s || '',
+        sale_starts_at: s ? (row.sale_starts_at || '') : '',
+        sale_ends_at: s ? (row.sale_ends_at || '') : '',
+        featured: !!row.featured,
+        featured_sort: Number(row.featured_sort) || 0,
+        brand_slug: row.brand_slug || '',
+        category: clean(F.category.input.value),
+        image: row.image || '',
+        images: row.images || '',
+        active: !!F.active.input.checked
+      }
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault()
+      if (save.disabled) return
+      if (!st.dirty()) { status.textContent = t.noChange; status.removeAttribute('data-bad'); return }
+      var out = check()
+      if (!out) {
+        status.textContent = ''
+        var first = form.querySelector('[aria-invalid="true"]')
+        if (first) first.focus()
+        return
+      }
+      save.disabled = true; status.textContent = t.saving; status.removeAttribute('data-bad')
+      call('product_save', out).then(function (r) {
+        save.disabled = false
+        if (r.ok) {
+          initial = JSON.stringify(values())
+          status.textContent = t.saved
+          return
+        }
+        var code = r.body && r.body.error ? String(r.body.error) : (r.status ? 'HTTP ' + r.status : t.noAnswer)
+        status.textContent = t.saveFail + ' (' + code + ')'
+        status.setAttribute('data-bad', '1')
+      })
+    })
+  }
+
+  // ------------------------------------------------------------------- start
+  var mo = null
+  ensureButton()
+  if (window.MutationObserver) {
+    mo = new MutationObserver(function () { ensureButton() })
+    mo.observe(document.body || document.documentElement, { childList: true, subtree: true })
+  }
+  document.addEventListener('DOMContentLoaded', ensureButton, { once: true })
+  window.addEventListener('popstate', ensureButton)
+  } catch (e) {}
+})()
+/* ===== ADMIN INVENTORY PRODUCT EDITOR - end ============================= */
+
 /* ===== ADMIN FABRIC - begin ==============================================
  * 18. Fabric composition (owner request 2026-11-19: "make fabric selector with percent option").
  *
