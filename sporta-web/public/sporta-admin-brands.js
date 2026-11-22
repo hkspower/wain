@@ -8258,7 +8258,7 @@
       sugUse: 'Use {p} KWD as the price', sugUseNo: 'Use this price', sugApplied: 'Price set to {p} KWD. Check it, then save.',
       descEn: 'Description (English)', descAr: 'Description (Arabic)', counter: '{n} / {m}',
       sizesYes: 'This product has sizes', sizesNo: 'No sizes (one size, stock is not counted)', sizesNoWarn: 'Without sizes the shop does not count stock for this product: it can be ordered with no size and without limit. Right for a cap or a strap, not for clothes.',
-      sizesPick: 'Sizes it comes in', sizeStock: 'Pieces of {s}', custom: 'Other size', add: 'Add', customHint: 'The sizes the shop sells: S M L XL 2XL 3XL 4XL 5XL and ONE (one size).',
+      sizesPick: 'Sizes it comes in', sizeStock: 'Pieces of {s}', sizeSku: 'Item code for {s} (blank = automatic)', skuBad: 'An item code is 1 to 30 letters, digits, dots, dashes or underscores.',custom: 'Other size', add: 'Add', customHint: 'The sizes the shop sells: S M L XL 2XL 3XL 4XL 5XL and ONE (one size).',
       sizesNeedApi: 'This server cannot create sizes yet (it needs the next API release). The product will be saved HIDDEN, and sizes can be added once the release is live.',
       setsLab: 'Quick sets', setClothes: 'Clothes S–2XL', setAll: 'Clothes S–5XL', setOne: 'One size', clearSizes: 'Clear all',
       listLab: 'Several at once', listHint: 'Sizes separated by spaces or commas. A count can follow a colon, for example S:4 M:6 L.', listPlaceholder: 'S:4 M:6 L',
@@ -8328,7 +8328,7 @@
       sugUse: 'استخدم {p} د.ك سعرًا', sugUseNo: 'استخدم هذا السعر', sugApplied: 'تم تعيين السعر {p} د.ك. راجعه ثم احفظ.',
       descEn: 'الوصف (إنجليزي)', descAr: 'الوصف (عربي)', counter: '{n} / {m}',
       sizesYes: 'للمنتج مقاسات', sizesNo: 'بلا مقاسات (مقاس واحد، لا يُحسب المخزون)', sizesNoWarn: 'بلا مقاسات لا يحسب المتجر المخزون لهذا المنتج: يمكن طلبه بلا مقاس وبلا حد. يناسب القبعة أو الحزام، ولا يناسب الملابس.',
-      sizesPick: 'المقاسات المتوفرة', sizeStock: 'عدد القطع من {s}', custom: 'مقاس آخر', add: 'إضافة', customHint: 'المقاسات التي يبيعها المتجر: S M L XL 2XL 3XL 4XL 5XL و ONE (مقاس واحد).',
+      sizesPick: 'المقاسات المتوفرة', sizeStock: 'عدد القطع من {s}', sizeSku: 'رمز الصنف لـ {s} (فارغ = تلقائي)', skuBad: 'رمز الصنف من 1 إلى 30 حرفًا أو رقمًا أو نقطة أو شرطة أو شرطة سفلية.',custom: 'مقاس آخر', add: 'إضافة', customHint: 'المقاسات التي يبيعها المتجر: S M L XL 2XL 3XL 4XL 5XL و ONE (مقاس واحد).',
       sizesNeedApi: 'لا يستطيع هذا الخادم إنشاء المقاسات بعد (يحتاج إصدار الواجهة البرمجية القادم). سيُحفظ المنتج مخفيًا، وتُضاف المقاسات بعد صدور الإصدار.',
       setsLab: 'مجموعات سريعة', setClothes: 'ملابس S–2XL', setAll: 'ملابس S–5XL', setOne: 'مقاس واحد', clearSizes: 'مسح الكل',
       listLab: 'عدة مقاسات معًا', listHint: 'اكتب المقاسات تفصل بينها مسافة أو فاصلة. ويمكن إضافة العدد بعد نقطتين، مثل S:4 M:6 L.', listPlaceholder: 'S:4 M:6 L',
@@ -8694,7 +8694,7 @@
     }
   }
   function sizesBody(v) {
-    return { slug: v.slug, sizes: v.sizes.map(function (s) { return { size: normSize(s.size), stock: whole(s.stock, 999999) } }) }
+    return { slug: v.slug, sizes: v.sizes.map(function (s) { var o = { size: normSize(s.size), stock: whole(s.stock, 999999) }; if (s.sku) o.sku = String(s.sku).trim().toUpperCase(); return o }) }
   }
   /** A fresh run state for one product. `steps` is what the result panel lists. */
   function newCtx() { return { paths: [], id: 0, slug: '', saveSent: false, saved: false, sizesSent: false, sizesDone: false, activated: false, steps: {}, result: '' } }
@@ -8843,6 +8843,7 @@
     '.spn [aria-invalid="true"]{border-color:var(--spn-err)!important}',
     '.spn :is(input,select,textarea,button,summary):focus-visible{outline:2px solid var(--spn-focus);outline-offset:2px}',
     '.spn-num{font-variant-numeric:tabular-nums}',
+    '.spn-sku{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;text-transform:uppercase;min-width:0;flex:1 1 7rem;max-width:11rem}',
     '.spn-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;direction:ltr;text-align:start}',
     '.spn-hint{margin:0;color:var(--spn-muted);font-size:.8125rem}',
     '.spn-sug{display:grid;gap:.75rem;margin:.75rem 0 0;padding:.75rem;border:1px dashed var(--spn-line);border-radius:.875rem}',
@@ -9069,6 +9070,17 @@
           if (boxes[k + 1]) boxes[k + 1].focus()
         })
         r.appendChild(inp)
+        // SKU-INPUT-1122: an optional item code for this size. Blank = the server makes one (the old behaviour).
+        var sk = input('text', 'sku-' + normSize(s.size), { 'aria-label': t('sizeSku', { s: normSize(s.size) }), placeholder: t('sizeSku', { s: normSize(s.size) }), autocomplete: 'off', maxlength: '30' })
+        sk.className = 'spn-sku'; sk.setAttribute('dir', 'ltr'); sk.value = s.sku || ''
+        sk.addEventListener('input', function () {
+          s.sku = sk.value.trim().toUpperCase()
+          var bad = s.sku !== '' && !/^[A-Z0-9][A-Z0-9._-]{0,29}$/.test(s.sku)
+          sk.setAttribute('aria-invalid', bad ? 'true' : 'false')
+          err.textContent = bad ? t('skuBad') : ''
+          onChange()
+        })
+        r.appendChild(sk)
         var rm = el('button', 'spn-btn spn-btn--small', ''); rm.type = 'button'; rm.setAttribute('aria-label', t('remove') + ' ' + normSize(s.size)); rm.appendChild(icon('trash')); rm.addEventListener('click', function () { var at = m.sizes.indexOf(s); if (at >= 0) m.sizes.splice(at, 1); draw(); onChange() })
         r.appendChild(rm); rows.appendChild(r)
       })
@@ -9879,7 +9891,7 @@
     })
     async function go() {
       if (S.busy || !S.slug || !m.sizes.length || known.route === 'no') return
-      var sizes = m.sizes.map(function (s) { return { size: normSize(s.size), stock: whole(s.stock, 999999) } })
+      var sizes = m.sizes.map(function (s) { var o = { size: normSize(s.size), stock: whole(s.stock, 999999) }; if (s.sku) o.sku = String(s.sku).trim().toUpperCase(); return o })
       if (sizes.some(function (s) { return s.stock === null })) { say(t('v_stock'), 'spn-err'); return }
       S.busy = true; save.disabled = true; sel.disabled = true; say(t('szSaving'))
       var slug = S.slug

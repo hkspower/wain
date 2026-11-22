@@ -30,7 +30,7 @@ const api = async (route, opts = {}) => {
 const cleanup = () => sql(
   "delete oi from order_items oi join orders o on o.id = oi.order_id where o.track_id like 'VCT%'; " +
   "delete from fulfilment_outbox where order_id in (select id from orders where track_id like 'VCT%'); delete from orders where track_id like 'VCT%'; " +
-  "delete from inventory_movements where sku like 'VC-TEST%'; delete from product_variants where slug like 'vc-test-%'; delete from products where slug like 'vc-test-%'; " +
+  "delete from inventory_movements where sku like 'VC-TEST%' or sku like 'VC-TYPED%'; delete from product_variants where slug like 'vc-test-%'; delete from products where slug like 'vc-test-%'; " +
   "delete from rate_limit; update admin_users set failed_attempts = 0, locked_until = null")
 await cleanup()
 const signIn = await post('login', { email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' })
@@ -108,6 +108,16 @@ is(a.status === 200 && b.status === 200 && a.body.variants[0].sku !== b.body.var
 { const r = await post('variants_create', { slug: long + 'a', sizes: [{ size: 'one', stock: 1 }, { size: '4xl', stock: 1 }, { size: '5XL', stock: 1 }, { size: 'xxl', stock: 1 }] })
   const got = await sql("select group_concat(size order by size) from product_variants where slug = '" + long + "a'")
   is(r.status === 200 && got === '2XL,4XL,5XL,M,ONE', 'ONE, 4XL, 5XL and xxl (folded to 2XL) are created', `${r.status} ${r.body?.error ?? ''} ${got}`) }
+// SKU-INPUT-1122: an admin can type a size's item code. It is used as typed (upper-cased), a code already taken is refused
+// (sku_taken, nothing written), and a malformed code is refused (invalid_sku, nothing written).
+{ const r = await post('variants_create', { slug: long + 'b', sizes: [{ size: 'L', stock: 2, sku: ' vc-typed-1 ' }] })
+  is(r.status === 200 && r.body?.variants?.[0]?.sku === 'VC-TYPED-1', 'a typed item code is used as typed (trimmed, upper-cased)', `${r.status} ${r.body?.variants?.[0]?.sku ?? r.body?.error}`) }
+{ const r = await post('variants_create', { slug: long + 'b', sizes: [{ size: 'XL', stock: 1, sku: 'VC-TYPED-1' }] })
+  is(r.status === 409 && r.body?.error === 'sku_taken', 'a typed item code already in use is refused 409 sku_taken', `${r.status} ${r.body?.error}`)
+  is((await sql("select count(*) from product_variants where slug = '" + long + "b' and size = 'XL'")) === '0', 'and the size is not written') }
+{ const r = await post('variants_create', { slug: long + 'b', sizes: [{ size: 'S', stock: 1, sku: 'no good!' }] })
+  is(r.status === 400 && r.body?.error === 'invalid_sku', 'a malformed typed item code is refused invalid_sku', `${r.status} ${r.body?.error}`)
+  is((await sql("select count(*) from product_variants where slug = '" + long + "b' and size = 'S'")) === '0', 'and nothing is written') }
 const act = await sql("select count(*) from admin_activity_log where action_key = 'variants_create'")
 is(Number(act) >= 3, 'the successful calls are in the activity log', act)
 await cleanup()

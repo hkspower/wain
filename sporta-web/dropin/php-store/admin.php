@@ -2845,7 +2845,16 @@ if ($r === 'variants_create') {
         if (!in_array($sz, STORE_SIZES, true)) store_fail('invalid_size');
         if (isset($wanted[$sz])) store_fail('duplicate_size');
         $wanted[$sz] = $inventoryInteger($one['stock'] ?? null, 'stock', 0, 999999);
+        // SKU-INPUT-1122: the admin may type this size's item code. Empty / absent = generated below (the old behaviour).
+        // A typed code is kept exactly as typed (trimmed, upper-cased), and must be the same shape a code is everywhere else
+        // (the inventory editor's inventorySku(): letters, digits, dot, dash, underscore; 30 at most) and free.
+        $typed = $one['sku'] ?? '';
+        if ($typed !== null && $typed !== '' && !is_string($typed)) store_fail('invalid_sku');
+        $typed = is_string($typed) ? strtoupper(trim($typed)) : '';
+        if ($typed !== '' && !preg_match('/^[A-Z0-9][A-Z0-9._-]{0,29}$/D', $typed)) store_fail('invalid_sku');
+        $typedSku[$sz] = $typed;
     }
+    $typedSku = $typedSku ?? [];
     $db->beginTransaction();
     try {
         $p = $db->prepare('select slug from products where slug = ? for update');
@@ -2869,7 +2878,16 @@ if ($r === 'variants_create') {
             }
             $stem = strtoupper(trim((string)preg_replace('/[^A-Za-z0-9]+/', '-', $realSlug), '-'));
             $sku = '';
-            for ($n = 1; $n <= 99; $n++) {
+            if (($typedSku[$sz] ?? '') !== '') {
+                // SKU-INPUT-1122: the code the admin typed is used as it is, or the whole request is refused (sku_taken).
+                $skuTaken->execute([$typedSku[$sz]]);
+                if ($skuTaken->fetchColumn()) {
+                    $db->rollBack();
+                    store_fail('sku_taken', 409);
+                }
+                $sku = $typedSku[$sz];
+            }
+            for ($n = 1; $sku === '' && $n <= 99; $n++) {
                 $suffix = $n === 1 ? '' : '-' . $n;
                 $room = 30 - 1 - strlen((string)$sz) - strlen($suffix);
                 $try = rtrim(substr($stem, 0, $room), '-') . $suffix . '-' . $sz;
