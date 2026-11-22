@@ -13953,7 +13953,7 @@
       choose: 'Choose a material', percentLabel: 'Percent', remove: 'Remove', add: 'Add a material', addFull: 'Four materials is the most',
       total: 'Total {n}%', totalBad: 'Total {n}%: the shares must add up to exactly 100', pctBad: 'Each share must be a whole number from 1 to 100.',
       dup: 'Each material can be listed once.', needMat: 'Choose the material for the share you typed.',
-      save: 'Save', clear: 'Clear (no fabric stated)', saving: 'Saving…', saved: 'Saved.', unchanged: 'Nothing to save.',
+      save: 'Save', fill: 'Fill the rest', clear: 'Clear (no fabric stated)', saving: 'Saving…', saved: 'Saved.', unchanged: 'Nothing to save.',
       stated: 'Now: {x}', notStated: 'Not stated',
       e_fabric_unknown_material: 'The shop does not know that material.', e_fabric_duplicate: 'Each material can be listed once.',
       e_fabric_too_many: 'Four materials is the most.', e_fabric_percent_invalid: 'Each share must be a whole number from 1 to 100.',
@@ -13972,7 +13972,7 @@
       choose: 'اختر خامة', percentLabel: 'النسبة', remove: 'إزالة', add: 'إضافة خامة', addFull: 'أربع خامات هو الحد الأقصى',
       total: 'المجموع {n}%', totalBad: 'المجموع {n}%: يجب أن تكون الحصص مجموعها 100 بالضبط', pctBad: 'كل حصة رقم صحيح من 1 إلى 100.',
       dup: 'كل خامة تُذكر مرة واحدة.', needMat: 'اختر الخامة للحصة التي كتبتها.',
-      save: 'حفظ', clear: 'مسح (لا خامة معلنة)', saving: 'جارٍ الحفظ…', saved: 'تم الحفظ.', unchanged: 'لا يوجد ما يُحفظ.',
+      save: 'حفظ', fill: 'املأ الباقي', clear: 'مسح (لا خامة معلنة)', saving: 'جارٍ الحفظ…', saved: 'تم الحفظ.', unchanged: 'لا يوجد ما يُحفظ.',
       stated: 'الآن: {x}', notStated: 'غير معلنة',
       e_fabric_unknown_material: 'المتجر لا يعرف هذه الخامة.', e_fabric_duplicate: 'كل خامة تُذكر مرة واحدة.',
       e_fabric_too_many: 'أربع خامات هو الحد الأقصى.', e_fabric_percent_invalid: 'كل حصة رقم صحيح من 1 إلى 100.',
@@ -14243,10 +14243,11 @@
       S.draft[p.slug] = { on: false, entries: [] }
       save(p)
     })
-    acts.appendChild(add); acts.appendChild(save1); acts.appendChild(clear)
+    var fill = btn('', t('fill'), function () { fillRest(p, d) })
+    acts.appendChild(add); acts.appendChild(save1); acts.appendChild(clear); acts.appendChild(fill)
     card.appendChild(acts)
 
-    S.refs[p.slug] = { card: card, total: total, status: status, save: save1, add: add }
+    S.refs[p.slug] = { card: card, total: total, status: status, save: save1, add: add, fill: fill }
     fillTotal(p, d)
     fillSaveState(p, d)
     setStatus(p.slug, S.statusFor && S.statusFor[p.slug] ? S.statusFor[p.slug].text : '', S.statusFor && S.statusFor[p.slug] ? S.statusFor[p.slug].k : '')
@@ -14301,6 +14302,27 @@
     var c = check(d)
     r.save.disabled = !!S.saving[p.slug] || !c.ok || sameAsSaved(p, c.body)
     r.add.disabled = d.entries.length >= MAX_ENTRIES
+    if (r.fill) r.fill.disabled = !restFor(d)
+  }
+  /** The share that completes the total: it goes on the LAST material row (the one typed last). Null when there is none. */
+  function restFor(d) {
+    if (!d.on) return null
+    var rows = d.entries.filter(function (e) { return e.material })
+    if (!rows.length) return null
+    var last = rows[rows.length - 1], others = 0
+    for (var i = 0; i < rows.length - 1; i++) {
+      var s = digitsOf(rows[i].percent)
+      if (/^[0-9]{1,3}$/.test(s)) others += Number(s)
+    }
+    var rest = 100 - others
+    if (rest < 1 || rest > 100 || digitsOf(last.percent) === String(rest)) return null
+    return { entry: last, value: String(rest) }
+  }
+  function fillRest(p, d) {
+    var f = restFor(d)
+    if (!f) return
+    f.entry.percent = f.value
+    drawProduct(p)
   }
   function setStatus(slug, text, k) {
     S.statusFor = S.statusFor || {}

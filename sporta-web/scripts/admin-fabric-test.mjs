@@ -108,6 +108,7 @@ const pctBox = (page, slug, i) => card(page, slug).locator('input.fab-pct').nth(
 const addBtn = (page, slug) => card(page, slug).locator('.fab-acts button').nth(0)
 const saveBtn = (page, slug) => card(page, slug).locator('.fab-acts button').nth(1)
 const clearBtn = (page, slug) => card(page, slug).locator('.fab-acts button').nth(2)
+const fillBtn = (page, slug) => card(page, slug).locator('.fab-acts button').nth(3)
 const pctSwitch = (page, slug) => card(page, slug).locator('input[type=checkbox]')
 const statusOf = (page, slug) => card(page, slug).locator('.fab-status').textContent()
 const totalOf = (page, slug) => card(page, slug).locator('.fab-total').textContent()
@@ -196,6 +197,12 @@ async function scenarioPercent(browser, block = BLOCK) {
   await pctBox(page, 'tee-a', 1).fill('20')
   is((await totalOf(page, 'tee-a')).indexOf('90') >= 0, 'the total shows 90 while the shares are short', await totalOf(page, 'tee-a'))
   is(await saveBtn(page, 'tee-a').isDisabled(), 'Save is blocked while the shares do not add to 100')
+  is(!(await fillBtn(page, 'tee-a').isDisabled()), '"Fill the rest" is on while the total is short')
+  await fillBtn(page, 'tee-a').click()
+  is((await pctBox(page, 'tee-a', 1).inputValue()) === '30', '"Fill the rest" puts the missing 30 on the last row', await pctBox(page, 'tee-a', 1).inputValue())
+  is((await totalOf(page, 'tee-a')).indexOf('100') >= 0, '"Fill the rest" brings the total to 100')
+  is(await fillBtn(page, 'tee-a').isDisabled(), '"Fill the rest" is off once the total is 100')
+  await pctBox(page, 'tee-a', 1).fill('20')
   await pctBox(page, 'tee-a', 1).fill('30')
   is((await totalOf(page, 'tee-a')).indexOf('100') >= 0, 'the total shows 100 when they do')
   is(!(await saveBtn(page, 'tee-a').isDisabled()), 'Save is on at 100')
@@ -290,6 +297,11 @@ const MUTANTS = [
   {
     name: 'no total rule (shares that do not add to 100 are saved)',
     apply: (s) => s.replace("if (d.on && out.length && sum !== 100) return { ok: false, msg: t('totalBad', { n: sum }), sum: sum, body: null }", 'if (false) return null'),
+    run: (b) => scenarioPercent(browser, b)
+  },
+  {
+    name: 'no fill-the-rest (the action does nothing)',
+    apply: (s) => s.replace('    f.entry.percent = f.value\n', ''),
     run: (b) => scenarioPercent(browser, b)
   },
   {
