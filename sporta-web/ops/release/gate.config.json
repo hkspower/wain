@@ -2862,6 +2862,23 @@
       ]
     },
     {
+      "name": "icon-library",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 120,
+      "minOk": 692,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "scripts/build-iconset.mjs",
+        "scripts/lib/iconset-catalogue.mjs",
+        "scripts/icon-library-test.mjs",
+        "../brand/iconset/**"
+      ],
+      "measuredSec": 2,
+      "note": "new 2026-11-22 (ICON LIBRARY): the whole Sporta icon set (95 glyphs), the catalogue, format, geometry, ink and mutation checks"
+    },
+    {
       "name": "storefront-polish",
       "needs": "browser",
       "parallelSafe": true,
@@ -3465,7 +3482,10 @@
       "measuredSec": 0,
       "quick": true,
       "note": "PHP CLI with its own MariaDB database (sporta_photo_test, created and dropped); the root-only move-failure check is SKIP, not counted",
-      "triggers": []
+      "triggers": [
+        "@php-store",
+        "scripts/photo-library-test.php"
+      ]
     },
     {
       "name": "photo-limits",

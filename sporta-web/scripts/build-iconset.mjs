@@ -19,6 +19,7 @@ import { readFileSync, writeFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { BASE as ADMIN_BASE, REFINE as ADMIN_REFINE } from './lib/admin-iconset-rules.mjs'
+import { CATEGORIES, CATEGORY_OF } from './lib/iconset-catalogue.mjs'
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const SET = join(ROOT, '..', 'brand', 'iconset')
@@ -165,7 +166,9 @@ export const preview = () => {
     const w = where(n)
     return `<li class="card"><div class="row">${[16, 20, 24].map((s) => icon(n, s)).join('')}${big(n)}</div><div class="name">${n}${G[n].directional ? ' <span class="tag">mirrors in RTL</span>' : ''}</div><div class="desc">${G[n].title}</div><div class="use">${w.length ? 'Live: ' + w.join('; ') : 'In the set, not on the live pages captured so far'}</div></li>`
   }
-  const panel = (dir, tone) => `<section class="panel ${tone}" dir="${dir}"><h2>${tone === 'orange' ? 'Burnt orange #E0561C' : tone === 'charcoal' ? 'Charcoal #171A1E on beige' : 'Bright #FF7B17 on charcoal'} · ${dir.toUpperCase()}</h2><ul class="grid">${names.map(card).join('')}</ul></section>`
+  // the groups of the catalogue, in its order; a glyph with no group is shown last under its own heading (the suite fails on it)
+  const groups = [...CATEGORIES, 'Uncategorised'].map((c) => ({ c, items: names.filter((n) => (CATEGORY_OF[n] || 'Uncategorised') === c) })).filter((x) => x.items.length)
+  const panel = (dir, tone) => `<section class="panel ${tone}" dir="${dir}"><h2>${tone === 'orange' ? 'Burnt orange #E0561C' : tone === 'charcoal' ? 'Charcoal #171A1E on beige' : 'Bright #FF7B17 on charcoal'} · ${dir.toUpperCase()}</h2>${groups.map((x) => `<h3 class="cat">${x.c} <span>${x.items.length}</span></h3><ul class="grid">${x.items.map(card).join('')}</ul>`).join('')}</section>`
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -183,11 +186,13 @@ h1{margin:0 0 4px;font-size:28px;letter-spacing:-.01em}
 header p{margin:0;max-width:72ch;color:#4b5058}
 .panel{max-width:1240px;margin:24px auto;padding:20px 16px;border-radius:16px}
 .panel h2{margin:0 0 16px;font-size:15px;letter-spacing:.04em;text-transform:uppercase}
+.cat{margin:24px 0 10px;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+.cat span{font-weight:600;opacity:.6}
 .panel.orange{background:#fff;color:var(--orange)}
 .panel.charcoal{background:var(--beige);color:var(--charcoal)}
 .panel.dark{background:var(--charcoal);color:var(--bright)}
-.panel h2,.panel .desc,.panel .use,.panel .name{color:var(--charcoal)}
-.panel.dark h2,.panel.dark .desc,.panel.dark .use,.panel.dark .name{color:#e8e4dc}
+.panel h2,.panel h3,.panel .desc,.panel .use,.panel .name{color:var(--charcoal)}
+.panel.dark h2,.panel.dark h3,.panel.dark .desc,.panel.dark .use,.panel.dark .name{color:#e8e4dc}
 .grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
 .card{padding:14px;border-radius:12px;background:rgba(127,127,127,.06);border:1px solid rgba(127,127,127,.18)}
 .row{display:flex;align-items:center;gap:14px;min-height:52px}
