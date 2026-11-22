@@ -100,11 +100,11 @@ GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`orders` TO 'sporta_web'@'@@APP_HOST@@'
 GRANT SELECT ON `@@DB@@`.`payment_alerts` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (resolution, resolved_at, resolved_by) ON `@@DB@@`.`payment_alerts` TO 'sporta_web'@'@@APP_HOST@@';
 -- product_variants: written by admin#(top), store#store_stock_claim, store#store_stock_release
-GRANT SELECT, INSERT ON `@@DB@@`.`product_variants` TO 'sporta_web'@'@@APP_HOST@@';
+GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`product_variants` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (inventory_version, low_stock_threshold, slug, stock, unit_cost_kwd) ON `@@DB@@`.`product_variants` TO 'sporta_web'@'@@APP_HOST@@';
 -- products: written by admin#(top)
-GRANT SELECT, INSERT ON `@@DB@@`.`products` TO 'sporta_web'@'@@APP_HOST@@';
-GRANT UPDATE (active, brand_slug, category, desc_ar, desc_en, featured, featured_sort, image, images, name_ar, name_en, price, sale_ends_at, sale_price, sale_starts_at, slug) ON `@@DB@@`.`products` TO 'sporta_web'@'@@APP_HOST@@';
+GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`products` TO 'sporta_web'@'@@APP_HOST@@';
+GRANT UPDATE (active, brand_slug, category, desc_ar, desc_en, fabric, featured, featured_sort, image, images, name_ar, name_en, price, sale_ends_at, sale_price, sale_starts_at, slug) ON `@@DB@@`.`products` TO 'sporta_web'@'@@APP_HOST@@';
 -- rate_limit: written by config-path#sporta_rate_limit_hit, store#store_order_units_take, store#store_rate_limit_clear, store#store_rate_limit_once, store#store_rate_limit_refund
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`rate_limit` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (bucket_key, hits, window_start) ON `@@DB@@`.`rate_limit` TO 'sporta_web'@'@@APP_HOST@@';
@@ -241,11 +241,11 @@ GRANT SELECT, UPDATE ON `@@DB@@`.`orders` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`payment_alerts` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (resolution, resolved_at, resolved_by) ON `@@DB@@`.`payment_alerts` TO 'sporta_admin'@'@@APP_HOST@@';
 -- product_variants: written by admin#(top)
-GRANT SELECT, INSERT ON `@@DB@@`.`product_variants` TO 'sporta_admin'@'@@APP_HOST@@';
+GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`product_variants` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (inventory_version, low_stock_threshold, slug, stock, unit_cost_kwd) ON `@@DB@@`.`product_variants` TO 'sporta_admin'@'@@APP_HOST@@';
 -- products: written by admin#(top)
-GRANT SELECT, INSERT ON `@@DB@@`.`products` TO 'sporta_admin'@'@@APP_HOST@@';
-GRANT UPDATE (active, brand_slug, category, desc_ar, desc_en, featured, featured_sort, image, images, name_ar, name_en, price, sale_ends_at, sale_price, sale_starts_at, slug) ON `@@DB@@`.`products` TO 'sporta_admin'@'@@APP_HOST@@';
+GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`products` TO 'sporta_admin'@'@@APP_HOST@@';
+GRANT UPDATE (active, brand_slug, category, desc_ar, desc_en, fabric, featured, featured_sort, image, images, name_ar, name_en, price, sale_ends_at, sale_price, sale_starts_at, slug) ON `@@DB@@`.`products` TO 'sporta_admin'@'@@APP_HOST@@';
 -- rate_limit: written by config-path#sporta_rate_limit_hit, store#store_rate_limit_clear, store#store_rate_limit_once, store#store_rate_limit_refund
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`rate_limit` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (bucket_key, hits, window_start) ON `@@DB@@`.`rate_limit` TO 'sporta_admin'@'@@APP_HOST@@';

@@ -416,7 +416,7 @@ $activityActions = [
     'google_unlink', 'mfa_cancel', 'mfa_start', 'mfa_confirm', 'crm_save', 'crm_create', 'crm_note',
     'support_update', 'support_reply', 'return_status', 'clear_cache',
     'payment_config', 'fulfilment', 'cod_paid', 'card_settled',
-    'product_image_upload', 'product_save', 'product_active', 'brand_save',
+    'product_image_upload', 'product_save', 'product_active', 'product_delete', 'brand_save',
     // brand_delete was missing, so removing a brand for good — the one brand
     // write that cannot be undone — was the one that left no trace.
     'brand_active', 'brand_delete', 'brand_assign', 'product_fabric_save', 'customer', 'sync', 'inventory_adjust',
@@ -1934,6 +1934,57 @@ if ($r === 'product_active' && $method === 'POST') {
     $row = $q->fetch();
     if (!$row) store_fail('product_not_found');
     store_out($row);
+}
+
+// Remove a product for good, and only when nothing depends on it. The database
+// already refuses the dangerous cases (order_items.product_id and the stock
+// movements' sku are RESTRICT foreign keys). These checks run first so the admin
+// is told WHICH rule applies, and the row lock on the sizes stops a stock change
+// made meanwhile from being deleted unseen. A refusal is 409 and the screen offers
+// "turn it off" (product_active), which hides the product and keeps its history.
+// The sizes go in the same transaction. Photos are files and stay where they are.
+if ($r === 'product_delete' && $method === 'POST') {
+    $b = store_body();
+    $rawId = $b['id'] ?? 0;
+    if (!is_int($rawId) && !(is_string($rawId) && preg_match('/^[0-9]{1,10}$/D', $rawId))) {
+        store_fail('invalid_product_id');
+    }
+    $id = (int)$rawId;
+    if ($id < 1 || $id > 4294967295) store_fail('invalid_product_id');
+    $refuse = static function (PDO $db, string $token): never {
+        if ($db->inTransaction()) $db->rollBack();
+        store_fail($token, 409);
+    };
+    try {
+        $db->beginTransaction();
+        $q = $db->prepare('select id, slug from products where id = ? for update');
+        $q->execute([$id]);
+        $row = $q->fetch();
+        if (!$row) {
+            $db->rollBack();
+            store_fail('product_not_found', 404);
+        }
+        $slug = (string)$row['slug'];
+        $sz = $db->prepare('select count(*) as n, coalesce(sum(stock), 0) as units from product_variants where slug = ? for update');
+        $sz->execute([$slug]);
+        $sizes = $sz->fetch();
+        if ((int)$sizes['units'] > 0) $refuse($db, 'product_has_stock');
+        $ord = $db->prepare('select count(*) from order_items where product_id = ?');
+        $ord->execute([$id]);
+        if ((int)$ord->fetchColumn() > 0) $refuse($db, 'product_in_orders');
+        $hist = $db->prepare('select count(*) from inventory_movements m
+                                join product_variants v on v.sku = m.sku where v.slug = ?');
+        $hist->execute([$slug]);
+        if ((int)$hist->fetchColumn() > 0) $refuse($db, 'product_has_stock_history');
+        $db->prepare('delete from product_variants where slug = ?')->execute([$slug]);
+        $db->prepare('delete from products where id = ?')->execute([$id]);
+        $db->commit();
+    } catch (PDOException $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        if ((string)$e->getCode() === '23000') store_fail('product_in_use', 409);
+        throw $e;
+    }
+    store_out(['id' => $id, 'slug' => $slug, 'deleted' => true, 'sizes_removed' => (int)$sizes['n']]);
 }
 
 // ------------------------------------------------------------------ brands

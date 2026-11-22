@@ -11144,6 +11144,321 @@
 })()
 /* ===== ADMIN PRICE TOOLS - end ============================================== */
 
+/* ===== ADMIN REMOVE PRODUCT - begin =========================================
+ * 18. Remove a product (owner request 2026-11-22: "add remove product backends").
+ *
+ * WHAT THIS ADDS: a "Remove product" button in the Catalogue header, beside the other tools. It opens one list of every product
+ * (the admin's own products_all, switched-off ones included) with a search box. Each row has a Remove button; the second click,
+ * inside the row ("Remove for good" / "Keep it"), is the confirmation, and nothing is sent before it.
+ *
+ * THE RULE IS THE SERVER'S (product_delete in admin.php): a product is removed for good only when nothing depends on it. One that
+ * was ever ordered, has stock on the shelf, or has stock history (counts, receipts, adjustments) is refused with 409. Its row says
+ * why and offers "Turn it off" (product_active false): hidden from the shop, kept in the list, history intact. The sizes go with
+ * the product in the same transaction. Product photos are files and stay where they are.
+ *
+ * No timer or observer of its own beyond one check after a click, a route change or the tab showing again, the same way the
+ * price tools check theirs. Drawn with textContent; no innerHTML.
+ */
+;(function () {
+  'use strict'
+  try {
+  if (window.__sportaRemoveProduct) return
+  try { Object.defineProperty(window, '__sportaRemoveProduct', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+  var API = '/api/admin.php'
+  var BTN = 'data-spt-rm-open'
+  var STYLE_ID = 'spt-rm-style'
+  var CSS = [
+    '.admin-shell .admin-page .spt-rm-open{font:inherit;font-size:.875rem;font-weight:700;line-height:1.25rem;height:2.5rem;padding:0 1rem;border-radius:.5rem;border:1px solid #be123c;background:#fff;color:#9f1239;cursor:pointer;white-space:nowrap;flex-shrink:0}',
+    '.admin-shell .admin-page .spt-rm-open:hover{background:#fff1f2}',
+    '.spt-rm-open:focus-visible,.spt-rm-btn:focus-visible,.spt-rm-x:focus-visible,.spt-rm-search:focus-visible{outline:3px solid #9f1239;outline-offset:2px}',
+    '.spt-rm-root{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(15,23,42,.55);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;color:#1e293b}',
+    '.spt-rm-dlg{box-sizing:border-box;width:min(46rem,100%);max-height:calc(100vh - 2rem);overflow:auto;background:#fff;border-radius:1rem;padding:1.25rem;box-shadow:0 20px 50px rgba(15,23,42,.3)}',
+    '.spt-rm-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}',
+    '.spt-rm-title{margin:0;font-size:1.125rem;font-weight:800;color:#0f172a}',
+    '.spt-rm-x{min-height:2.75rem;min-width:2.75rem;padding:0 .75rem;border:1px solid #cbd5e1;border-radius:.75rem;background:#fff;color:#334155;font:inherit;font-weight:700;cursor:pointer}',
+    '.spt-rm-intro{margin:.75rem 0;color:#475569}',
+    '.spt-rm-search{box-sizing:border-box;width:100%;min-height:2.75rem;padding:.5rem .75rem;border:1px solid #cbd5e1;border-radius:.75rem;background:#fff;color:#0f172a;font:inherit}',
+    '.spt-rm-status{min-height:1.5rem;margin:.5rem 0 0;font-weight:700;color:#166534}',
+    '.spt-rm-status[data-bad]{color:#9f1239}',
+    '.spt-rm-count{margin:.25rem 0 .5rem;color:#64748b;font-size:.8125rem}',
+    '.spt-rm-list{list-style:none;margin:0;padding:0;border-top:1px solid #e2e8f0}',
+    '.spt-rm-row{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:.5rem .75rem;padding:.75rem 0;border-bottom:1px solid #e2e8f0}',
+    '.spt-rm-main{min-width:0;flex:1 1 14rem}',
+    '.spt-rm-name{font-weight:700;color:#0f172a;overflow-wrap:anywhere}',
+    '.spt-rm-sub{display:flex;flex-wrap:wrap;gap:.25rem .75rem;margin-top:.125rem;font-size:.8125rem;color:#64748b}',
+    '.spt-rm-slug{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}',
+    '.spt-rm-state{font-weight:700;color:#64748b}',
+    '.spt-rm-state.spt-rm-on{color:#166534}',
+    '.spt-rm-act{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:.5rem;flex:0 1 auto}',
+    '.spt-rm-btn{min-height:2.75rem;min-width:2.75rem;padding:0 .875rem;border:1px solid #cbd5e1;border-radius:.75rem;background:#fff;color:#0f172a;font:inherit;font-weight:700;cursor:pointer}',
+    '.spt-rm-btn:disabled{opacity:.6;cursor:progress}',
+    '.spt-rm-danger-outline{border-color:#be123c;color:#9f1239}',
+    '.spt-rm-danger{background:#9f1239;border-color:#9f1239;color:#fff}',
+    '.spt-rm-sure{margin:0;flex-basis:100%;font-weight:600;color:#9f1239}',
+    '.spt-rm-why{margin:0;flex-basis:100%;text-align:end;font-size:.8125rem;color:#9f1239}',
+    '.spt-rm-none{padding:1rem 0;color:#64748b}',
+    '@media (max-width:480px){.spt-rm-dlg{padding:1rem}}'
+  ].join('\n')
+  var STR = {
+    en: {
+      open: 'Remove product', title: 'Remove a product', close: 'Close',
+      intro: 'Removing a product deletes it and its sizes for good. A product that was ordered, has stock, or has stock history cannot be removed. Turn it off instead: it stays in this list, hidden from the shop.',
+      searchLabel: 'Search products', search: 'Name or web name',
+      loading: 'Loading the products…', count: '{n} products', none: 'No product matches.',
+      shown: 'In the shop', hidden: 'Hidden from the shop',
+      remove: 'Remove', removeOf: 'Remove {name}', confirm: 'Remove for good', keep: 'Keep it',
+      sure: 'Remove {name} for good? Its sizes go with it. This cannot be undone.',
+      removing: 'Removing…', turnOff: 'Turn it off instead', turning: 'Turning it off…',
+      removed: 'Removed {name}. Its sizes were removed too.', gone: '{name} was already removed.',
+      hiddenNow: '{name} is hidden from the shop.',
+      failedList: 'The product list could not be loaded. Close this and try again.',
+      turnFailed: 'It could not be turned off. Nothing changed.',
+      r_product_in_orders: 'It has been ordered, so it cannot be removed. Turn it off instead.',
+      r_product_has_stock: 'It still has stock on the shelf, so it cannot be removed. Turn it off instead.',
+      r_product_has_stock_history: 'Its stock has been counted, received or adjusted, and that history stays, so it cannot be removed. Turn it off instead.',
+      r_product_in_use: 'It is in use, so it cannot be removed. Turn it off instead.',
+      e_not_signed_in: 'Your sign-in has expired. Sign in again, then try once more.',
+      r_net: 'Could not reach the server. Nothing was removed.',
+      r_other: 'The server refused it ({token}). Nothing was removed.'
+    },
+    ar: {
+      open: 'إزالة منتج', title: 'إزالة منتج', close: 'إغلاق',
+      intro: 'الإزالة تحذف المنتج ومقاساته نهائيًا. المنتج الذي طُلب، أو له مخزون، أو له سجل مخزون، لا يمكن إزالته. أوقفه بدلًا من ذلك، فيبقى في هذه القائمة مخفيًا عن المتجر.',
+      searchLabel: 'ابحث في المنتجات', search: 'الاسم أو اسم الموقع',
+      loading: 'جارٍ تحميل المنتجات…', count: '{n} منتج', none: 'لا يوجد منتج مطابق.',
+      shown: 'ظاهر في المتجر', hidden: 'مخفي عن المتجر',
+      remove: 'إزالة', removeOf: 'إزالة {name}', confirm: 'إزالة نهائيًا', keep: 'إبقاء',
+      sure: 'هل تريد إزالة {name} نهائيًا؟ تُحذف مقاساته معه، ولا يمكن التراجع عن ذلك.',
+      removing: 'جارٍ الإزالة…', turnOff: 'أوقفه بدلًا من ذلك', turning: 'جارٍ الإيقاف…',
+      removed: 'تمت إزالة {name}، وحُذفت مقاساته معه.', gone: 'تمت إزالة {name} من قبل.',
+      hiddenNow: 'أصبح {name} مخفيًا عن المتجر.',
+      failedList: 'تعذّر تحميل قائمة المنتجات. أغلق النافذة وحاول مرة أخرى.',
+      turnFailed: 'تعذّر إيقاف المنتج. لم يتغير شيء.',
+      r_product_in_orders: 'طُلب هذا المنتج، لذلك لا يمكن إزالته. أوقفه بدلًا من ذلك.',
+      r_product_has_stock: 'ما زال فيه مخزون على الرف، لذلك لا يمكن إزالته. أوقفه بدلًا من ذلك.',
+      r_product_has_stock_history: 'سُجّل مخزونه (جرد أو استلام أو تعديل)، وهذا السجل يبقى، لذلك لا يمكن إزالته. أوقفه بدلًا من ذلك.',
+      r_product_in_use: 'المنتج مستخدم الآن، لذلك لا يمكن إزالته. أوقفه بدلًا من ذلك.',
+      e_not_signed_in: 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى ثم حاول مرة أخرى.',
+      r_net: 'تعذّر الوصول إلى الخادم. لم تُحذف أي بيانات.',
+      r_other: 'رفض الخادم الطلب ({token}). لم تُحذف أي بيانات.'
+    }
+  }
+  var S = { lang: 'en', rows: null, q: '', phase: 'idle', focus: null, opener: null }
+  var root = null, onKey = null, changed = false
+
+  function t(key, vars) {
+    var s = (STR[S.lang] || STR.en)[key] || STR.en[key] || key
+    if (vars) for (var x in vars) s = s.split('{' + x + '}').join(String(vars[x]))
+    return s
+  }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function langOf(node) {
+    var n = node
+    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
+    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
+  }
+  function nameOf(row) { return (S.lang === 'ar' ? row.name_ar || row.name_en : row.name_en || row.name_ar) || row.slug }
+  function request(route, init) {
+    var o = { credentials: 'same-origin', headers: { 'X-Sporta-Admin': '1' } }
+    if (init) { o.method = init.method; o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(init.body) }
+    return fetch(API + '?r=' + route, o).then(function (res) {
+      return res.json().then(function (b) { return { status: res.status, body: b } }, function () { return { status: res.status, body: null } })
+    }, function () { return { status: 0, body: null } })
+  }
+  function isSignedOut(res) { return res.status === 401 || (res.body && res.body.error === 'not_signed_in') }
+  function reasonText(res) {
+    var tok = res.body && res.body.error
+    if (isSignedOut(res)) return t('e_not_signed_in')
+    if (res.status === 0) return t('r_net')
+    if (tok && STR.en['r_' + tok]) return t('r_' + tok)
+    return t('r_other', { token: tok || ('HTTP ' + res.status) })
+  }
+  function setStatus(msg, bad) {
+    var n = root && root.querySelector('[data-spt-rm="status"]')
+    if (!n) return
+    n.textContent = msg || ''
+    if (bad) n.setAttribute('data-bad', '1'); else n.removeAttribute('data-bad')
+  }
+  function styleOnce() {
+    if (document.getElementById(STYLE_ID)) return
+    var s = el('style'); s.id = STYLE_ID; s.textContent = CSS; document.head.appendChild(s)
+  }
+  function button(cls, label, id, act, onClick) {
+    var b = el('button', cls, label); b.type = 'button'
+    b.setAttribute('data-spt-rm-id', String(id)); b.setAttribute('data-spt-rm-act', act)
+    if (onClick) b.addEventListener('click', onClick)
+    return b
+  }
+  function visibleRows() {
+    var q = clean(S.q).toLowerCase()
+    return (S.rows || []).filter(function (r) {
+      return !q || (r.name_en + ' ' + r.name_ar + ' ' + r.slug).toLowerCase().indexOf(q) !== -1
+    })
+  }
+  function rowNode(r) {
+    var li = el('li', 'spt-rm-row'); li.setAttribute('data-spt-rm-row', String(r.id))
+    var main = el('div', 'spt-rm-main')
+    main.appendChild(el('div', 'spt-rm-name', nameOf(r)))
+    var sub = el('div', 'spt-rm-sub')
+    sub.appendChild(el('span', 'spt-rm-slug', r.slug))
+    if (r.price) sub.appendChild(el('span', 'spt-rm-price', r.price + ' KWD'))
+    sub.appendChild(el('span', r.listed ? 'spt-rm-state spt-rm-on' : 'spt-rm-state', r.listed ? t('shown') : t('hidden')))
+    main.appendChild(sub)
+    li.appendChild(main)
+    var act = el('div', 'spt-rm-act')
+    if (r.st === 'confirm') {
+      act.appendChild(el('p', 'spt-rm-sure', t('sure', { name: nameOf(r) })))
+      act.appendChild(button('spt-rm-btn', t('keep'), r.id, 'keep', function () { r.st = 'idle'; S.focus = { id: r.id, act: 'remove' }; draw() }))
+      act.appendChild(button('spt-rm-btn spt-rm-danger', t('confirm'), r.id, 'confirm', function () { removeRow(r) }))
+    } else if (r.st === 'busy' || r.st === 'off') {
+      var pending = button('spt-rm-btn', r.st === 'busy' ? t('removing') : t('turning'), r.id, 'pending', null)
+      pending.disabled = true
+      act.appendChild(pending)
+    } else {
+      act.appendChild(button('spt-rm-btn spt-rm-danger-outline', t('remove'), r.id, 'remove', function () {
+        S.rows.forEach(function (x) { if (x.st === 'confirm') x.st = 'idle' })
+        r.st = 'confirm'; S.focus = { id: r.id, act: 'keep' }; draw()
+      }))
+    }
+    if (r.why) act.appendChild(el('p', 'spt-rm-why', r.why))
+    if (r.why && r.active && r.st === 'idle') act.appendChild(button('spt-rm-btn', t('turnOff'), r.id, 'off', function () { turnOff(r) }))
+    li.appendChild(act)
+    return li
+  }
+  function draw() {
+    if (!root) return
+    var list = root.querySelector('[data-spt-rm="list"]'), count = root.querySelector('[data-spt-rm="count"]')
+    if (!list || !count) return
+    list.textContent = ''
+    if (S.phase === 'loading') { count.textContent = t('loading'); return }
+    if (!S.rows) { count.textContent = ''; return }
+    var rows = visibleRows()
+    count.textContent = t('count', { n: rows.length })
+    if (!rows.length) { list.appendChild(el('li', 'spt-rm-none', t('none'))); return }
+    rows.forEach(function (r) { list.appendChild(rowNode(r)) })
+    var f = S.focus; S.focus = null
+    if (f) { var b = list.querySelector('[data-spt-rm-id="' + f.id + '"][data-spt-rm-act="' + f.act + '"]'); if (b) b.focus() }
+  }
+  function loadList() {
+    S.phase = 'loading'; draw()
+    request('products_all').then(function (res) {
+      if (!root) return
+      if (res.status !== 200 || !Array.isArray(res.body)) {
+        S.phase = 'failed'; setStatus(isSignedOut(res) ? t('e_not_signed_in') : t('failedList'), true)
+        root.querySelector('[data-spt-rm="count"]').textContent = ''
+        return
+      }
+      S.rows = res.body.map(function (p) {
+        return { id: Number(p.id), slug: String(p.slug || ''), name_en: clean(p.name_en), name_ar: clean(p.name_ar),
+          price: p.price == null ? '' : String(p.price), active: Number(p.active) === 1, listed: p.listed === true, st: 'idle', why: '' }
+      })
+      S.phase = 'ready'; draw()
+    })
+  }
+  function removeRow(r) {
+    r.st = 'busy'; r.why = ''; setStatus(''); draw()
+    request('product_delete', { method: 'POST', body: { id: r.id } }).then(function (res) {
+      if (!root) return
+      var gone = res.status === 404 || (res.body && res.body.error === 'product_not_found')
+      if ((res.status === 200 && res.body && res.body.deleted === true) || gone) {
+        changed = true
+        S.rows = S.rows.filter(function (x) { return x !== r })
+        setStatus(t(gone ? 'gone' : 'removed', { name: nameOf(r) }))
+        draw(); return
+      }
+      r.st = 'idle'
+      if (res.status === 409 && res.body && res.body.error) { r.why = reasonText(res); setStatus(''); draw(); return }
+      setStatus(reasonText(res), true); draw()
+    })
+  }
+  function turnOff(r) {
+    r.st = 'off'; setStatus(''); draw()
+    request('product_active', { method: 'POST', body: { id: r.id, active: false } }).then(function (res) {
+      if (!root) return
+      if (res.status === 200 && res.body && Number(res.body.active) === 0) {
+        changed = true; r.active = false; r.listed = false; r.why = ''; r.st = 'idle'
+        setStatus(t('hiddenNow', { name: nameOf(r) })); draw(); return
+      }
+      r.st = 'idle'
+      setStatus(isSignedOut(res) ? t('e_not_signed_in') : t('turnFailed'), true); draw()
+    })
+  }
+  function closeDialog() {
+    if (!root) return
+    var reload = changed, opener = S.opener
+    document.removeEventListener('keydown', onKey, true)
+    root.remove(); root = null; onKey = null
+    if (reload) window.location.reload()
+    else if (opener && opener.isConnected) opener.focus()
+  }
+  function openDialog(opener) {
+    if (root) return
+    styleOnce()
+    S.lang = langOf(opener); S.rows = null; S.q = ''; S.phase = 'loading'; S.focus = null; S.opener = opener; changed = false
+    root = el('div', 'spt-rm-root')
+    root.setAttribute('lang', S.lang); root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+    var dlg = el('div', 'spt-rm-dlg')
+    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'spt-rm-title')
+    var head = el('div', 'spt-rm-head')
+    var h = el('h2', 'spt-rm-title', t('title')); h.id = 'spt-rm-title'
+    var x = el('button', 'spt-rm-x', t('close')); x.type = 'button'; x.addEventListener('click', closeDialog)
+    head.appendChild(h); head.appendChild(x); dlg.appendChild(head)
+    dlg.appendChild(el('p', 'spt-rm-intro', t('intro')))
+    var search = el('input', 'spt-rm-search'); search.type = 'search'; search.id = 'spt-rm-q'
+    search.setAttribute('aria-label', t('searchLabel')); search.placeholder = t('search'); search.setAttribute('autocomplete', 'off')
+    search.addEventListener('input', function () { S.q = search.value; draw() })
+    dlg.appendChild(search)
+    var status = el('p', 'spt-rm-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); status.setAttribute('data-spt-rm', 'status')
+    dlg.appendChild(status)
+    var count = el('p', 'spt-rm-count'); count.setAttribute('data-spt-rm', 'count'); dlg.appendChild(count)
+    var list = el('ul', 'spt-rm-list'); list.setAttribute('data-spt-rm', 'list'); dlg.appendChild(list)
+    root.appendChild(dlg); document.body.appendChild(root)
+    onKey = function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); closeDialog(); return }
+      if (e.key !== 'Tab') return
+      var f = Array.prototype.filter.call(dlg.querySelectorAll('button,input'), function (n) { return !n.disabled && n.offsetParent !== null })
+      if (!f.length) return
+      var first = f[0], last = f[f.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey, true)
+    x.focus()
+    loadList()
+  }
+
+  // ------------------------------------------------------------------ the entry in the Catalogue header
+  function catalogueHeading() {
+    var hs = document.querySelectorAll('.admin-page h1')
+    for (var i = 0; i < hs.length; i++) if (clean(hs[i].textContent) === 'Catalogue' && shown(hs[i])) return hs[i]
+    return null
+  }
+  function ensureButton() {
+    var h = catalogueHeading()
+    var have = document.querySelector('[' + BTN + ']')
+    if (!h) { if (have) have.remove(); return }
+    if (have && have.isConnected && have.closest('.admin-page') === h.closest('.admin-page')) return
+    if (have) have.remove()
+    var head = h.closest('.admin-page-header') || h.parentElement
+    if (!head) return
+    var b = el('button', 'spt-rm-open', (STR[langOf(head)] || STR.en).open)
+    b.type = 'button'; b.setAttribute(BTN, '1')
+    b.addEventListener('click', function () { openDialog(b) })
+    styleOnce()
+    head.appendChild(b)
+  }
+  function ensure() { try { ensureButton() } catch (e) { /* a page this block does not know: leave it alone */ } }
+  function soon() { ensure(); setTimeout(ensure, 150) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else soon()
+  } catch (e) {}
+})()
+/* ===== ADMIN REMOVE PRODUCT - end ============================================ */
+
 /* ===== ADMIN GOOGLE SETUP - begin ===========================================
  * 18. Google setup center (owner request 2026-11-18: "make google index and google business profile setup center at backends";
  * the owner chose the guided, read-only version).

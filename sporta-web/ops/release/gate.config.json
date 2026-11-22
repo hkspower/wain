@@ -258,6 +258,7 @@
       "admin-ai-switch",
       "admin-sizes-selector",
       "admin-price-tools",
+      "admin-remove-product",
       "admin-google-setup",
       "admin-invoices",
       "admin-catalogue-pdf",
@@ -3080,6 +3081,35 @@
       "triggers": [
         "@admin-addon",
         "public/sporta-admin-brands.full.js"
+      ]
+    },
+    {
+      "name": "admin-remove-product",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 180,
+      "minOk": 55,
+      "parse": "auto",
+      "measuredSec": 49,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js",
+        "dropin/php-store/admin.php"
+      ]
+    },
+    {
+      "name": "product-delete",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 300,
+      "minOk": 24,
+      "parse": "auto",
+      "measuredSec": 3,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "ops/db/grants.sql"
       ]
     },
     {
