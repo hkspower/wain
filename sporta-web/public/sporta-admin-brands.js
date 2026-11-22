@@ -22391,3 +22391,98 @@
   } catch (e) { /* the page works without the rule */ }
 })()
 /* ===== ADMIN HIDE EMAIL HINT 1120 - end ===== */
+
+/* ===== ADMIN OVERVIEW CARDS AR - begin ==================================
+ * 21. The Overview screen's cards in Arabic (owner request 2026-11-22: "make cards setup ar backends").
+ *
+ * WHAT THIS ADDS: when the admin page is Arabic (<html lang="ar">), the words on the Overview screen's
+ * cards are shown in Arabic: the four figure cards (Revenue (paid), Today, Last 7 days, Awaiting shipment),
+ * the five small cards (Pending, Cash to collect, Needs review, Failed, Products live), their short notes
+ * ("3 orders", "2 paid today", "paid, not yet sent") and the screen's title and line. Numbers, money and
+ * the page's data are NOT changed. Switching the page back to English puts the English words back.
+ *
+ * Only exact known words are translated. Anything else on the screen (a chart, a notice, a table) is left
+ * as it is. Each changed element keeps its English text in data-spt-ov-en, so a revert is exact.
+ * Drawn with textContent only; no innerHTML. One MutationObserver, drawn once per frame, that does nothing
+ * when the Overview is not on the screen.
+ */
+;(function () {
+  'use strict'
+  try {
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaOvAr) return
+  try { Object.defineProperty(window, '__sportaOvAr', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var MAP = {
+    'Overview': 'نظرة عامة',
+    'Live figures from the orders table.': 'أرقام حيّة من جدول الطلبات.',
+    'Revenue (paid)': 'الإيراد (المدفوع)',
+    'Today': 'اليوم',
+    'Last 7 days': 'آخر 7 أيام',
+    'Awaiting shipment': 'بانتظار الشحن',
+    'paid, not yet sent': 'مدفوع، لم يُرسل بعد',
+    'Pending': 'قيد الانتظار',
+    'Cash to collect': 'نقد للتحصيل',
+    'Needs review': 'يحتاج مراجعة',
+    'Failed': 'فشلت',
+    'Products live': 'منتجات معروضة'
+  }
+  var RX = [
+    [/^(\d+) orders$/, '$1 طلب'],
+    [/^(\d+) paid today$/, '$1 مدفوع اليوم'],
+    [/^(\d+) paid$/, '$1 مدفوع']
+  ]
+  var ATTR = 'data-spt-ov-en'
+  var scheduled = false
+
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function arabic(s) {
+    if (Object.prototype.hasOwnProperty.call(MAP, s)) return MAP[s]
+    for (var i = 0; i < RX.length; i++) if (RX[i][0].test(s)) return s.replace(RX[i][0], RX[i][1])
+    return null
+  }
+  /** The Overview screen: the admin page whose title is "Overview". Null on every other screen. */
+  function overviewRoot() {
+    var hs = document.querySelectorAll('h1')
+    for (var i = 0; i < hs.length; i++) {
+      // The title is Arabic while the block has translated it, so match its English text kept in the attribute too.
+      var t = clean(hs[i].textContent)
+      if (t === 'Overview' || t === MAP['Overview'] || hs[i].hasAttribute(ATTR)) return hs[i].closest('.admin-page') || hs[i].parentElement
+    }
+    return null
+  }
+  function apply() {
+    scheduled = false
+    var root = overviewRoot()
+    if (!root) return
+    var wantAr = (document.documentElement.getAttribute('lang') || '').slice(0, 2).toLowerCase() === 'ar'
+    var nodes = root.querySelectorAll('h1,h2,p,span,div,label,strong,small,b')
+    for (var i = 0; i < nodes.length; i++) {
+      var e = nodes[i]
+      if (e.children.length) continue
+      if (wantAr) {
+        if (e.hasAttribute(ATTR)) continue
+        var en = clean(e.textContent)
+        var t = arabic(en)
+        if (!t) continue
+        e.setAttribute(ATTR, en)
+        e.textContent = t
+      } else if (e.hasAttribute(ATTR)) {
+        e.textContent = e.getAttribute(ATTR)
+        e.removeAttribute(ATTR)
+      }
+    }
+  }
+  function schedule() {
+    if (scheduled) return
+    scheduled = true
+    ;(window.requestAnimationFrame || setTimeout)(function () { try { apply() } catch (e) { /* leave the page as it is */ } })
+  }
+  if (window.MutationObserver) {
+    new MutationObserver(schedule).observe(document.body || document.documentElement, { childList: true, subtree: true, characterData: true })
+  }
+  document.addEventListener('DOMContentLoaded', schedule, { once: true })
+  schedule()
+  } catch (e) {}
+})()
+/* ===== ADMIN OVERVIEW CARDS AR - end ===================================== */
