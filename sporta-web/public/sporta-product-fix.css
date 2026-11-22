@@ -1122,3 +1122,11 @@ html[data-sporta-route="product"] .boot-hero { display: none !important; }
 }
 /* ==== end PRODUCT UX 1120 */
 
+
+/* ==== CENTRE 1120 (product page: no breadcrumb, centred title) ================================================
+ * Owner, 2026-11-22: "make center product page and remove breadcrumb". The breadcrumb is the page's own <nav> (ProductDetail.jsx,
+ * aria-label from t.a11y.breadcrumb): hidden on the product route only, so the shop and every other page keep theirs. The
+ * product title is centred. The rest of the page keeps the build's own layout; its gallery is already centred in its column. */
+html[data-sporta-route="product"] .storefront-root main nav[aria-label="Breadcrumb"],
+html[data-sporta-route="product"] .storefront-root main nav[aria-label="مسار التنقل"] { display: none !important; }
+html[data-sporta-route="product"] .storefront-root main h1 { text-align: center; }
