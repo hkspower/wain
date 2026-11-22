@@ -98,8 +98,10 @@ head('5. observers and listeners are created once')
 {
   const mo = [...BR.matchAll(/new MutationObserver/g)].length
   // 15 since the ADMIN PASSCODE block (61e060c5): its one observer finds the sign-in form and the Settings heading the way the
-  // other blocks do, debounced to one frame. Any further observer must raise this bound on purpose, with a reason.
-  is(mo <= 15, `MutationObserver count did not grow (${mo}; the bound was 14 before the ADMIN PASSCODE block, which adds one)`)
+  // other blocks do, debounced to one frame. 16 since the ADMIN INVENTORY PHOTOS block: one observer on the page draws the Inventory
+  // photos again when React draws the rows again; a row that has its photo is left alone, so it does nothing once every row has one.
+  // Any further observer must raise this bound on purpose, with a reason.
+  is(mo <= 16, `MutationObserver count did not grow (${mo}; the bound was 15 before the ADMIN INVENTORY PHOTOS block, which adds one)`)
   // every observer is created in a start() / boot() / one-time position, never inside a click or input handler
   const inHandler = lines(BR, /addEventListener\('(click|input|change|keydown)'.*new MutationObserver/)
   is(inHandler.length === 0, 'no observer is created inside an event handler')

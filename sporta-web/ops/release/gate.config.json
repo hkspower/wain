@@ -266,6 +266,7 @@
       "admin-hidden-products",
       "admin-hide-email-hint",
       "admin-inventory-editor",
+      "admin-inventory-photos",
       "admin-fabric",
       "admin-catalogue-settings"
     ],
@@ -3096,6 +3097,20 @@
         "@admin-addon",
         "public/sporta-admin-brands.full.js",
         "dropin/php-store/admin.php"
+      ]
+    },
+    {
+      "name": "admin-inventory-photos",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 240,
+      "minOk": 28,
+      "parse": "auto",
+      "measuredSec": 30,
+      "quick": false,
+      "triggers": [
+        "@admin-addon",
+        "public/sporta-admin-brands.full.js"
       ]
     },
     {

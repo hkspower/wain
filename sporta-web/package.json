@@ -256,6 +256,7 @@
     "test:admin-sizes-selector": "node scripts/admin-sizes-selector-test.mjs",
     "test:admin-price-tools": "node scripts/admin-price-tools-test.mjs",
     "test:admin-remove-product": "node scripts/admin-remove-product-test.mjs",
+    "test:admin-inventory-photos": "node scripts/admin-inventory-photos-test.mjs",
     "test:product-delete": "node scripts/product-delete-test.mjs",
     "test:prices-1118": "node scripts/prices-1118-test.mjs",
     "test:admin-google-setup": "node scripts/admin-google-setup-test.mjs",

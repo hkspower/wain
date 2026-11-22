@@ -13302,6 +13302,239 @@
 })()
 /* ===== ADMIN INVENTORY EDITOR - end ===================================== */
 
+/* ===== ADMIN INVENTORY PHOTOS - begin =======================================
+ * 19. Product photos in the Inventory screen (owner request 2026-11-22: "add product image preview for invetory").
+ *
+ * WHAT THIS ADDS: a 44 px photo in front of the product name in every row of the Inventory table, and on every card of the
+ * phone list under it. Tapping or clicking a photo opens it larger, with the product's name and web name; Escape or Close gives
+ * the focus back to the photo. A product with no photo file shows a grey "No photo" square, and its preview says so.
+ *
+ * WHERE THE PHOTO COMES FROM: the files the shop serves, nothing else. The row's item code (SKU) is matched to its product by the
+ * admin's own stock list (admin.php?r=variants). The product's photo is its products.image, else its first products.images, else
+ * <slug>.jpg|jpeg|png|webp under /images/products/ (admin.php?r=products_all). A row uses the small copy the server made when
+ * responsive/variants.txt lists one (responsive/<stem>-320.webp); the preview always uses the full file. Each file is checked with
+ * a HEAD request once per product, and a photo loads only when its row scrolls into view. Nothing is written, and no photo is
+ * re-encoded or resized in the browser.
+ *
+ * NO TIMER. One MutationObserver draws the photos again when React draws the rows again (a refresh, a size added, a tab change).
+ * The work is idempotent: a row that has its photo is left alone, so once every row has one the observer does nothing. The two
+ * lists are read when the table first shows, again when a SKU is not in them (at most every 30 seconds), and again every two
+ * minutes. Drawn with DOM calls and textContent only; no innerHTML.
+ */
+;(function () {
+  'use strict'
+  try {
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaInvPhotos) return
+  try { Object.defineProperty(window, '__sportaInvPhotos', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php', DIR = '/images/products/', LIST = DIR + 'responsive/variants.txt'
+  var REFRESH_MS = 120000, RETRY_MS = 30000
+  var STYLE_ID = 'spt-ip-style'
+  var CSS = [
+    '.admin-shell .admin-page .spt-ip{box-sizing:border-box;display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;width:2.75rem;height:2.75rem;min-height:2.75rem;min-width:2.75rem;margin-inline-end:.625rem;padding:0;border:0;background:none;border-radius:.5rem;vertical-align:middle;cursor:zoom-in}',
+    '.spt-ip:focus-visible,.spt-ipv-close:focus-visible{outline:3px solid #4f46e5;outline-offset:2px}',
+    '.spt-ip-box{box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;height:100%;overflow:hidden;border:1px solid #e2e8f0;border-radius:.5rem;background:#f8fafc}',
+    '.spt-ip-box img{display:block;width:100%;height:100%;object-fit:cover}',
+    '.spt-ip-none{padding:0 .125rem;font-size:.5625rem;font-weight:700;line-height:1.1;text-align:center;color:#64748b}',
+    '.spt-ipv{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(15,23,42,.72);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:#0f172a}',
+    '.spt-ipv-dlg{box-sizing:border-box;display:flex;flex-direction:column;gap:.75rem;width:min(52rem,100%);max-height:calc(100vh - 2rem);overflow:auto;padding:1rem;border-radius:1rem;background:#fff;box-shadow:0 20px 50px rgba(15,23,42,.35)}',
+    '.spt-ipv-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}',
+    '.spt-ipv-title{margin:0;font-size:1rem;font-weight:800;overflow-wrap:anywhere}',
+    '.spt-ipv-sub{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8125rem;color:#64748b;overflow-wrap:anywhere}',
+    '.spt-ipv-img{display:block;max-width:100%;max-height:70vh;margin:0 auto;object-fit:contain}',
+    '.spt-ipv-none{padding:3rem 1rem;border-radius:.75rem;background:#f8fafc;text-align:center;color:#64748b}',
+    '.spt-ipv-close{min-height:2.75rem;min-width:2.75rem;padding:0 1rem;border:1px solid #cbd5e1;border-radius:.75rem;background:#fff;color:#0f172a;font:inherit;font-weight:700;cursor:pointer}'
+  ].join('\n')
+
+  var maps = null, loading = null, loadedAt = 0, lastTry = 0, cache = {}, preview = null
+  var mo = null
+
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function styleOnce() {
+    if (document.getElementById(STYLE_ID)) return
+    var s = el('style'); s.id = STYLE_ID; s.textContent = CSS; document.head.appendChild(s)
+  }
+  function request(route) {
+    return fetch(API + '?r=' + route, { credentials: 'same-origin', headers: { 'X-Sporta-Admin': '1' } })
+      .then(function (res) { return res.ok ? res.json() : null }, function () { return null })
+      .catch(function () { return null })
+  }
+  function loadMaps() {
+    return Promise.all([request('variants'), request('products_all'),
+      fetch(LIST, { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.text() : '' }, function () { return '' })])
+      .then(function (all) {
+        var v = all[0], p = all[1]
+        if (!v || !Array.isArray(v.rows) || !Array.isArray(p)) return false
+        var bySku = {}, prod = {}, small = {}
+        v.rows.forEach(function (r) { if (r && r.sku) bySku[String(r.sku)] = { slug: String(r.slug || ''), name: clean(r.name_en) || String(r.slug || '') } })
+        p.forEach(function (x) { if (x && x.slug) prod[String(x.slug)] = { image: x.image, images: x.images } })
+        String(all[2] || '').split(/\r?\n/).forEach(function (l) {
+          var x = /^([A-Za-z0-9][A-Za-z0-9._-]*)\s+([\d,]+)\s*$/.exec(l)
+          if (x && /\b320\b/.test(x[2])) small[x[1]] = true
+        })
+        maps = { bySku: bySku, prod: prod, small: small }
+        cache = {}
+        loadedAt = Date.now()
+        return true
+      })
+  }
+  function reload() {
+    if (loading || Date.now() - lastTry < RETRY_MS) return
+    lastTry = Date.now()
+    loading = loadMaps().then(function (ok) { loading = null; if (ok) run() }, function () { loading = null })
+  }
+  function headOk(url) {
+    return fetch(url, { method: 'HEAD', credentials: 'same-origin' }).then(function (r) { return r.ok }, function () { return false })
+  }
+  function firstOk(urls) {
+    return urls.reduce(function (acc, u) {
+      return acc.then(function (found) { return found || headOk(u).then(function (ok) { return ok ? u : null }) })
+    }, Promise.resolve(null))
+  }
+  /** The candidate files of one product: the small copies first (where listed), then the full files. */
+  function candidates(slug) {
+    var p = maps.prod[slug] || {}, full = [], small = []
+    function add(x) { var s = String(x == null ? '' : x).trim(); if (s.charAt(0) === '/' && s.charAt(1) !== '/' && full.indexOf(s) < 0) full.push(s) }
+    add(p.image)
+    if (p.images) add(String(p.images).split(',')[0])
+    ;['.jpg', '.jpeg', '.png', '.webp'].forEach(function (ext) { add(DIR + slug + ext) })
+    full.forEach(function (u) {
+      var m = /^\/images\/products\/([A-Za-z0-9][A-Za-z0-9._-]*)\.(?:jpe?g|png|webp)$/i.exec(u)
+      if (m && maps.small[m[1]]) small.push(DIR + 'responsive/' + m[1] + '-320.webp')
+    })
+    return { full: full, small: small }
+  }
+  function photoOf(slug) {
+    if (!cache[slug]) {
+      var c = candidates(slug)
+      cache[slug] = { small: firstOk(c.small.concat(c.full)), full: firstOk(c.full) }
+    }
+    return cache[slug]
+  }
+  function thumb(slug, name) {
+    var b = el('button', 'spt-ip')
+    b.type = 'button'
+    b.setAttribute('data-spt-ip', slug)
+    b.setAttribute('aria-label', 'Preview photo of ' + name)
+    var box = el('span', 'spt-ip-box')
+    b.appendChild(box)
+    b.addEventListener('click', function () { openPreview(slug, name, b) })
+    photoOf(slug).small.then(function (url) {
+      if (!b.isConnected) return
+      box.textContent = ''
+      if (!url) { box.appendChild(el('span', 'spt-ip-none', 'No photo')); return }
+      var img = el('img')
+      img.alt = ''
+      img.width = 44
+      img.height = 44
+      img.decoding = 'async'
+      img.loading = 'lazy'
+      img.src = url
+      box.appendChild(img)
+    })
+    return b
+  }
+  function openPreview(slug, name, opener) {
+    if (preview) return
+    styleOnce()
+    var root = el('div', 'spt-ipv')
+    var dlg = el('div', 'spt-ipv-dlg')
+    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'spt-ipv-title')
+    var head = el('div', 'spt-ipv-head')
+    var title = el('h2', 'spt-ipv-title', name); title.id = 'spt-ipv-title'
+    var close = el('button', 'spt-ipv-close', 'Close'); close.type = 'button'
+    head.appendChild(title); head.appendChild(close)
+    dlg.appendChild(head)
+    dlg.appendChild(el('p', 'spt-ipv-sub', slug))
+    var body = el('div', 'spt-ipv-body', 'Loading the photo…')
+    dlg.appendChild(body)
+    root.appendChild(dlg)
+    document.body.appendChild(root)
+    function done() {
+      if (!preview) return
+      document.removeEventListener('keydown', onKey, true)
+      root.remove()
+      preview = null
+      if (opener && opener.isConnected) opener.focus()
+    }
+    function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); done() } else if (e.key === 'Tab') { e.preventDefault(); close.focus() } }
+    preview = { done: done }
+    document.addEventListener('keydown', onKey, true)
+    root.addEventListener('click', function (e) { if (e.target === root) done() })
+    close.addEventListener('click', done)
+    close.focus()
+    photoOf(slug).full.then(function (url) {
+      if (!preview) return
+      body.textContent = ''
+      if (!url) { body.className = 'spt-ipv-none'; body.textContent = 'No photo file for this product yet.'; return }
+      var img = el('img', 'spt-ipv-img')
+      img.alt = name
+      img.src = url
+      body.appendChild(img)
+    })
+  }
+  /** The Inventory table (its header reads Product, Size, Item code, Stock ...) and the phone list drawn right after it. */
+  function findInventory() {
+    var tables = document.querySelectorAll('table')
+    for (var i = 0; i < tables.length; i++) {
+      var heads = tables[i].querySelectorAll('thead th')
+      if (heads.length < 7) continue
+      var names = []
+      for (var j = 0; j < heads.length; j++) names.push(clean(heads[j].textContent).toLowerCase())
+      var sku = names.indexOf('item code')
+      if (names[0] !== 'product' || names[1] !== 'size' || sku < 0 || names.indexOf('stock') < 0) continue
+      var next = tables[i].nextElementSibling
+      return { table: tables[i], sku: sku, list: next && next.classList && next.classList.contains('m-list') ? next : null }
+    }
+    return null
+  }
+  function decorate() {
+    var inv = findInventory()
+    if (!inv) return
+    if (!maps || Date.now() - loadedAt > REFRESH_MS) reload()
+    if (!maps) return
+    var slots = []
+    var trs = inv.table.querySelectorAll('tbody tr')
+    for (var i = 0; i < trs.length; i++) {
+      var cells = trs[i].children
+      if (!cells || cells.length < 7) continue
+      slots.push({ sku: clean(cells[inv.sku].textContent), cell: cells[0], before: cells[0].firstChild })
+    }
+    if (inv.list) {
+      var cards = inv.list.querySelectorAll('.m-row')
+      for (var k = 0; k < cards.length; k++) {
+        var mono = cards[k].querySelector('.font-mono'), title = cards[k].querySelector('.m-row__title')
+        if (!mono || !title) continue
+        slots.push({ sku: clean(mono.textContent), cell: title.parentNode, before: title })
+      }
+    }
+    var unknown = false
+    for (var s = 0; s < slots.length; s++) {
+      var slot = slots[s]
+      var v = maps.bySku[slot.sku]
+      if (!v) { unknown = true; continue }
+      if (!v.slug || slot.cell.querySelector('[data-spt-ip]')) continue
+      styleOnce()
+      slot.cell.insertBefore(thumb(v.slug, v.name), slot.before)
+    }
+    if (unknown) reload()
+  }
+  function run() { try { decorate() } catch (e) { /* leave the page as it is */ } }
+
+  if (window.MutationObserver) {
+    mo = new MutationObserver(run)
+    mo.observe(document.body || document.documentElement, { childList: true, subtree: true })
+  }
+  run()
+  document.addEventListener('DOMContentLoaded', run, { once: true })
+  window.addEventListener('popstate', run)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) run() })
+  } catch (e) {}
+})()
+/* ===== ADMIN INVENTORY PHOTOS - end ========================================= */
+
 /* ===== ADMIN FABRIC - begin ==============================================
  * 18. Fabric composition (owner request 2026-11-19: "make fabric selector with percent option").
  *
