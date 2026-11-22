@@ -131,9 +131,15 @@ function photo_rename(PDO $db, string $dir, mixed $from, mixed $to): array
                ->execute([$newImage, $newImages, (int)$row['id']]);
             $changed++;
         }
-        // The file moves only after the database has taken the change, and the change is undone if the file will not move.
+        // The file moves, then the database commits. If the commit fails AFTER the move, the file is moved back, so no
+        // product is left pointing at a name that is not on disk. If the move itself fails, nothing has changed.
         if (!@rename($dir . '/' . $from, $dir . '/' . $to)) throw new RuntimeException('photo_rename_failed');
-        $db->commit();
+        try {
+            $db->commit();
+        } catch (Throwable $commitError) {
+            @rename($dir . '/' . $to, $dir . '/' . $from);
+            throw new RuntimeException('photo_rename_failed');
+        }
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
         if ($e instanceof RuntimeException) throw $e;
