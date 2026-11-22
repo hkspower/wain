@@ -1130,3 +1130,24 @@ html[data-sporta-route="product"] .boot-hero { display: none !important; }
 html[data-sporta-route="product"] .storefront-root main nav[aria-label="Breadcrumb"],
 html[data-sporta-route="product"] .storefront-root main nav[aria-label="مسار التنقل"] { display: none !important; }
 html[data-sporta-route="product"] .storefront-root main h1 { text-align: center; }
+
+/* ===== SHARE 1122 (2026-11-22, owner: "improve share button setup backend", "add black background") =====
+ * The Share button of the product page's action row is a black pill with white ink (the icon is currentColor), so it reads as
+ * the primary action beside the WhatsApp question. The owner's Share setting (settings.site_content.share, edited in /backends)
+ * can hide it: sporta-features.js sets data-sporta-share="off" on <html>, and the button is then not drawn. Nothing else moves.
+ * The dark theme keeps it black with a faint white ring so it stays visible on the dark card. */
+:root .sporta-pact__btn[data-sporta-pact="share"] {
+  background-color: #000;
+  border-color: #000;
+  color: #fff;
+}
+@media (hover: hover) {
+  :root .sporta-pact__btn[data-sporta-pact="share"]:hover { background-color: #1c1c1c; border-color: #1c1c1c; }
+}
+:root .sporta-pact__btn[data-sporta-pact="share"]:active { background-color: #2a2a2a; border-color: #2a2a2a; }
+:root[data-theme="dark"] .sporta-pact__btn[data-sporta-pact="share"] {
+  background-color: #000;
+  border-color: rgba(255, 255, 255, .24);
+  color: #fff;
+}
+:root[data-sporta-share="off"] .sporta-pact__btn[data-sporta-pact="share"] { display: none !important; }

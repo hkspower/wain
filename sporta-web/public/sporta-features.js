@@ -1781,6 +1781,10 @@
     out.contact.address_en = squash(str(c.address_en, 200))
     out.contact.address_ar = squash(str(c.address_ar, 200))
     for (var k in SOCIAL) out.contact[k] = SOCIAL[k].ok.test(str(c[k], 120)) ? c[k] : ''
+    // The product page's Share button: shown or not, and the words it shares (a price is never shared: dropped here too).
+    var sh = j.share && typeof j.share === 'object' ? j.share : {}
+    var shEn = squash(str(sh.text_en, 200)), shAr = squash(str(sh.text_ar, 200))
+    out.share = { enabled: sh.enabled !== false, text_en: hasPrice(shEn) ? '' : shEn, text_ar: hasPrice(shAr) ? '' : shAr }
     var r = j.returns && typeof j.returns === 'object' ? j.returns : {}
     var pts = function (a) {
       var o = []
@@ -1851,11 +1855,21 @@
   }
   function writeCache(v) { try { localStorage.setItem(KEY, JSON.stringify(v)) } catch (e) { /* this visit only */ } }
 
+  /** The Share button's setting from the owner's content: shown or hidden (an attribute on <html>), and the words it shares. */
+  function applyShare(l) {
+    var sh = content && content.share
+    var root = document.documentElement
+    if (!sh) { root.removeAttribute('data-sporta-share'); window.__sportaShareText = ''; return }
+    root.setAttribute('data-sporta-share', sh.enabled ? 'on' : 'off')
+    window.__sportaShareText = l === 'ar' ? sh.text_ar : sh.text_en
+  }
+
   /** Work out what applies to the page and language on screen. */
   function resolve() {
     var p = path(), l = lang()
     seenPath = p; seenLang = l
     dict = null; contact = null
+    applyShare(l)
     if (!content || BLOCKED.test(p)) return
     var key = pageKey(p), d = {}, n = 0, pass, i, o
     // '*' first, then the page's own rules over them
@@ -3150,7 +3164,7 @@
       try {
         var t = COPY[S.lang]
         if (S.can) {
-          var r = navigator.share({ title: S.name, text: S.name, url: S.url })
+          var r = navigator.share({ title: S.name, text: window.__sportaShareText || S.name, url: S.url })
           if (r && typeof r.catch === 'function') r.catch(function () {})   // a closed sheet is not an error worth showing
           return
         }

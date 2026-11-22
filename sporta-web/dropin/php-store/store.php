@@ -2444,7 +2444,36 @@ function store_site_content(PDO $db): array {
         $contact[$key] = is_string($value) ? mb_substr($value, 0, 300) : '';
     }
     $v = $raw['v'] ?? 0;
-    return ['v' => is_int($v) && $v > 0 ? $v : 0, 'overrides' => $overrides, 'contact' => $contact];
+    return ['v' => is_int($v) && $v > 0 ? $v : 0, 'overrides' => $overrides, 'contact' => $contact, 'share' => store_content_share_read($raw['share'] ?? null)];
+}
+
+// The product page's Share button (owner setting, 2026-11-22): shown or hidden, and the words it shares in each
+// language. Plain text, no price (the same rule as the text rules), at most 200 characters. An empty text means the
+// product's own name is shared, as before.
+function store_content_share_read(mixed $raw): array {
+    $sh = is_array($raw) ? $raw : [];
+    $text = static fn ($v) => is_string($v) ? mb_substr($v, 0, 200) : '';
+    $en = $text($sh['text_en'] ?? null);
+    $ar = $text($sh['text_ar'] ?? null);
+    return [
+        'enabled' => ($sh['enabled'] ?? true) !== false,
+        'text_en' => store_content_has_price($en) ? '' : $en,
+        'text_ar' => store_content_has_price($ar) ? '' : $ar,
+    ];
+}
+
+// Validate a save of the share setting. Refuses a wrong type and a price, like every other text of this document.
+function store_content_share(mixed $raw): array {
+    if (!is_array($raw) || ($raw !== [] && array_is_list($raw))) store_fail('invalid_share');
+    $enabled = $raw['enabled'] ?? true;
+    if (!is_bool($enabled)) store_fail('invalid_share_enabled');
+    $out = ['enabled' => $enabled];
+    foreach (['en', 'ar'] as $l) {
+        $t = store_content_squash($raw['text_' . $l] ?? '', 'share_text_' . $l, 0, 200);
+        if (store_content_has_price($t)) store_fail('price_in_content_text');
+        $out['text_' . $l] = $t;
+    }
+    return $out;
 }
 
 // Validate a save, field by field, and store it. Returns what was stored.
@@ -2478,10 +2507,15 @@ function store_site_content_save(PDO $db, array $body): array {
         if ($text === '') { unset($kept[$key]); continue; }   // an empty replacement removes the rule
         $kept[$key] = ['page' => $page, 'lang' => $lang, 'match' => $match, 'text' => $text];
     }
+    // A save that does not carry the share setting (the text editor does not send it) keeps the stored one.
+    $share = array_key_exists('share', $body) && $body['share'] !== null
+        ? store_content_share($body['share'])
+        : store_site_content($db)['share'];
     $value = [
         'v' => 0,
         'overrides' => array_values($kept),
         'contact' => store_content_contact($body['contact'] ?? null),
+        'share' => $share,
     ];
     // Measured with room for the version number, which is filled in below.
     $json = json_encode($value, JSON_UNESCAPED_UNICODE);
