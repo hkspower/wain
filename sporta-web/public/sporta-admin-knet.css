@@ -1333,3 +1333,14 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   .admin-shell .admin-content :is(button, select, input, a, label, summary).min-h-11,
   .admin-shell :is(input, select, textarea).min-h-11 { min-height: max(40px, 2.4rem) !important; }
 }
+
+/* ==== ADMIN TABLE 1122 (orders table: tighter rows, dates and track IDs on one line) ========================
+ * Owner, 2026-11-22: "arrange order table layout" (density + alignment). The orders table is `table.admin-table`
+ * (scripts/fixtures/sizes-admin/orders.html). The same class is used by the other admin tables, so this applies
+ * to them too; it changes padding and line breaks only, not colours or the contents. Amounts were already right-aligned.
+ * [tbl-1] rows: 0.5rem above and below a cell (was 0.75rem), header 0.5rem, the middle line for cells that hold a button. */
+.admin-table td.py-3,
+.admin-table th.py-2 { padding-block: .5rem !important; vertical-align: middle; }
+/* [tbl-2] a track ID (monospace) and an amount (tabular figures) never break across lines. Dates are not covered here. */
+.admin-table td.font-mono,
+.admin-table td.tabular-nums { white-space: nowrap; }
