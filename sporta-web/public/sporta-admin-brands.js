@@ -22520,3 +22520,68 @@
   } catch (e) {}
 })()
 /* ===== ADMIN OVERVIEW CARDS AR - end ===================================== */
+
+/* ===== ADMIN KNET RESOURCE KEY - begin =====================================
+ * The KNET resource key must be exactly 16 bytes with no spaces around it (the server refuses anything else:
+ * resource_key_must_be_16_bytes). Until now the screen only learned that after Save. This block shows, under
+ * the key field as the owner types, how many bytes it has and whether it is valid. It listens to input events
+ * on fields whose name ends in resource_key, reads the value only to count it, and never stores, sends or logs it.
+ */
+;(function () {
+  'use strict'
+  try {
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaResourceKey) return
+  try { Object.defineProperty(window, '__sportaResourceKey', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var NAME = /resource_key$/i
+  var TEXT = {
+    en: { now: 'Now: {b} bytes. It must be exactly 16.', ok: '16 bytes: correct.', space: 'Remove the spaces around the key.' },
+    ar: { now: 'الآن: {b} بايت. يجب أن يكون 16 بالضبط.', ok: '16 بايت: صحيح.', space: 'أزل المسافات حول المفتاح.' }
+  }
+
+  function byteLength(s) {
+    try { return new TextEncoder().encode(s).length } catch (e) { return unescape(encodeURIComponent(s)).length }
+  }
+  function langOf(node) {
+    var l = (document.documentElement.getAttribute('lang') || 'en').slice(0, 2)
+    return l === 'ar' ? 'ar' : 'en'
+  }
+  function noteFor(input) {
+    var next = input.nextElementSibling
+    if (next && next.getAttribute && next.getAttribute('data-sporta-rk') === '1') return next
+    var p = document.createElement('p')
+    p.setAttribute('data-sporta-rk', '1')
+    p.setAttribute('role', 'status')
+    p.setAttribute('aria-live', 'polite')
+    p.className = 'mt-1 block text-xs text-slate-500'
+    input.insertAdjacentElement('afterend', p)
+    return p
+  }
+  function update(input) {
+    var t = TEXT[langOf(input)]
+    var v = input.value || ''
+    var note = noteFor(input)
+    if (v.length === 0) { note.textContent = ''; note.className = 'mt-1 block text-xs text-slate-500'; return }
+    var b = byteLength(v)
+    if (v !== v.trim() || /\s/.test(v)) {
+      note.textContent = t.space
+      note.className = 'mt-1 block text-xs font-bold text-rose-700'
+      return
+    }
+    if (b === 16) {
+      note.textContent = t.ok
+      note.className = 'mt-1 block text-xs font-bold text-emerald-700'
+      return
+    }
+    note.textContent = t.now.replace('{b}', String(b))
+    note.className = 'mt-1 block text-xs font-bold text-rose-700'
+  }
+
+  document.addEventListener('input', function (e) {
+    var el = e.target
+    if (el && el.tagName === 'INPUT' && NAME.test(el.name || '')) update(el)
+  }, true)
+  } catch (e) { /* a page this block does not know: leave it alone */ }
+})()
+/* ===== ADMIN KNET RESOURCE KEY - end ===================================== */
