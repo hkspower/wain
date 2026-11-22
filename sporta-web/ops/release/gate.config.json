@@ -3143,6 +3143,19 @@
       ]
     },
     {
+      "name": "card-size-picker",
+      "needs": "browser",
+      "parallelSafe": true,
+      "timeoutSec": 240,
+      "minOk": 9,
+      "parse": "auto",
+      "measuredSec": 40,
+      "quick": false,
+      "triggers": [
+        "src/components/ProductCard.jsx"
+      ]
+    },
+    {
       "name": "product-delete",
       "needs": "rig",
       "parallelSafe": false,

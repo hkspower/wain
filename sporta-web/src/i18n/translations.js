@@ -335,6 +335,8 @@ export const translations = {
       intro:
         'Women\u2019s and men\u2019s activewear, hoodies and gym accessories \u2014 delivered same day across Kuwait, with KNET checkout in Kuwaiti Dinar.',
       add: 'Add',
+      pickSize: 'Choose a size',
+      closePick: 'Close',
       buyNow: 'Buy now',
       notFound: 'Product not found.',
       backToShop: 'Back to shop',
@@ -825,6 +827,8 @@ export const translations = {
       intro:
         'ملابس رياضية نسائية ورجالية وهوديز وإكسسوارات جيم \u2014 توصيل في نفس اليوم داخل الكويت والدفع عبر كي نت بالدينار الكويتي.',
       add: 'أضف',
+      pickSize: 'اختر المقاس',
+      closePick: 'إغلاق',
       buyNow: 'اشترِ الآن',
       notFound: 'المنتج غير موجود.',
       backToShop: 'العودة للمتجر',

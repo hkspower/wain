@@ -8,18 +8,24 @@ import { formatKWD } from '../lib/format'
 import { discountPercent } from '../lib/discount'
 import { fetchStockTable } from '../lib/stock'
 import { photoFit } from '../lib/productImage'
+import { SIZE_LADDER, fitsFor } from '../lib/options'
 
 // Modern retail grid card (Gymshark-style): the photo IS the card — portrait
 // 4:5, no border, no shadow, no white box. Everything interactive lives as an
 // overlay on the image; below it just name, description and price on the page
 // canvas. Ratings are deliberately gone from the grid: they were a hardcoded
 // 4.8 on every product, and a grid that praises itself 20 times reads as fake.
+// The order the size row draws in: the shop's ladder (S, M, L ... 5XL); anything else after it.
+const sizeRank = (s) => { const i = SIZE_LADDER.indexOf(s); return i < 0 ? 99 : i }
+
 export default function ProductCard({ product }) {
   const { lang, t } = useLang()
   const { items, add, setQty } = useCart()
   const { has, toggle } = useWishlist()
   const navigate = useNavigate()
   const [added, setAdded] = useState(false)
+  // The size row a garment's + opens on the card (see quickAdd). Closed by Close, Escape, a size, or leaving the card.
+  const [picking, setPicking] = useState(false)
   // undefined = not looked up yet, null = the table is unavailable.
   const [sizes, setSizes] = useState(undefined)
 
@@ -65,9 +71,14 @@ export default function ProductCard({ product }) {
   // jacket from a cap, and the two mistakes are not equal: navigating costs an
   // accessory buyer one extra tap, while adding costs a garment buyer their
   // order at the checkout.
+  // A garment whose sizes are known and that has one fit now opens a size row ON the card: the shopper picks a size and
+  // it goes straight into the bag with that size and its SKU, as the product page would add it. Anything else still
+  // goes to the product page (unknown sizes, or a garment with a fit to choose, which the card cannot ask for).
   function quickAdd(e) {
     e.preventDefault()
     if (soldOut) return
+    const oneFit = (fitsFor(product)?.options?.length ?? 0) <= 1
+    if (hasSizes === true && oneFit) { setPicking((p) => !p); return }
     if (hasSizes !== false) { navigate(`/product/${product.slug}`); return }
     add(product)
     setAdded(true)
@@ -217,6 +228,48 @@ export default function ProductCard({ product }) {
         >
           {added ? <IconCheck size={18} /> : <IconPlus size={18} />}
         </button>
+        {picking && hasSizes === true && !soldOut && (
+          <div
+            role="group"
+            aria-label={`${t.shop.pickSize} — ${product.name[lang]}`}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
+            onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setPicking(false) } }}
+            className="absolute inset-x-2 bottom-2 z-10 rounded-2xl bg-white/95 p-2 shadow-md backdrop-blur"
+          >
+            <div className="flex flex-wrap justify-center gap-1.5">
+              {Object.keys(sizes)
+                .sort((a, b) => sizeRank(a) - sizeRank(b))
+                .map((s) => {
+                  const row = sizes[s]
+                  const inStock = !!row?.inStock || Number(row?.stock) > 0
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      disabled={!inStock}
+                      onClick={(e) => {
+                        e.preventDefault(); e.stopPropagation()
+                        add(product, 1, s, null, row?.sku ?? null)
+                        setPicking(false)
+                        setAdded(true)
+                        setTimeout(() => setAdded(false), 1200)
+                      }}
+                      className="min-h-11 min-w-11 rounded-full border border-slate-300 px-3 text-sm font-bold text-ink transition hover:border-brand hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:line-through"
+                    >
+                      {s}
+                    </button>
+                  )
+                })}
+            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPicking(false) }}
+              className="mt-1 min-h-11 w-full text-center text-xs font-semibold text-slate-600 underline"
+            >
+              {t.shop.closePick}
+            </button>
+          </div>
+        )}
       </Link>
 
       <div className="flex flex-col gap-0.5 pt-3">

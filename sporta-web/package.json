@@ -280,7 +280,8 @@
     "test:product-listing": "node scripts/product-listing-test.mjs",
     "test:admin-hidden-products": "node scripts/admin-hidden-products-test.mjs",
     "test:multi-replica": "node scripts/multi-replica-test.mjs",
-    "test:admin-overview-cards-ar": "node scripts/admin-overview-cards-ar-test.mjs"
+    "test:admin-overview-cards-ar": "node scripts/admin-overview-cards-ar-test.mjs",
+    "test:card-size-picker": "node scripts/card-size-picker-test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",
