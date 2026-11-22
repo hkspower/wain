@@ -13554,8 +13554,8 @@
   'use strict'
   try {
   if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaInvEditor) return
-  try { Object.defineProperty(window, '__sportaInvEditor', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+  if (window.__sportaInvProduct) return
+  try { Object.defineProperty(window, '__sportaInvProduct', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
 
   var API = '/api/admin.php', DIR = '/images/products/', BTN = 'data-sporta-inv-product', STYLE_ID = 'spt-pe-style'
   var CSS = [
@@ -21615,7 +21615,7 @@
  *  - WATCH. window.fetch is wrapped once; every GET of admin.php?r=<route> a screen makes is remembered (per screen, latest read of each route) with a
  *    small signature of what it got (the JSON with volatile keys such as "now" or "timestamp" left out, hashed). The wrapper returns the original
  *    promise untouched. The screen is the sidebar button marked current.
- *  - POLL. Every 30 seconds while the tab is visible, and at once when you open a screen again or come back to the tab, the remembered reads of the
+ *  - POLL. Every 5 seconds while the tab is visible (owner request 2026-11-22: "make backends updated with live frontend", faster refresh; it was 30 s), and at once when you open a screen again or come back to the tab, the remembered reads of the
  *    CURRENT screen (at most four; never the session, payment, gateway, export, backup, database-centre, assistant, image or stock routes) are made again
  *    with the same headers, with the original fetch, so they are not remembered as "seen". A different signature means the screen shows old data.
  *  - APPLY. A screen with a Refresh button is refreshed by pressing it (filters, search and scroll stay). A screen without one is reloaded in place:
@@ -21640,7 +21640,7 @@
 
   // The suite shortens the timings through window.__sportaLiveTiming (set before this file runs); a shopper's browser never has it.
   var TM = window.__sportaLiveTiming || {}
-  var EVERY = TM.every || 30000, QUIET = TM.quiet != null ? TM.quiet : 15000, TICK = TM.tick || 5000, MAX_READS = 4, KEY = 'sporta_admin_live'
+  var EVERY = TM.every || 5000, QUIET = TM.quiet != null ? TM.quiet : 15000, TICK = TM.tick || 5000, MAX_READS = 4, KEY = 'sporta_admin_live'
   // routes that are never polled: the session, the gateways and payment status, exports and files, the database centre, the assistant, images, health probes
   var DENY = /(^|_)(me|google|session|passcode|totp|mfa|recovery|login|logout|password|export|download|csv|backup|db|xbrl|reconcile|knet|tpay|cbk|payment|assistant|voice|tts|ai|image|logo|icon|upload|health|scan|probe|cache|catalogue|inventory|stock|variants|ahed|cost)(_|$)/i
   // (checked against the real route names in admin.php: `stock` is not one, the stock list is `variants`; `ahed_cost` carries purchase costs. A read whose body is over
