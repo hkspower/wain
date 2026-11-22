@@ -243,3 +243,16 @@ html:lang(en) .brand-bar__item > span:dir(rtl) {
   }
 }
 /* ==== end BRANDS-1119 */
+
+/* ==== BRANDBAR 1122 (home "brands we trust" strip: no heading, equal space above and below) ================================
+ * Owner, 2026-11-22 (phone, Arabic): "remove text ماركات نثق بها and اكتشف الماركات, then make alignment and upper and under padding".
+ * The heading and its link are one block (.campaign-brand-bar__heading); it is hidden on the home page only (the
+ * strip is only on the home page). The tiles keep their row and align to the page's own side gutters (1rem, the same as
+ * the header and the cards below). Equal space above and below: 1.5rem each side. */
+.storefront-root main .campaign-brand-bar__heading { display: none !important; }
+.storefront-root main .campaign-brand-bar {
+  padding-block: 1.5rem !important;
+  padding-inline: 1rem !important;
+}
+.storefront-root main .campaign-brand-bar .brand-bar__track { margin-block: 0 !important; }
+/* ==== end BRANDBAR 1122 */
