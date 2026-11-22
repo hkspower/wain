@@ -188,7 +188,8 @@ function Frame({ images, at, total, alt, go, onZoom, t, rtl }) {
           style={{
             transform: `translateX(${offset + dragPct}%)`,
             // No easing WHILE dragging: the photo has to sit under the finger.
-            transition: drag ? 'none' : 'transform 380ms cubic-bezier(.22,.61,.36,1)',
+            // A softer, longer ease than 380 ms: the slide reads as a glide, not a snap.
+            transition: drag ? 'none' : 'transform 460ms cubic-bezier(.33,.0,.2,1)',
           }}
         >
           {images.map((src, n) => (
@@ -204,7 +205,10 @@ function Frame({ images, at, total, alt, go, onZoom, t, rtl }) {
               width="600"
               height="750"
               fetchPriority={n === 0 ? 'high' : undefined}
-              loading={n === 0 ? 'eager' : 'lazy'}
+              // The photos either side of the one on screen load now, not when
+              // the shopper swipes to them: a lazy photo arrives mid-slide and
+              // the track stutters over an empty frame.
+              loading={Math.abs(n - at) <= 1 ? 'eager' : 'lazy'}
               decoding="async"
               draggable="false"
               className={`h-full w-full shrink-0 ${photoFit(src)} bg-sand-light`}
