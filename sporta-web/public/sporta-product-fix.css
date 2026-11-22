@@ -1122,12 +1122,3 @@ html[data-sporta-route="product"] .boot-hero { display: none !important; }
 }
 /* ==== end PRODUCT UX 1120 */
 
-/* ==== ALIGN 1120 (product page: photo on the breadcrumb's edge from 768px) ================================================
- * Measured on the REPO build without the add-ons (scripts/product-gutters-probe.mjs; the live capture is not in this checkout, so the
- * live page is NOT measured): the breadcrumb starts at the section's content edge (118 px at 1280), but the photo is `md:mx-auto`
- * (src/components/ProductGallery.jsx:184), centred in its column, so it started 34 px inside the breadcrumb (152 vs 118) and 18 px
- * inside it at 1024. This rule left-aligns it to the breadcrumb's edge. Phones are unchanged (16 px). Centring was a choice: to keep
- * it, delete this section. */
-@media (min-width: 768px) {
-  html[data-sporta-route="product"] .storefront-root main [class*="cursor-zoom-in"] { margin-inline: 0 !important; }
-}
