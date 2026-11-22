@@ -745,6 +745,21 @@ html[data-sporta-hop] .purchase-checkout-layout .purchase-stage-panel {
 }
 /* ==== end ORDER PAGES 1120: CHECKOUT SUMMARY */
 
+/* ==== CHECKOUT TAP 1122 (2026-11-22, owner: "check all checkout ux ui" then "2"; measured on the captured shell at 390 px) ====
+ * The checkout's fields were 40-42 px tall (name, phone, the address lines, floor, flat), its checkboxes 16-21 px, the payment
+ * choice 20-21 px and the coupon button 42 px: under the 44 px touch target. Fields and buttons are 44 px tall now; a checkbox or
+ * payment choice is a 44 px row (its label is the tap area, so the small box is not the only target). Nothing else changes: the
+ * text, colours, order and the layout's columns stay as they were.
+ */
+.purchase-flow input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.purchase-flow select,
+.purchase-flow textarea { min-height: 2.75rem; }
+.purchase-flow label:has(> input[type="checkbox"]) { min-height: 2.75rem; display: flex; align-items: center; }
+/* a payment choice keeps its height and takes its tap area from padding (display or min-height would shift the payment card by 3.5 px) */
+.purchase-flow label:has(input[type="radio"]) { padding-block: calc((2.75rem - 1.5em) / 2); }
+.purchase-flow button { min-height: 2.75rem; }
+/* end CHECKOUT TAP 1122 */
+
 /* ==== SIZES: FOOTER AND CHECKOUT HEADINGS (lane B of "reduce over sizes all", 2026-11-03) ===============
  * Owner request: "reduce over sizes all", "text and elements on screen that are too big" ticked.
  *
