@@ -91,7 +91,7 @@ const FACTS = () => {
   const title = q('.catalog-product-title'), plate = q('.campaign-brand-plate'), ul = q('.catalog-product-reassurance'), box = q('.sporta-pact')
   const cap = plate && plate.querySelector('.campaign-brand-plate__authentic, .campaign-brand-plate__detail')
   const wa = q('[data-sporta-pact="ask"]'), sh = q('[data-sporta-pact="share"]'), live = q('.sporta-pact__live')
-  const btn = (e) => { if (!e) return null; const cs = getComputedStyle(e), ic = e.querySelector('.sporta-pact__icon'), ics = ic && getComputedStyle(ic); const lab = e.querySelector('.sporta-pact__label'); return { tag: e.tagName.toLowerCase(), rect: r(e), text: lab ? lab.textContent : '', aria: e.getAttribute('aria-label'), href: e.getAttribute('href'), target: e.getAttribute('target'), rel: e.getAttribute('rel'), color: cs.color, bw: cs.borderTopWidth, bc: cs.borderTopColor, radius: cs.borderTopLeftRadius, outline: cs.outlineStyle + ' ' + cs.outlineWidth + ' ' + cs.outlineColor, icon: ic && { cls: ic.className, mask: ics.webkitMaskImage || ics.maskImage || '', w: ic.getBoundingClientRect().width, h: ic.getBoundingClientRect().height, bg: ics.backgroundColor, hidden: ic.getAttribute('aria-hidden') } } }
+  const btn = (e) => { if (!e) return null; const cs = getComputedStyle(e), ic = e.querySelector('.sporta-pact__icon'), ics = ic && getComputedStyle(ic); const lab = e.querySelector('.sporta-pact__label'); return { tag: e.tagName.toLowerCase(), rect: r(e), text: lab ? lab.textContent : '', aria: e.getAttribute('aria-label'), href: e.getAttribute('href'), target: e.getAttribute('target'), rel: e.getAttribute('rel'), color: cs.color, bg: cs.backgroundColor, bw: cs.borderTopWidth, bc: cs.borderTopColor, radius: cs.borderTopLeftRadius, outline: cs.outlineStyle + ' ' + cs.outlineWidth + ' ' + cs.outlineColor, icon: ic && { cls: ic.className, mask: ics.webkitMaskImage || ics.maskImage || '', w: ic.getBoundingClientRect().width, h: ic.getBoundingClientRect().height, bg: ics.backgroundColor, hidden: ic.getAttribute('aria-hidden') } } }
   const footerWa = qa('footer a[href*="wa.me/"]').map((a) => a.getAttribute('href'))
   const sold = q('.catalog-related .product-grid-card:has(.catalog-card-image a > span.absolute.inset-x-0[class*="bg-ink"]) .catalog-card-info .price-card')
   const soldCard = sold && sold.closest('.product-grid-card')
@@ -174,7 +174,8 @@ const CHECK = {
       m.canon === CANON(l) && t === T[l].msg + ' ' + (l === 'en' ? NAME : NAME_AR) + '\n' + CANON(l)
   },
   icons: (m) => [m.pact.wa, m.pact.share].every((b) => b.icon && /url\(/.test(b.icon.mask) && Math.abs(b.icon.w / m.rem - 1.25) <= 0.02 && Math.abs(b.icon.h / m.rem - 1.25) <= 0.02 && b.icon.hidden === 'true' && b.icon.bg !== 'rgba(0, 0, 0, 0)'),
-  look: (m) => [m.pact.wa, m.pact.share].every((b) => b.color === 'rgb(23, 26, 30)' && b.bw === '1px' && b.bc === 'rgba(23, 26, 30, 0.2)' && Math.abs(parseFloat(b.radius) - 0.75 * m.rem) <= 1.2),
+  // The ask button is the twin of the Back control; the Share button is the owner's black variant (SHARE 1122): black ground, white ink.
+  look: (m) => [m.pact.wa].every((b) => b.color === 'rgb(23, 26, 30)' && b.bw === '1px' && b.bc === 'rgba(23, 26, 30, 0.2)' && Math.abs(parseFloat(b.radius) - 0.75 * m.rem) <= 1.2) && m.pact.share.bg === 'rgb(0, 0, 0)' && m.pact.share.color === 'rgb(255, 255, 255)' && Math.abs(parseFloat(m.pact.share.radius) - 0.75 * m.rem) <= 1.2,
   darkLook: (m) => [m.pact.wa, m.pact.share].every((b) => b.color === 'rgb(232, 234, 237)' && b.bc === 'rgba(255, 255, 255, 0.12)') && ratio(m.pact.wa.color, 'rgb(23, 26, 30)') >= 4.5,
   printed: (f) => f.printed === 'none',
   quiet: (m, errs) => m.scrollX <= 0 && errs.length === 0,
