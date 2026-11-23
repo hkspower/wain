@@ -579,7 +579,7 @@ async function runChecks({ www, hashes, indexHtml }) {
   // compression block, whose !mod_brotli.c / !mod_deflate.c / mod_filter.c wrappers are audited here.
   const wrappers = {}
   for (const [f, text] of Object.entries(ht)) for (const m of text.matchAll(/^\s*<IfModule\s+(!?[\w.]+)>/gm)) (wrappers[m[1]] ??= []).push(f.split('/')[1] === 'php-store' ? 'api' : f.split('/')[1] === 'php-knet' ? 'knet' : f.split('/')[1] === 'php-cbk' ? 'pay' : 'root')
-  const expected = ['!LiteSpeed', 'LiteSpeed', '!mod_brotli.c', '!mod_deflate.c', 'mod_brotli.c', 'mod_deflate.c', 'mod_filter.c', 'mod_dir.c', 'mod_expires.c', 'mod_headers.c', 'mod_mime.c', 'mod_php.c', 'mod_rewrite.c']
+  const expected = ['!LiteSpeed', 'LiteSpeed', '!mod_brotli.c', '!mod_deflate.c', 'mod_brotli.c', 'mod_deflate.c', 'mod_filter.c', 'mod_dir.c', 'mod_expires.c', 'mod_headers.c', 'mod_mime.c', 'mod_php.c', 'mod_php8.c', 'mod_rewrite.c']
   check(Object.keys(wrappers).sort().join() === expected.sort().join(), 'the set of <IfModule> wrappers is the one audited: ' + Object.keys(wrappers).sort().join(' '))
   console.log(`   IfModule wrappers (module: files): ${Object.entries(wrappers).map(([k, v]) => `${k}: ${[...new Set(v)].join('+')}`).join('; ')}`)
   check(read('dropin/php-store/admin-google.php').indexOf('/backends/?') < 0,
