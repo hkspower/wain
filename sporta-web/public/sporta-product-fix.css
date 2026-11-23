@@ -1150,7 +1150,7 @@ html[data-sporta-route="product"] .storefront-root main h1 { text-align: center;
 :root[data-theme="dark"] .sporta-pact__btn[data-sporta-pact="share"] {
   background-color: #000;
   border-color: rgba(255, 255, 255, .12);
-  color: #e8eaed;
+  color: #e8eaed !important;   /* !important: it must beat the light label's !important above */
 }
 :root[data-sporta-share="off"] .sporta-pact__btn[data-sporta-pact="share"] { display: none !important; }
 
