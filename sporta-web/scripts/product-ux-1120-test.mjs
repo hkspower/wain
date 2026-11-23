@@ -260,7 +260,7 @@ for (const [w, lang] of [[390, 'en'], [390, 'ar'], [360, 'en'], [360, 'ar'], [76
   is(holds(CHECK.shareLabel, m, lang, false), `${tag}: no share sheet in this browser, so the button says "${T[lang].copy}" with the link icon`, JSON.stringify(m && m.pact && m.pact.share && [m.pact.share.text, m.pact.share.icon.cls]))
   is(holds(CHECK.link, m, lang), `${tag}: the ask link is wa.me/<the footer's number> with a message that names the product and ends with its canonical address`, JSON.stringify(m && m.pact && [m.pact.wa.href, m.footerWa, m.canon]))
   is(holds(CHECK.icons, m), `${tag}: 1.25rem line icons drawn in the text colour, hidden from readers`, JSON.stringify(m && m.pact && [m.rem, m.pact.wa.icon && m.pact.wa.icon.w, m.pact.share.icon && m.pact.share.icon.w]))
-  is(holds(CHECK.look, m), `${tag}: the Back control's twins: ink text, a 1px line at 20% ink, the 12px control corner`, JSON.stringify(m && m.pact && [m.pact.wa.color, m.pact.wa.bc, m.pact.wa.radius]))
+  is(holds(CHECK.look, m), `${tag}: the Back control's twins: ink text, a 1px line at 20% ink, the 12px control corner`, JSON.stringify(m && m.pact && { wa: [m.pact.wa.color, m.pact.wa.bw, m.pact.wa.bc, m.pact.wa.radius], share: m.pact.share && [m.pact.share.bg, m.pact.share.color, m.pact.share.bw, m.pact.share.bc, m.pact.share.radius], rem: m.rem }))
   is(holds(CHECK.quiet, m, f.errs), `${tag}: no page error`, JSON.stringify(f.errs))
 }
 for (const lang of ['en', 'ar']) {
