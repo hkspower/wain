@@ -27,6 +27,7 @@ export const CSS_FILE = join(ROOT, 'public', 'sporta-shadows.css')
 export const START = '/* ==== ICON SET'
 export const END = '/* ==== end ICON SET */'
 export const TIERS = { sm: 1.5, lg: 1.75 }
+export const EXTRA_VARS = ['share']
 
 // ---- the sources ---------------------------------------------------------------------------------------------------
 export const glyphs = () => Object.fromEntries(readdirSync(SET).filter((f) => f.endsWith('.svg')).sort().map((f) => {
@@ -105,6 +106,8 @@ const LG_BOX = ['21', '22', '23', '24', '26', '28', '32'].map((w) => `[width="${
 export const section = () => {
   const G = glyphs()
   const used = new Map()
+  // glyphs the add-on CSS paints by variable, with no swap rule (the Share control of PRODUCT UX 1120)
+  for (const n of EXTRA_VARS) if (G[n]) used.set(n, { lg: false })
   for (const r of [...RULES, ...RC8.map((x) => ({ ...x, lg: true }))]) {
     if (!G[r.g]) throw new Error(`no source for glyph "${r.g}" in brand/iconset`)
     const u = used.get(r.g) || { lg: false }; u.lg ||= !!r.lg; used.set(r.g, u)

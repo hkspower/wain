@@ -1099,7 +1099,7 @@ html[data-sporta-route="product"] .boot-hero { display: none !important; }
   --sporta-pact-mask: var(--sig-whatsapp, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a8.5 8.5 0 0 1-12.2 7.6L3 21l1.4-5.5A8.5 8.5 0 1 1 21 12z'/%3E%3C/svg%3E"));
 }
 .sporta-pact__icon--share {
-  --sporta-pact-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15V4M8.5 7.5 12 4l3.5 3.5M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6'/%3E%3C/svg%3E");
+  --sporta-pact-mask: var(--sig-share, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15V4M8.5 7.5 12 4l3.5 3.5M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6'/%3E%3C/svg%3E"));
 }
 .sporta-pact__icon--link {
   --sporta-pact-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 14a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1'/%3E%3Cpath d='M14 10a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1'/%3E%3C/svg%3E");
@@ -1151,3 +1151,13 @@ html[data-sporta-route="product"] .storefront-root main h1 { text-align: center;
   color: #e8eaed;
 }
 :root[data-sporta-share="off"] .sporta-pact__btn[data-sporta-pact="share"] { display: none !important; }
+
+/* The checkout's payment-check tick: the set's check glyph painted as a mask (it was the text character). */
+.sporta-tick {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  background: currentColor;
+  -webkit-mask: var(--sig-check) center / contain no-repeat;
+  mask: var(--sig-check) center / contain no-repeat;
+}

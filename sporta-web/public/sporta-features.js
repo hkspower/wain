@@ -3699,7 +3699,8 @@
     var words = t[st] || t.checking
     box.setAttribute('data-state', st)
     box.setAttribute('data-tone', st === 'success' ? 'ok' : (st === 'pending' || st === 'checking' || st === 'review' || st === 'failed_check' ? 'wait' : 'bad'))
-    var icon = el('div', BOX + '__icon', st === 'success' ? '✓' : (st === 'checking' || st === 'pending' ? '…' : (st === 'review' || st === 'failed_check' ? '!' : '✕')))
+    var icon = el('div', BOX + '__icon', st === 'success' ? '' : (st === 'checking' || st === 'pending' ? '…' : (st === 'review' || st === 'failed_check' ? '!' : '✕')))
+    if (st === 'success') icon.appendChild(el('span', 'sporta-tick'))
     icon.setAttribute('aria-hidden', 'true')
     box.appendChild(icon)
     var live = el('div'); live.setAttribute('role', 'status'); live.setAttribute('aria-live', 'polite')
