@@ -1035,7 +1035,7 @@ html[data-sporta-route="product"] .boot-hero { display: none !important; }
   min-height: 2.75rem;
   padding: .5rem 1rem;
   border: 1px solid rgba(23, 26, 30, .2);
-  border-radius: .75rem;
+  border-radius: 12px;
   background: transparent;
   color: #171a1e;
   font: inherit;
@@ -1147,7 +1147,7 @@ html[data-sporta-route="product"] .storefront-root main h1 { text-align: center;
 :root .sporta-pact__btn[data-sporta-pact="share"]:active { background-color: #2a2a2a; border-color: #2a2a2a; }
 :root[data-theme="dark"] .sporta-pact__btn[data-sporta-pact="share"] {
   background-color: #000;
-  border-color: rgba(255, 255, 255, .24);
-  color: #fff;
+  border-color: rgba(255, 255, 255, .12);
+  color: #e8eaed;
 }
 :root[data-sporta-share="off"] .sporta-pact__btn[data-sporta-pact="share"] { display: none !important; }

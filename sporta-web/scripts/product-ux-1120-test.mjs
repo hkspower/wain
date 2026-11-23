@@ -474,7 +474,7 @@ for (const [label, m, fl, o, check] of MUT) {
 // the behaviours that need a press: the copy path and the share path
 const PMUT = [
   ['the copy handler does nothing', featM('copyText(S.url).then(function (ok) { say(ok ? t.copied : t.failed) })', ''), { w: 390, lang: 'en', stubs: [false, 'ok'] }, (f) => f.after.copied.length === 1 && f.after.pact.share.text === T.en.copied],
-  ['the share handler does nothing', featM('var r = navigator.share({ title: S.name, text: S.name, url: S.url })', 'var r = null'), { w: 390, lang: 'en', stubs: [true, 'ok'] }, (f) => f.after.shared.length === 1],
+  ['the share handler does nothing', featM('var r = navigator.share({ title: S.name, text: window.__sportaShareText || S.name, url: S.url })', 'var r = null'), { w: 390, lang: 'en', stubs: [true, 'ok'] }, (f) => f.after.shared.length === 1],
   ['the confirmation never goes away', featM("flash = setTimeout(function () { flash = 0; live.textContent = ''; labels() }, 2600)", 'flash = 1'), { w: 390, lang: 'en', stubs: [false, 'ok'] }, (f) => f.later.pact.share.text === T.en.copy],
   ['[pux-2b] the confirmation width is not reserved', cssM(CSS, '/* [pux-2b]', '/* [pux-3]'), { w: 390, lang: 'en', stubs: [false, 'ok'] }, (f) => still(f.before, f.after) && still(f.before, f.later)],
   ['the legacy copy is gone', featM("var ok = !!(document.execCommand && document.execCommand('copy'))", 'var ok = true'), { w: 390, lang: 'en', stubs: [false, 'fail'] }, (f) => f.after.pact.share.text === T.en.failed],
