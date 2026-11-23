@@ -16,7 +16,7 @@
 # answered 200 with an empty body (measured 2026-11-19 by including each file with a GET and counting the output).
 # Nothing routes to them: api.php, seo-page.php, the sitemaps and the cron jobs reach them with require, and no client
 # file fetches them (the names in public/ are comments). db-pool.php answered 404 by its own guard; it is listed here too.
-<FilesMatch "^(apple-lib|assistant|dbcenter|dbcenter-manifest|db-pool|fabric|payment-records|photo-limits|profiles|support|xbrl)\.php$">
+<FilesMatch "^(apple-lib|assistant|dbcenter|dbcenter-manifest|db-pool|fabric|payment-records|photo-library|photo-limits|profiles|support|xbrl)\.php$">
   Require all denied
 </FilesMatch>
 
