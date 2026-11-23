@@ -1,5 +1,4 @@
-import { AHED_PRODUCTS, ahedDetail } from './ahed'
-import { PRODUCTS } from './products'
+import { GARMENT_BY_SLUG } from './garments'
 
 // The choices a shopper makes on a product page: size, colour and fit.
 //
@@ -70,7 +69,7 @@ const NO_FIT = new Set(['accessories'])
 
 export function fitsFor(product) {
   if (!product || NO_FIT.has(product.category)) return null
-  const garment = AHED_PRODUCTS[product.slug]?.garment
+  const garment = GARMENT_BY_SLUG[product.slug]
   const spec = FIT_BY_GARMENT[garment] ?? guessFromName(product) ?? FIT_DEFAULT
   return { options: FITS.filter((f) => spec.fits.includes(f.id)), default: spec.default }
 }
@@ -86,32 +85,6 @@ function guessFromName(product) {
   if (/jacket/.test(n)) return FIT_BY_GARMENT.jacket
   if (/\btop\b|bra\b/.test(n)) return FIT_BY_GARMENT.top
   return null
-}
-
-// ---------------------------------------------------------------- COLOUR
-// The other colourways of the SAME garment in the SAME collection.
-//
-// This is not a per-line option the way size and fit are: a colour is a
-// different product with its own slug, price, stock and photographs. So the
-// swatches are LINKS, and picking one navigates — which is also what makes the
-// stock on the page honest, because it is that product's own stock.
-export function colourwaysOf(slug) {
-  const mine = AHED_PRODUCTS[slug]
-  if (!mine) return []
-  const family = PRODUCTS.filter((p) => {
-    const o = AHED_PRODUCTS[p.slug]
-    return o && o.collection === mine.collection && o.garment === mine.garment
-  })
-  if (family.length < 2) return []
-  return family
-    .map((p) => {
-      const colour = ahedDetail(p.slug)?.colour
-      return colour
-        ? { slug: p.slug, name: colour, hex: colour.hex, current: p.slug === slug }
-        : null
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.slug.localeCompare(b.slug))
 }
 
 // "L · Oversize" — the chosen options as one line, for the bag, the drawer and
