@@ -8848,11 +8848,12 @@
     'position:fixed;inset:0;z-index:80;overflow-y:auto;overscroll-behavior:contain;background:var(--spn-scrim);display:block;padding:0;color:var(--spn-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
     ':is(html.dark,html[data-theme="dark"]) .spn-root{--spn-bg:#151b21;--spn-soft:#1a2128;--spn-line:#303942;--spn-edge:#7a8896;--spn-text:#eef2f5;--spn-muted:#a7b3be;--spn-action:#ff7b17;--spn-action-hover:#ff9a4d;--spn-on-action:#171a1e;--spn-ok:#6ee7a3;--spn-warn:#fbbf24;--spn-err:#fda4af;--spn-focus:#ff7b17;--spn-over:#37251e;--spn-scrim:rgba(0,0,0,.7)}',
     '.spn-root *,.spn-root *::before,.spn-root *::after{box-sizing:border-box}',
-    '.spn{position:relative;width:100%;max-width:70rem;min-height:100%;margin:0 auto;background:var(--spn-bg);display:flex;flex-direction:column}',
+    '.spn-root{min-width:0;max-width:100%;box-sizing:border-box}',
+    '.spn{position:relative;width:100%;min-width:0;max-width:70rem;min-height:100%;margin:0 auto;background:var(--spn-bg);display:flex;flex-direction:column}',
     '@media (min-width:768px){.spn{min-height:0;margin:1.5rem auto;border-radius:1rem;border:1px solid var(--spn-line)}}',
     '.spn-head{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;padding:.75rem 1rem;border-bottom:1px solid var(--spn-line)}',
     '.spn-title{margin:0;font-size:1.125rem;font-weight:700;flex:1 1 auto}',
-    '.spn-tabs{display:flex;gap:.25rem;padding:.25rem;border:1px solid var(--spn-line);border-radius:.75rem;background:var(--spn-soft)}',
+    '.spn-tabs{display:flex;flex-wrap:wrap;max-width:100%;gap:.25rem;padding:.25rem;border:1px solid var(--spn-line);border-radius:.75rem;background:var(--spn-soft)}',
     '.spn-tab{min-height:2.75rem;padding:.25rem .875rem;border:0;border-radius:.5rem;background:transparent;color:var(--spn-muted);font:inherit;font-weight:600;cursor:pointer}',
     '.spn-tab[aria-selected="true"]{background:var(--spn-action);color:var(--spn-on-action);font-weight:700}',
     '.spn-x{display:inline-flex;align-items:center;justify-content:center;width:2.75rem;height:2.75rem;border:1px solid var(--spn-edge);border-radius:.75rem;background:var(--spn-bg);color:var(--spn-text);cursor:pointer}',
@@ -10932,6 +10933,8 @@
     + '.spt-sum{margin:.5rem 0;font-size:.875rem}.spt-problems{margin:.25rem 0 .5rem;padding-inline-start:1.25rem;font-size:.8125rem;color:#b91c1c}'
     + '@media (max-width:640px){.spt-dlg{padding:.875rem}.spt-input{min-width:0;width:100%}.spt-field{flex:1 1 9rem}}'
     + '.admin-page-header:has([data-sporta-prices-open]){flex-wrap:wrap;row-gap:.5rem}'   // one more button in the header must wrap on a tablet, not widen the page
+    + '.admin-page-header:has([data-sporta-np-open]){flex-wrap:wrap;row-gap:.5rem}'        // the Catalogue header (New product, Add sizes, Prices, Fabric) wraps at 390 px instead of widening the page to 452 px
+    + '.admin-page-layout:has([data-sporta-np-open])>*{min-width:0;max-width:100%}'          // its grid column may not grow past the screen: the header was 436 px inside a 358 px column
     + '.spt-pctbox{grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:.75rem;padding:.5rem .75rem;border:1px dashed #a5b4fc;border-radius:.75rem;background:#eef2ff}'
     + '.spt-pctbox label{font-size:.75rem;font-weight:700;color:#475569}.spt-pctbox input,.spt-pctbox select{min-height:2.5rem;padding:.4rem .6rem;border:1px solid #cbd5e1;border-radius:.6rem;background:#fff;color:#171a1e;font:inherit;font-size:.875rem}'
     + '.spt-pctbox input{width:6rem}.spt-pctbox .spt-pb-note{font-size:.75rem;color:#475569;flex:1 1 12rem}.spt-pctbox .spt-pb-note[data-bad="1"]{color:#b91c1c;font-weight:600}'
