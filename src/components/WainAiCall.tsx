@@ -2203,7 +2203,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 </p>
                 {/* When the browser cannot listen at all, another call fails the
                     same way. Typing to سالم answers the same question. */}
-                {(errorText === WAIN_AI_COPY.speechOff || errorText === SPEECH_OFF_APPLE) && (
+                {(errorText === WAIN_AI_COPY.speechOff || errorText === SPEECH_OFF_APPLE || errorText === copy.callFailed) && (
                   <Link
                     href="/salem"
                     onClick={closeSheet}

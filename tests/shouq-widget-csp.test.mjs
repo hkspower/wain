@@ -933,7 +933,7 @@ await section("a line that opened and then dropped with an error is not a call t
  */
 async function runUnpressed({ config }) {
   const s = await sheet({ config });
-  const r = { buttons: -1, ready: "", alert: "", nudged: false, widgets: -1, again: -1, configs: 0 };
+  const r = { buttons: -1, ready: "", alert: "", nudged: false, widgets: -1, again: -1, typed: -1, configs: 0 };
   const fold = (t) => (t ?? "").replace(/\s+/g, " ").trim();
   try {
     await s.page.waitForSelector("#wain-ai-panel elevenlabs-convai", { state: "attached", timeout: 15000 });
@@ -951,6 +951,7 @@ async function runUnpressed({ config }) {
     r.nudged = fold(await s.page.locator("#wain-ai-panel").textContent({ timeout: 1000 }).catch(() => "")).includes("للحين ما بدأت المكالمة");
     r.widgets = await s.page.locator("#wain-ai-panel elevenlabs-convai").count();
     r.again = await s.page.locator("#wain-ai-panel").getByRole("button", { name: "اتصل مرة ثانية" }).count();
+    r.typed = await s.page.locator('#wain-ai-panel a[href="/salem"]').count();
   } catch (e) {
     console.log(`  · the unpressed call did not get as far as it meant to: ${String(e.message).split("\n")[0]}`);
   }
@@ -966,6 +967,7 @@ await section("a widget that never gets its config is a call that could not be r
   ok("after its wait the sheet says the line could not be reached", e.alert.includes("ما قدرنا نوصلك بشوق"), e.alert || "(no alert)");
   ok("and does not point again at a button that is not there", !e.nudged);
   ok("with «اتصل مرة ثانية» to try again", e.again === 1, `${e.again} button(s)`);
+  ok("and a way to the typed chat with سالم, when the line cannot be reached", e.typed === 1, `${e.typed} link(s)`);
   // The other side: a widget that did draw its Start, and a caller who has not
   // pressed it yet, is still only pointed at it. The call is not failed.
   const c = await runUnpressed({ config: WIDGET_CONFIG });
