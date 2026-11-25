@@ -1,0 +1,1 @@
+{"tool":"fonts-audit.mjs","version":1,"kind":"page-state","name":"search-open__en__1280","state":{"id":"search-open","path":"/","act":"openSearch","seed":[]},"lang":"en","width":1280,"height":900,"skipped":"no search control in this build (looked for header button[aria-label*=\"search\" i] | header button[aria-label*=\"بحث\"])"}

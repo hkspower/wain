@@ -1,0 +1,1 @@
+{"tool":"fonts-audit.mjs","version":1,"kind":"page-state","name":"menu-open__en__1280","state":{"id":"menu-open","path":"/","act":"openMenu","seed":[]},"lang":"en","width":1280,"height":900,"skipped":"no menu control in this build (looked for header button[aria-label*=\"menu\" i] | header button[aria-label*=\"القائمة\"] | header button[aria-controls])"}

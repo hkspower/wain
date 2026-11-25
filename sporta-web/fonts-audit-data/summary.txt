@@ -1,0 +1,180 @@
+FONTS AUDIT SUMMARY  (/home/user/wain/sporta-web/fonts-audit-data)
+page-states measured 140; skipped 8 (control absent in this build); errored 0; throttled runs 6
+text runs 9759 (8089 visible); controls on screen 2010; glyphs 183009 (170840 visible)
+non-GET requests aborted: 8; page errors: 0
+
+FONTS THAT DREW GLYPHS (visible text; all text in brackets)
+    104698  [  109850]  IBMPlexSansArabic-Regular
+     33570  [   37768]  IBMPlexSansArabic-Bold
+     21989  [   24614]  Alexandria-Regular
+     10547  [   10741]  IBMPlexSansArabic-SemiBold
+        16  [      16]  Inter-Bold [system]
+        12  [      12]  DejaVuSans [system]
+         8  [       8]  UnifontUpper [system]
+
+PER LANGUAGE x WIDTH
+  ar@1280  states  35  runs   2460  visible   2084  non-brand visible     9  flags(visible) {"F-AR-LEADING":33,"F-WEIGHT":310,"F-MIXED-DIGITS":1,"F-NONBRAND":9,"F-AR-UPPER":27,"F-AR-SPACING":1}
+  ar@390   states  35  runs   2433  visible   1975  non-brand visible     9  flags(visible) {"F-SMALL":489,"F-AR-LEADING":78,"F-WEIGHT":289,"F-MIXED-DIGITS":1,"F-NONBRAND":9,"F-AR-UPPER":25,"F-AR-SPACING":1}
+  en@1280  states  35  runs   2433  visible   2057  non-brand visible     9  flags(visible) {"F-WEIGHT":298,"F-NONBRAND":9,"F-AR-LEADING":7,"F-AR-UPPER":4}
+  en@390   states  35  runs   2433  visible   1973  non-brand visible     9  flags(visible) {"F-SMALL":489,"F-WEIGHT":289,"F-NONBRAND":9,"F-AR-LEADING":17,"F-AR-UPPER":4}
+
+FLAGS (runs / visible runs / page-states)
+  F-AR-LEADING      153    135   36
+  F-AR-SPACING        2      2    2
+  F-AR-UPPER         61     60   30
+  F-MIXED-DIGITS      4      2    4
+  F-NONBRAND         36     36   20
+  F-SMALL           978    978   70
+  F-WEIGHT         1494   1186  136
+
+  F-AR-LEADING: top selectors (visible)
+    x  99  h3.catalog-card-name.line-clamp-2 < a.-my-1.5.block < div.catalog-card-info.flex  "حقيبة ظهر كالياري كالتشو — كحلي"  15.7792px/w650  {"leading":"1.3 over 2 lines","leadingFor":"heading"}
+    x  10  h2.campaign-hero-title.font-display < div.campaign-hero-copy.w-full < div.campaign-hero-content.campaign-photo-hero-content  "تدرّب بجد. اظهر بمظهر أفضل."  58.88px/w900  {"leading":"1.28 over 2 lines","leadingFor":"heading"}
+    x   8  h1.text-3xl.font-extrabold < div.catalog-heading-copy < div.catalog-heading  "تسوق الملابس الرياضية في الكويت"  47.36px/w900  {"leading":"1.3 over 2 lines","leadingFor":"heading"}
+    x   5  h1.page-heading.mb-5 < section.editorial-page.mx-auto < main#main.flex-1  "عن سبورتا — ملابس رياضية في الكويت"  57.6px/w900  {"leading":"1.25 over 2 lines","leadingFor":"heading"}
+    x   5  h1.catalog-product-title.min-w-0 < div.flex.items-start < div.catalog-product-summary.min-w-0  "تيشيرت إنرجي — أحمر وأبيض"  24px/w800  {"leading":"1.3 over 2 lines","leadingFor":"heading"}
+    x   4  div.inline-block.max-w-[85%] < div < div.flex-1.space-y-3  "أهلًا بك. أقدر أتحقق من طلبك، أو أشرح لك التوصيل والإرجاع، أو أساعدك ف"  14.7273px/w400  {"leading":"1.43 over 2 lines","leadingFor":"text"}
+    x   2  p.purchase-notice.mb-5 < section.purchase-flow.mx-auto < main#main.flex-1  "إتمام الشراء غير متاح مؤقتًا. حقيبتك محفوظة، يرجى المحاولة بعد قليل."  14px/w600  {"leading":"1.43 over 2 lines","leadingFor":"text"}
+    x   1  p.guest-note__body.mt-1 < div.guest-note.mb-8 < section.purchase-flow.mx-auto  "أكمل الشراء كزائر أو أنشئ حسابًا إذا رغبت. احتفظ برقم الطلب من صفحة ال"  14px/w400  {"leading":"1.38 over 3 lines","leadingFor":"text"}
+
+  F-AR-SPACING: top selectors (visible)
+    x   2  span.text-accent.tabular-nums < div.purchase-total.mt-4 < div.purchase-panel.purchase-checkout-summary  "جارٍ حساب الإجمالي…"  25.6px/w800  {"weight":"requested 800, Sporta Plex Arabic Local has no such face; Chrome uses 700","weightRequested":800,"weightUsed":700,"letterSpacing":"-0.64px = -0.02em"}
+
+  F-AR-UPPER: top selectors (visible)
+    x  28  span.absolute.inset-x-0 < a.absolute.inset-0 < div.catalog-card-image.relative  "نفذت الكمية"  13.6754px/w700  {}
+    x  27  span.catalog-card-badge.absolute < a.absolute.inset-0 < div.catalog-card-image.relative  "الأكثر مبيعًا"  13.6754px/w700  {}
+    x   4  input.min-w-0.flex-1 < div.flex.gap-2 < div.mt-4  "كود الخصم"  16.8312px/w400  {}
+    x   1  p.text-xs.font-semibold < div.min-w-0 < div.purchase-paybar.action-bar  "الإجمالي"  13px/w600  {}
+
+  F-MIXED-DIGITS: top selectors (visible)
+    x   2  p.mt-2.leading-relaxed < details.group.py-4 < div.faq-list.divide-y  "يمكنك طلب الإرجاع أو الاستبدال مجانًا خلال ١٤ يومًا من الاستلام. قد تح"  16.8312px/w400  {}
+
+  F-NONBRAND: top selectors (visible)
+    x   8  button.tap-target.rounded-lg < header.flex.items-center < div.fixed.bottom-24  "✕"  16.8312px/w400  {"nonBrand":["DejaVu Sans:1"]}  chars U+2715
+    x   8  button.tap-target.shrink-0 < form.flex.gap-2 < div.fixed.bottom-24  "🎙"  14.7273px/w400  {"nonBrand":["Unifont Upper:1"]}  chars U+1F399
+    x   8  span.purchase-steps__number.grid < span.purchase-steps__body.flex < a.tap-row.rounded-lg  "✓"  13.6754px/w700  {"nonBrand":["Inter:1"]}  chars U+2713
+    x   8  span.purchase-steps__number.grid < span.purchase-steps__body.flex < button.tap-row.rounded-lg  "✓"  13.6754px/w700  {"nonBrand":["Inter:1"]}  chars U+2713
+    x   4  div.purchase-result__icon.mb-5 < div.purchase-result.mx-auto < main#main.flex-1  "✕"  50.4936px/w400  {"nonBrand":["DejaVu Sans:1"]}  chars U+2715
+
+  F-SMALL: top selectors (visible)
+    x 340  a.navbar-link.flex < li < ul.mx-auto.flex  "الرئيسية"  12px/w600  {}
+    x  68  button.navbar-language.tap < div.navbar-actions.flex < nav.navbar-main.mx-auto  "EN"  13px/w600  {}
+    x  68  p.footer-eyebrow < div.footer-club__copy < div.footer-club  "SPORTA / كل يوم أقوى"  12px/w700  {}
+    x  68  span.footer-payment.footer-payment--cod < div.footer-payments.mt-8 < div.mx-auto.max-w-7xl  "الدفع عند الاستلام"  13px/w700  {}
+    x  30  p.home-feature-sub < div < div.sporta-features__item.home-feature-item  "إرجاع خلال ١٤ يومًا"  13px/w400  {}
+    x  26  span.absolute.inset-x-0 < a.absolute.inset-0 < div.catalog-card-image.relative  "نفذت الكمية"  13px/w700  {}
+    x  26  span.catalog-card-badge.absolute < a.absolute.inset-0 < div.catalog-card-image.relative  "الأكثر مبيعًا"  13px/w700  {}
+    x  16  span.why-card-index < div.why-card.rounded-2xl < div.grid.gap-4  "01"  12px/w800  {"weight":"requested 800, Sporta Plex Arabic Local has no such face; Chrome uses 700","weightRequested":800,"weightUsed":700}
+
+  F-WEIGHT: top selectors (visible)
+    x 344  span.price-card.flex < div.catalog-card-info.flex < article.product-grid-card.group  "‏4.000 د.ك.‏"  18.9351px/w850  {"weight":"requested 850, Sporta Plex Arabic Local has no such face; Chrome uses 700","weightRequested":850,"weightUsed":700}
+    x 136  a.btn.btn-primary < div.footer-club < div.mx-auto.max-w-7xl  "راسلنا"  14.7273px/w800  {"weight":"requested 800, Sporta Plex Arabic Local has no such face; Chrome uses 700","weightRequested":800,"weightUsed":700}
+    x 136  a#sporta-footer-call.btn.btn-primary < div.footer-club < div.mx-auto.max-w-7xl  "اتصل بنا 22091914"  14.7273px/w800  {"weight":"requested 800, Sporta Plex Arabic Local has no such face; Chrome uses 700","weightRequested":800,"weightUsed":700}
+    x 100  span < a.brand-bar__item < li  "سبورتا"  15.7792px/w800  {"weight":"requested 800, Sporta Plex Arabic Local has no such face; Chrome uses 700","weightRequested":800,"weightUsed":700}
+    x  60  p.home-feature-title < div < div.sporta-features__item.home-feature-item  "إرجاع سهل"  15.7792px/w750  {"weight":"requested 750, Sporta Plex Arabic Local has no such face; Chrome uses 700","weightRequested":750,"weightUsed":700}
+    x  32  span.why-card-index < div.why-card.rounded-2xl < div.grid.gap-4  "01"  12.6234px/w800  {"weight":"requested 800, Sporta Plex Arabic Local has no such face; Chrome uses 700","weightRequested":800,"weightUsed":700}
+    x  20  p.catalog-eyebrow < div.catalog-product-summary.min-w-0 < div.catalog-product-layout.grid  "سبورتا / جاهز لتمرينك"  12.6234px/w800  {"weight":"requested 800, Sporta Plex Arabic Local has no such face; Chrome uses 700","weightRequested":800,"weightUsed":700}
+    x  20  button.btn.btn-primary < div.product-purchase-row.mt-6 < div.catalog-product-summary.min-w-0  "أضف"  14.7273px/w800  {"weight":"requested 800, Sporta Plex Arabic Local has no such face; Chrome uses 700","weightRequested":800,"weightUsed":700}
+
+WEIGHTS ASKED FOR THAT THE FAMILY HAS NO FACE FOR (visible runs)
+     650  Sporta Plex Arabic Local requested 800 -> face 700
+     344  Sporta Plex Arabic Local requested 850 -> face 700
+     176  Sporta Plex Arabic Local requested 750 -> face 700
+      16  Sporta Plex Arabic Local requested 500 -> face 400
+
+CHARACTERS DRAWN BY A NON-BRAND FONT (visible runs)
+     16 runs /   8 states  U+2713 ✓ -> Inter   e.g. span.purchase-steps__number.grid < span.purchase-steps__body.flex < a.tap-row.rounded-lg "✓"
+     10 runs /  10 states  U+2715 ✕ -> DejaVu Sans   e.g. button.tap-target.rounded-lg < header.flex.items-center < div.fixed.bottom-24 "✕"
+      7 runs /   7 states  U+1F399 🎙 -> Unifont Upper   e.g. button.tap-target.shrink-0 < form.flex.gap-2 < div.fixed.bottom-24 "🎙"
+
+CONTROLS WITH A PROBLEM
+
+STATES WITH A CAVEAT (their numbers are less trustworthy): 16
+  account__ar__1280  routeCssMissing=false  documentLoads=1  stubbed: /assets/Account-DqFbZs-H.css
+  account__ar__390  routeCssMissing=false  documentLoads=1  stubbed: /assets/Account-DqFbZs-H.css
+  account__en__1280  routeCssMissing=false  documentLoads=1  stubbed: /assets/Account-DqFbZs-H.css
+  account__en__390  routeCssMissing=false  documentLoads=1  stubbed: /assets/Account-DqFbZs-H.css
+  backends__ar__1280  routeCssMissing=false  documentLoads=1  stubbed: /assets/AdminApp-Dw3t3z9Z.css
+  backends__ar__390  routeCssMissing=false  documentLoads=1  stubbed: /assets/AdminApp-Dw3t3z9Z.css
+  backends__en__1280  routeCssMissing=false  documentLoads=1  stubbed: /assets/AdminApp-Dw3t3z9Z.css
+  backends__en__390  routeCssMissing=false  documentLoads=1  stubbed: /assets/AdminApp-Dw3t3z9Z.css
+  exchange__ar__1280  routeCssMissing=false  documentLoads=1  stubbed: /assets/Returns-DHmag5QD.css
+  exchange__ar__390  routeCssMissing=false  documentLoads=1  stubbed: /assets/Returns-DHmag5QD.css
+  exchange__en__1280  routeCssMissing=false  documentLoads=1  stubbed: /assets/Returns-DHmag5QD.css
+  exchange__en__390  routeCssMissing=false  documentLoads=1  stubbed: /assets/Returns-DHmag5QD.css
+  returns__ar__1280  routeCssMissing=false  documentLoads=1  stubbed: /assets/Returns-DHmag5QD.css
+  returns__ar__390  routeCssMissing=false  documentLoads=1  stubbed: /assets/Returns-DHmag5QD.css
+  returns__en__1280  routeCssMissing=false  documentLoads=1  stubbed: /assets/Returns-DHmag5QD.css
+  returns__en__390  routeCssMissing=false  documentLoads=1  stubbed: /assets/Returns-DHmag5QD.css
+  states where a font file was fetched twice: 0 (of which the document had loaded more than once: 0)
+
+SMALL-TEXT ALLOW-LIST HITS: {"promo-bar":68,"legal-line":136,"count-badge":32}
+
+TYPE SCALE (visible runs): top 25 by runs
+     394  ar@1280|Sporta Plex Arabic Local|14.7273px|w400|normal|lh 1.43
+     394  ar@390|Sporta Plex Arabic Local|14px|w400|normal|lh 1.43
+     394  en@1280|Sporta Plex Arabic Local|14.7273px|w400|normal|lh 1.43
+     394  en@390|Sporta Plex Arabic Local|14px|w400|normal|lh 1.43
+     170  ar@1280|Sporta Plex Arabic Local|13.6754px|w600|normal|lh 1.43
+     170  ar@390|Sporta Plex Arabic Local|12px|w600|normal|lh 1.43
+     170  en@1280|Sporta Plex Arabic Local|13.6754px|w600|normal|lh 1.43
+     170  en@390|Sporta Plex Arabic Local|12px|w600|normal|lh 1.43
+      95  ar@1280|Sporta Plex Arabic Local|18.9351px|w850|normal|lh 1.25
+      87  ar@1280|Sporta Plex Arabic Local|13.6754px|w400|normal|lh 1.33
+      87  ar@390|Sporta Plex Arabic Local|13px|w400|normal|lh 1.33
+      87  en@1280|Sporta Plex Arabic Local|12.6234px|w400|normal|lh 1.33
+      87  en@390|Sporta Plex Arabic Local|12px|w400|normal|lh 1.33
+      85  ar@390|Sporta Plex Arabic Local|14px|w800|normal|lh 1
+      85  en@390|Sporta Plex Arabic Local|14px|w800|normal|lh 1
+      83  ar@390|Sporta Plex Arabic Local|16px|w850|normal|lh 1.25
+      83  en@1280|Sporta Plex Arabic Local|18.9351px|w850|normal|lh 1.25
+      83  en@390|Sporta Plex Arabic Local|16px|w850|normal|lh 1.25
+      80  ar@1280|Sporta Plex Arabic Local|14.7273px|w800|normal|lh 1
+      80  en@1280|Sporta Plex Arabic Local|14.7273px|w800|normal|lh 1
+      79  ar@1280|Sporta Alexandria Local|15.7792px|w650|normal|lh 1.3
+      78  ar@1280|Sporta Plex Arabic Local|14.7273px|w700|normal|lh 1.43
+      78  ar@390|Sporta Plex Arabic Local|14px|w700|normal|lh 1.43
+      78  en@1280|Sporta Plex Arabic Local|14.7273px|w700|normal|lh 1.43
+      78  en@390|Sporta Plex Arabic Local|14px|w700|normal|lh 1.43
+
+FONT FILES REQUESTED
+  /fonts/alexandria-var-arabic.woff2  200  font/woff2  transferred 22274  cache-control null  encoding null  in 74 states
+  /fonts/alexandria-var-latin.woff2  200  font/woff2  transferred 22054  cache-control null  encoding null  in 140 states
+  /fonts/plex-400-arabic.woff2  200  font/woff2  transferred 38906  cache-control null  encoding null  in 76 states
+  /fonts/plex-400-latin.woff2  200  font/woff2  transferred 18818  cache-control null  encoding null  in 140 states
+  /fonts/plex-600-arabic.woff2  200  font/woff2  transferred 41790  cache-control null  encoding null  in 72 states
+  /fonts/plex-600-latin.woff2  200  font/woff2  transferred 20086  cache-control null  encoding null  in 136 states
+  /fonts/plex-700-arabic.woff2  200  font/woff2  transferred 40254  cache-control null  encoding null  in 106 states
+  /fonts/plex-700-latin.woff2  200  font/woff2  transferred 19146  cache-control null  encoding null  in 140 states
+
+FONT FACES (document.fonts) AND HOW OFTEN EACH LOADED
+  loaded  74 / unloaded  66 / other 0  display auto  Alexandria Fallback | normal | normal | U+0-10FFFF
+  loaded 140 / unloaded   0 / other 0  display auto  Plex Arabic Fallback | normal | normal | U+0-10FFFF
+  loaded 140 / unloaded   0 / other 0  display swap  Sporta Alexandria Local | 100 900 | normal | U+0-FF, U+131, U+1
+  loaded  74 / unloaded  66 / other 0  display swap  Sporta Alexandria Local | 100 900 | normal | U+600-6FF, U+750-7
+  loaded 140 / unloaded   0 / other 0  display swap  Sporta Plex Arabic Local | 400 | normal | U+0-FF, U+131, U+1
+  loaded  76 / unloaded  64 / other 0  display swap  Sporta Plex Arabic Local | 400 | normal | U+600-6FF, U+750-7
+  loaded 136 / unloaded   4 / other 0  display swap  Sporta Plex Arabic Local | 600 | normal | U+0-FF, U+131, U+1
+  loaded  72 / unloaded  68 / other 0  display swap  Sporta Plex Arabic Local | 600 | normal | U+600-6FF, U+750-7
+  loaded 140 / unloaded   0 / other 0  display swap  Sporta Plex Arabic Local | 700 | normal | U+0-FF, U+131, U+1
+  loaded 106 / unloaded  34 / other 0  display swap  Sporta Plex Arabic Local | 700 | normal | U+600-6FF, U+750-7
+
+THIRD-PARTY FONT HOSTS: requested {"https://use.typekit.net/qkv4ztg.css":{"status":null,"failed":"net::ERR_BLOCKED_BY_CLIENT.Inspector","states":140},"https://use.typekit.net/xgg6rku.css":{"status":null,"failed":"net::ERR_BLOCKED_BY_CLIENT.Inspector","states":140}}; blocked by this run {"https://use.typekit.net/qkv4ztg.css":140,"https://use.typekit.net/xgg6rku.css":140}
+
+SLOW NETWORK (first text vs brand font, ms from navigation start)
+  home__ar__390            FCP 1292  firstText 4561  brandFont 4561..5960  FOUT 0ms  swap 1400ms  firstScreenGlyphsInFallback 201/284  late faces 6  LCP 4720  CLS 0.01 (fonts 0, 3 shifts)  fontBytes 221968 (before text 60840)  fontStartLagAfterCss -660ms  foitRisk []
+  home__en__390            FCP 1680  firstText 4316  brandFont 4316..5028  FOUT 0ms  swap 712ms  firstScreenGlyphsInFallback 222/352  late faces 2  LCP 4456  CLS 0.01 (fonts 0, 4 shifts)  fontBytes 79424 (before text 40532)  fontStartLagAfterCss -1129ms  foitRisk []
+  product__ar__390         FCP 1660  firstText 4683  brandFont 3978..5908  FOUT 0ms  swap 1225ms  firstScreenGlyphsInFallback 221/276  late faces 6  LCP 4828  CLS 0 (fonts 0, 2 shifts)  fontBytes 221968 (before text 60840)  fontStartLagAfterCss -1148ms  foitRisk []
+  product__en__390         FCP 1648  firstText 4441  brandFont 3883..4833  FOUT 0ms  swap 392ms  firstScreenGlyphsInFallback 243/315  late faces 2  LCP 4568  CLS 0 (fonts 0, 2 shifts)  fontBytes 79424 (before text 40532)  fontStartLagAfterCss -1099ms  foitRisk []
+  shop__ar__390            FCP 1912  firstText 4540  brandFont 3947..5822  FOUT 0ms  swap 1282ms  firstScreenGlyphsInFallback 239/441  late faces 6  LCP 4672  CLS 0 (fonts 0, 6 shifts)  fontBytes 221968 (before text 60840)  fontStartLagAfterCss -1358ms  foitRisk []
+  shop__en__390            FCP 1664  firstText 4398  brandFont 3883..4901  FOUT 0ms  swap 503ms  firstScreenGlyphsInFallback 238/500  late faces 2  LCP 4544  CLS 0 (fonts 0, 2 shifts)  fontBytes 79424 (before text 40532)  fontStartLagAfterCss -1170ms  foitRisk []
+
+SKIPPED STATES
+  menu-open__ar__1280: no menu control in this build (looked for header button[aria-label*="menu" i] | header button[aria-label*="القائمة"] | header button[aria-controls])
+  menu-open__ar__390: no menu control in this build (looked for header button[aria-label*="menu" i] | header button[aria-label*="القائمة"] | header button[aria-controls])
+  menu-open__en__1280: no menu control in this build (looked for header button[aria-label*="menu" i] | header button[aria-label*="القائمة"] | header button[aria-controls])
+  menu-open__en__390: no menu control in this build (looked for header button[aria-label*="menu" i] | header button[aria-label*="القائمة"] | header button[aria-controls])
+  search-open__ar__1280: no search control in this build (looked for header button[aria-label*="search" i] | header button[aria-label*="بحث"])
+  search-open__ar__390: no search control in this build (looked for header button[aria-label*="search" i] | header button[aria-label*="بحث"])
+  search-open__en__1280: no search control in this build (looked for header button[aria-label*="search" i] | header button[aria-label*="بحث"])
+  search-open__en__390: no search control in this build (looked for header button[aria-label*="search" i] | header button[aria-label*="بحث"])
