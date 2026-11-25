@@ -147,7 +147,7 @@ const seen = new Set(), walker = document.createTreeWalker(document.body, NodeFi
 for (let n = walker.nextNode(); n; n = walker.nextNode()) { const e = n.parentElement
 if (!e || seen.has(e) || !n.textContent.trim() || svgIn(e) || !vis(e) || hid(e) || ['SCRIPT', 'STYLE', 'OPTION'].includes(e.tagName)) continue; seen.add(e)
 const c = S(e), fs = parseFloat(c.fontSize), bg = bgOf(e), col = blend(rgba(c.color), bg), dis = e.closest(':disabled, [aria-disabled=true]')
-if (fs < 12) out.tiny.push({ fs, s: sig(e), t: n.textContent.trim().slice(0, 24) })
+if (fs < 12) out.tiny.push({ fs, s: sig(e) + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).slice(0, 3).join('.') : ''), t: n.textContent.trim().slice(0, 24) })
 const need = fs >= 24 || (fs >= 18.66 && +c.fontWeight >= 700) ? 3 : 4.5, r = ratio(col, bg)
 if (r < need && !dis) out.con.push({ r: Math.round(r * 100) / 100, need, fg: hex(col), bg: hex(bg), fs, s: sig(e), t: n.textContent.trim().slice(0, 24) }) }
 for (const e of document.body.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=color]), select, textarea')) { if (!vis(e)) continue
