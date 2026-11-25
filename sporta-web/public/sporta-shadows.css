@@ -1931,6 +1931,14 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
   margin: 0;
 }
 /* ==== end ADD OUTSIDE PHOTO 1124 */
+
+/* ==== CATEGORY FULL WIDTH 1124 (owner: "make full width catogory") ==========================================
+ * The home page's category tiles sat inside the page's 1323 px reading column, so on a wide screen they stopped short of
+ * the edges. The section that holds them takes the full width; its side padding stays as it was. */
+:root .storefront-root .home-section:has(.home-category-grid) {
+  max-width: none;
+}
+/* ==== end CATEGORY FULL WIDTH 1124 */
 /* ==== PRODUCT CARDS 1119 (2026-11-19, owner: "improve cards style at products grids"; scans: PRODUCTS-GRID-SCAN-2026-11-18.md,
  * CARDS-SCAN-2026-11-18.md; proof: npm run test:cards-1119) =======================================================================
  * The frame of the card (16px radius, 1px border, resting shadow, 4:5 photo, the 44px heart and "+") is the owner's and stays. What
