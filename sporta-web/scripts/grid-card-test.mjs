@@ -183,26 +183,40 @@ head('a product added in /backends is reachable')
   // found" at its own URL. The admin's Add Product form appeared to work and
   // produced nothing a customer could reach.
   const SLUG = 'SPGRIDDBONLY'.toLowerCase()
+  const PHOTO = '/images/products/cloudsoft-jacket-army-green.jpg'   // a photo file the rig writes for every seeded product
   await sql(`delete from products where slug = '${SLUG}'`)
   await sql(`insert into products (slug, name_en, name_ar, desc_en, desc_ar, price, category, active)
              values ('${SLUG}', 'Db Only Tee', 'تيشيرت من قاعدة البيانات', 'x', 'س', 7.500, 'men', 1)`)
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
 
-    // Its own URL renders the product rather than a not-found.
+    // AUTO-HIDE (owner request 2026-11-19): a product with no photo and no size row is NOT listed, so its own URL reads "not found" and it
+    // stays off /shop. The rig turns the photo rule on (scripts/sandbox.sh), so this product, with no photo file, must be hidden.
+    await page.goto(`${SITE}/product/${SLUG}`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(900)
+    const hiddenH1 = await page.evaluate(() => document.querySelector('h1')?.innerText ?? '')
+    is(!/Db Only Tee|تيشيرت من قاعدة البيانات/.test(hiddenH1), 'with no photo it is hidden: its URL says not found, not the product', hiddenH1.slice(0, 40))
+
+    // Give it a photo: now it is listed, its page renders, the picture loads (no broken-image glyph), and it is on /shop.
+    // The storefront finds a product's photo by its SLUG (the public API returns image null for every product), so the photo is a file named
+    // after the test slug in the rig's served folder, removed again at the end.
+    const { writeFileSync } = await import('node:fs')
+    const { join: pj } = await import('node:path')
+    const served = pj(import.meta.dirname, '..', 'dist', 'images', 'products', SLUG + '.jpg')
+    // a REAL image (a 1x1 PNG): the rig's own seeded files are 11-byte text placeholders, which no browser can draw
+    writeFileSync(served, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'))
+    await sql(`update products set image = '${PHOTO}' where slug = '${SLUG}'`)
     await page.goto(`${SITE}/product/${SLUG}`, { waitUntil: 'networkidle' })
     await page.waitForTimeout(900)
     const h1 = await page.evaluate(() => document.querySelector('h1')?.innerText ?? '')
     is(/تيشيرت من قاعدة البيانات|Db Only Tee/.test(h1),
-       'its own URL renders the product, not "not found"', h1.slice(0, 40))
+       'with a photo its own URL renders the product, not "not found"', h1.slice(0, 40))
 
-    // AND IT HAS A PICTURE. With no image column and no bundled row to fall
-    // back to, both halves of the old fallback were empty and the browser drew
-    // a broken-image glyph.
+    // AND IT HAS A PICTURE: a loaded photo, not a broken-image glyph.
     is(await page.evaluate(() => {
       const i = document.querySelector('.aspect-square img')
       return !!i && !(i.complete && i.naturalWidth === 0)
-    }), 'and a placeholder rather than a broken-image glyph')
+    }), 'and a picture that loads, not a broken-image glyph')
 
     // And it is on the grid.
     await page.goto(`${SITE}/shop`, { waitUntil: 'networkidle' })
@@ -213,9 +227,10 @@ head('a product added in /backends is reachable')
     })
     await page.waitForTimeout(900)
     is(await page.locator(`a[href$="/product/${SLUG}"]`).count() > 0,
-       'and it appears on /shop, which used to list only the bundled catalogue')
+       'and it appears on /shop once it has a photo')
     await page.close()
   } finally {
+    try { const { rmSync } = await import('node:fs'); const { join: pj } = await import('node:path'); rmSync(pj(import.meta.dirname, '..', 'dist', 'images', 'products', SLUG + '.jpg'), { force: true }) } catch (e) { /* nothing to remove */ }
     await sql(`delete from products where slug = '${SLUG}'`)
   }
 }
