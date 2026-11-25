@@ -926,7 +926,6 @@ export default function SalemChat() {
     if (status !== "connected" || !restartByKeyboardRef.current) return;
     restartByKeyboardRef.current = false;
     focusBox();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- focusBox reads the ref only
   }, [status]);
 
   const typing = status === "connected" && (pending || awaitingGreeting);
