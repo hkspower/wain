@@ -1163,3 +1163,24 @@ html[data-sporta-route="product"] .storefront-root main h1 { text-align: center;
   -webkit-mask: var(--sig-check) center / contain no-repeat;
   mask: var(--sig-check) center / contain no-repeat;
 }
+
+/* ===== PLATE NOTE 1124 (owner: "make inside blue line center without border and use other describe") =====
+ * The brand plate of a product page: the content is centred, the maker's logo chip has no border, and the note under it has
+ * no top divider. The note's text is written by sporta-features.js PLATE NOTE 1124 (it finds the compiled line by its words). */
+:root .storefront-root .catalog-product-page .campaign-brand-plate[data-sporta-plate] {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+:root .storefront-root .catalog-product-page .campaign-brand-plate[data-sporta-plate] > .campaign-brand-plate__maker {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+:root .storefront-root .catalog-product-page [data-sporta-plate-note] {
+  border-top: 0 !important;
+  padding-top: 0 !important;
+  width: 100%;
+  text-align: center;
+}
+/* ===== PLATE NOTE 1124 - end ===== */

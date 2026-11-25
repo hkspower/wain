@@ -4831,6 +4831,48 @@
 })()
 /* ===== PRODUCT BRAND-1118 - end ===== */
 
+/* ===== PLATE NOTE 1124 (2026-11-24, owner: "make inside blue line center without border and use other describe") =========
+ * The brand plate of a product page: the maker's logo chip, and under it the line "Authentic · sold by Sporta" (Arabic:
+ * "أصلي · بيع سبورتا"), which the compiled build draws with a top divider. The owner wants the content centred with no
+ * borders, and a different description. The compiled text cannot be edited, so this block finds the note by its words,
+ * tags it, and writes the new sentence in place (a text node: the page's own node stays). Styles: PLATE NOTE 1124 in
+ * sporta-product-fix.css. Shop pages only (not /backends). Leading ";" because this file is several IIFEs back to back. */
+;(function () {
+  'use strict'
+  try {
+    if (location.pathname.indexOf('/backends') === 0 || window.__sportaPlateNote) return
+    window.__sportaPlateNote = 1
+    var OLD = { ar: 'أصلي · بيع سبورتا', en: 'Authentic · sold by Sporta' }
+    var NEW = { ar: 'منتج أصلي 100% من الماركة مباشرة', en: '100% original, straight from the brand' }
+    var timer = 0
+    var run = function () {
+      timer = 0
+      var plates = document.querySelectorAll('.catalog-product-page .campaign-brand-plate')
+      for (var i = 0; i < plates.length; i++) {
+        var plate = plates[i]
+        var kids = plate.children
+        for (var k = 0; k < kids.length; k++) {
+          var c = kids[k]
+          if (c.tagName !== 'SPAN' || c.children.length) continue
+          var txt = (c.textContent || '').replace(/\s+/g, ' ').trim()
+          var lang = txt === OLD.ar ? 'ar' : (txt === OLD.en ? 'en' : (txt === NEW.ar ? 'ar' : (txt === NEW.en ? 'en' : '')))
+          if (!lang) continue
+          c.setAttribute('data-sporta-plate-note', '')
+          if (txt !== NEW[lang]) c.textContent = NEW[lang]
+        }
+        plate.setAttribute('data-sporta-plate', '')
+      }
+    }
+    var later = function () { if (!timer) timer = requestAnimationFrame(run) }
+    var start = function () {
+      run()
+      if (window.MutationObserver) new MutationObserver(later).observe(document.body, { childList: true, subtree: true, characterData: true })
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
+})()
+/* ===== PLATE NOTE 1124 - end ================================================ */
+
 /* ===== FABRIC-1119 (2026-11-19, owner: "make fabric selector with percent option") =====================
  * The product page says what the garment is made of, under the title: "Fabric: Cotton 80%, Elastane 20%", or "Fabric: Cotton, Nylon"
  * when the admin gave no percentages. The composition is the product's `fabric` list in /api/api.php?r=products (the rules are in
