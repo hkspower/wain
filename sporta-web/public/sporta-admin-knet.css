@@ -1353,5 +1353,11 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
 @media (max-width: 767px) {
   .admin-shell .admin-content .admin-returns__badge,
   .admin-shell .admin-content .support-admin__status,
-  .admin-shell .admin-content .theme-editor__current { font-size: 12px !important; }
+  .admin-shell .admin-content .theme-editor__current,
+  .admin-shell .admin-content .theme-editor__font-upload p,
+  .admin-shell .admin-content .crm-tile span,
+  .admin-shell .admin-content .support-admin__mobile .m-row span,
+  .admin-shell .admin-content .support-admin__head p,
+  .admin-shell .admin-content .profiles-admin p,
+  .admin-shell .admin-content .topbar-editor__segmented span { font-size: 12px !important; }
 }
