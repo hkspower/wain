@@ -22,9 +22,10 @@
  *
  *   1. The generated half is current (gen-home-hero.mjs --check).
  *   2. The page does not slide sideways.
- *   3. The picture is whole and full width: its box has the master's ratio,
- *      spans the screen's width, sits inside the section and the screen, and
- *      actually loaded.
+ *   3. The picture is full width and has the master's ratio, sits inside the
+ *      screen, and actually loaded. From `sm` it is whole; below `sm` the
+ *      clip keeps its top 72% (the sea is cut on purpose, 2 November), and the
+ *      sun, the labels and the search link must all sit in what remains.
  *   4. The sun link is a circle on the picture's sun: centre and diameter
  *      within SUN_TOL_PX of the disc's, measured in the master.
  *   5. The label («إلى وين؟» and «ابدأ») lies on the disc: at least
@@ -180,8 +181,11 @@ for (const [width, height] of VIEWPORTS) {
     // The visible one: AppTabBar's tab is in the DOM and painted by nothing.
     const pill = [...document.querySelectorAll('main a[href^="/search"]')]
       .find((a) => a.getClientRects().length && getComputedStyle(a).visibility !== "hidden");
+    // The box that clips the picture: on a phone it cuts the sea away
+    // (HomeHero.tsx), from `sm` it is the picture's own height.
+    const clip = box(img.closest("div.home-hero").parentElement);
     return {
-      img: box(img), sec: box(sec), loaded: img.complete && img.naturalWidth > 0,
+      img: box(img), clip, sec: box(sec), loaded: img.complete && img.naturalWidth > 0,
       sun: sun && box(sun),
       labels: spans.map((s) => {
         const cs = getComputedStyle(s);
@@ -209,7 +213,19 @@ for (const [width, height] of VIEWPORTS) {
   // screen's height from `sm`, centred, with its edge colours carried out to
   // the sides. Never cropped either way — the ratio check above holds that.
   else if (img.w < m.vw - 0.5) say(`${where}: the picture is ${Math.round(img.w)}px wide on a ${m.vw}px screen — it spans the full width`);
-  if (img.t < m.sec.t - 0.5 || img.t + img.h > m.sec.t + m.sec.h + 0.5) say(`${where}: the section cuts the picture`);
+  // The visible picture. From `sm` it is the whole picture. Below `sm` the
+  // clip keeps the top 72% (1382 of the master's 1920 px, the rule written in
+  // HomeHero.tsx) and nothing else: the sea below it is cut on purpose.
+  const phone = width < 640;
+  const visibleH = m.clip.h;
+  const want = phone ? (1382 / 1920) * img.h : img.h;
+  if (Math.abs(visibleH - want) > 1) say(`${where}: the visible picture is ${Math.round(visibleH)}px, expected ${Math.round(want)}px${phone ? " (the top 72% on a phone)" : " (the whole picture)"}`);
+  if (Math.abs(m.clip.t - img.t) > 0.5) say(`${where}: the picture does not start at the top of its clip`);
+  const visibleEnd = m.clip.t + m.clip.h;
+  if (img.t < m.sec.t - 0.5) say(`${where}: the picture starts above its section`);
+  if (!phone && img.t + img.h > m.sec.t + m.sec.h + 0.5) say(`${where}: the section cuts the picture`);
+  if (phone && Math.abs(m.sec.t + m.sec.h - visibleEnd) > 0.5) say(`${where}: the section does not end where the phone's cut is`);
+  if (m.sun && m.sun.t + m.sun.h > visibleEnd + 0.5) say(`${where}: the sun reaches below the visible picture`);
 
   if (!m.sun) say(`${where}: no sun link to /find`);
   else {
@@ -236,7 +252,7 @@ for (const [width, height] of VIEWPORTS) {
     }
   }
   if (!m.pill) say(`${where}: no visible link to /search on the home page — it is the web's only one`);
-  else if (m.pill.t < img.t + img.h - 0.5) say(`${where}: «دوّر باسم المكان» is on the picture (top ${Math.round(m.pill.t)}px, picture ends ${Math.round(img.t + img.h)}px) — it belongs in the row under it`);
+  else if (m.pill.t < visibleEnd - 0.5) say(`${where}: «دوّر باسم المكان» is on the picture (top ${Math.round(m.pill.t)}px, picture ends ${Math.round(visibleEnd)}px) — it belongs in the row under it`);
 
   if (problems === before) {
     const lab = m.labels.map((l) => `${l.font.toFixed(0)}px`).join("/");
