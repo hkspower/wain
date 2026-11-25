@@ -1197,6 +1197,19 @@
       ]
     },
     {
+      "name": "crm-email-contacts",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 8,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig"
+      ]
+    },
+    {
       "name": "admin-crm-phones",
       "needs": "browser",
       "parallelSafe": true,

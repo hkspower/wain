@@ -82,6 +82,7 @@
     "test:site-icon-storefront": "node scripts/site-icon-storefront-test.mjs",
     "test:crm-phones": "node scripts/crm-phones-test.mjs",
     "test:crm-interests": "node scripts/crm-interests-test.mjs",
+    "test:crm-email-contacts": "node scripts/crm-email-contacts-test.mjs",
     "test:admin-crm-phones": "node scripts/admin-crm-phones-test.mjs",
     "test:admin-crm-interests": "node scripts/admin-crm-interests-test.mjs",
     "test:admin-suggested-prices": "node scripts/admin-suggested-prices-test.mjs",
