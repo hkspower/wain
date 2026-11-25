@@ -192,6 +192,13 @@ export const SYNONYMS: Record<string, string[]> = {
   نشرب: ["قهوه", "كافيهات"],
   نروح: ["مكان", "طلعه"],
   نطلع: ["مكان", "طلعه"],
+  // Kuwaiti and Gulf words for places the catalogue already names: «شاطي» is
+  // the beach, «مزرعه» the farm, «تمشي» the walk along the sea, «حلا» sweets.
+  // Each value is a word the catalogue really uses (checked in places.ts).
+  شاطي: ["شاطئ", "شواطئ"],
+  مزرعه: ["مزارع"],
+  تمشي: ["ممشى", "مشي", "كورنيش"],
+  حلا: ["حلويات"],
   سمچ: ["سمك"],
   /**
    * The national dish, and the four ways it gets written.
