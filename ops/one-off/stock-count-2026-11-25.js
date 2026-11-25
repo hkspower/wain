@@ -2,9 +2,11 @@ const fs = require('fs')
 const cp = require('child_process')
 const CFG = '/sporta/private/api-config.php'
 const text = fs.readFileSync(CFG, 'utf8')
-const pick = (k) => { const m = text.match(new RegExp("'" + k + "'\\s*=>\\s*'([^']*)'")); return m ? m[1] : null }
+const pick = (k) => { const m = text.match(new RegExp("['\"]" + k + "['\"]\\s*(=>|:|=)\\s*['\"]([^'\"]*)['\"]")); return m ? m[2] : null }
+const keysSeen = (text.match(/['\"][a-z_]*(db|mysql)[a-z_]*['\"]\s*(=>|:|=)/gi) || []).map((k) => k.replace(/\s*(=>|:|=)$/, '')).join(' ')
+console.log('CFG_KEYS ' + keysSeen)
 const host = pick('db_host'), name = pick('db_name'), user = pick('db_user'), pass = pick('db_pass')
-if (!host || !name || !user || pass === null) { console.log('FAIL config keys missing'); process.exit(1) }
+if (!host || !name || !user || pass === null) { console.log('FAIL config keys missing (names above, no values printed)'); process.exit(1) }
 fs.writeFileSync('/tmp/my.cnf', '[client]\nhost=' + host + '\nuser=' + user + '\npassword=' + pass + '\ndatabase=' + name + '\n', { mode: 0o600 })
 console.log('DB ' + host + ' ' + name)
 const q = (sql) => cp.execFileSync('mariadb', ['--defaults-extra-file=/tmp/my.cnf', '-N', '-B', '-e', sql], { encoding: 'utf8' })
