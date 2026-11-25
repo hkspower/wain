@@ -3052,6 +3052,53 @@
 })()
 /* ===== NAMES-1119 - end ===================================================== */
 
+/* ===== ADD OUTSIDE PHOTO 1124 (2026-11-24, owner: "make add to cart icons not inside product image") =======================
+ * The round "+" of a product card is drawn ON the photo (bottom, end corner). This block shows a copy of it in the card's
+ * text part, under the price, on the same side. The shop's own button stays where React put it, hidden (display:none, so
+ * its React handler, its size picker and its aria state are untouched): the copy's click calls the original's click(), so
+ * a tap does exactly what the button on the photo did. The copy is rebuilt from the original whenever the original changes
+ * (name, disabled, the "in your bag" fill, the icon); a card with no button on its photo gets no copy. Shop pages only.
+ * Styles: ADD OUTSIDE PHOTO 1124 in sporta-shadows.css. Leading ";" because this file is several IIFEs back to back. */
+;(function () {
+  'use strict'
+  try {
+    if (location.pathname.indexOf('/backends') === 0 || window.__sportaAddOut) return
+    window.__sportaAddOut = 1
+    var CARD = '.storefront-root .product-grid-card', ORIG = '.catalog-card-image > .catalog-card-add', MOVED = 'data-sporta-add-moved', ROW = 'sporta-add-out'
+    var timer = 0
+    var sig = function (b) { return [b.className, b.getAttribute('aria-label') || '', b.disabled ? '1' : '0', b.innerHTML.length, b.innerHTML.slice(0, 60)].join('|') }
+    var run = function () {
+      timer = 0
+      var cards = document.querySelectorAll(CARD)
+      for (var i = 0; i < cards.length; i++) {
+        var card = cards[i]
+        var orig = card.querySelector(ORIG)
+        var info = card.querySelector('.catalog-card-info')
+        var row = card.querySelector(':scope > .' + ROW) || (info && info.querySelector(':scope > .' + ROW))
+        if (!orig || !info) { if (row) row.parentNode.removeChild(row); continue }
+        orig.setAttribute(MOVED, '1')
+        if (!row) { row = document.createElement('div'); row.className = ROW; info.appendChild(row) }
+        var copy = row.firstChild
+        if (copy && copy.getAttribute('data-sporta-add-sig') === sig(orig)) continue
+        var fresh = orig.cloneNode(true)
+        fresh.removeAttribute(MOVED); fresh.removeAttribute('id'); fresh.setAttribute('data-sporta-add-sig', sig(orig))
+        fresh.className = fresh.className.replace(/(^|\s)(absolute|bottom-2|end-2)(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim() + ' sporta-add-out__btn'
+        fresh.setAttribute('tabindex', '0')
+        // Look the card up at tap time: React can replace the card node on a re-render, and the one captured here would be stale.
+        fresh.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); var art = e.currentTarget.closest(CARD), o = art && art.querySelector(ORIG); if (o && !o.disabled) o.click() })
+        if (copy) row.replaceChild(fresh, copy); else row.appendChild(fresh)
+      }
+    }
+    var later = function () { if (!timer) timer = requestAnimationFrame(run) }
+    var start = function () {
+      run()
+      if (window.MutationObserver) new MutationObserver(later).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'disabled', 'aria-label'] })
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
+})()
+/* ===== ADD OUTSIDE PHOTO 1124 - end ========================================= */
+
 /* ===== PRODUCT ACTIONS 1120 (2026-11-19, owner: "full improve product page ux ui"; styles: PRODUCT UX 1120 in sporta-product-fix.css; proof: npm run test:product-ux-1120) ====
  * Two quiet actions under the reassurance panel of a product page (Delivery / Payment / Returns):
  *   - "Ask on WhatsApp": a WhatsApp link whose message already names the product and carries its page address, so a shopper with a

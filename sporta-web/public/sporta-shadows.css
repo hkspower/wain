@@ -1912,6 +1912,25 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
   font-variant-numeric: lining-nums tabular-nums;
 }
 /* ==== end CARDS-1118 */
+
+/* ==== ADD OUTSIDE PHOTO 1124 (owner: "make add to cart icons not inside product image") ==========================
+ * The "+" button of a product card was drawn on the photo's bottom-end corner. sporta-features.js shows a copy of it in
+ * the text part under the price (the same side, the end edge, 44 px); the original stays on the photo, hidden, so its
+ * React handler is the one that runs. */
+:root .storefront-root .product-grid-card .catalog-card-image > .catalog-card-add[data-sporta-add-moved] {
+  display: none !important;
+}
+:root .storefront-root .product-grid-card .catalog-card-info > .sporta-add-out {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: .5rem;
+}
+:root .storefront-root .product-grid-card .sporta-add-out__btn {
+  position: static !important;
+  inset: auto !important;
+  margin: 0;
+}
+/* ==== end ADD OUTSIDE PHOTO 1124 */
 /* ==== PRODUCT CARDS 1119 (2026-11-19, owner: "improve cards style at products grids"; scans: PRODUCTS-GRID-SCAN-2026-11-18.md,
  * CARDS-SCAN-2026-11-18.md; proof: npm run test:cards-1119) =======================================================================
  * The frame of the card (16px radius, 1px border, resting shadow, 4:5 photo, the 44px heart and "+") is the owner's and stays. What
