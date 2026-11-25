@@ -102,7 +102,7 @@ import {
   PUMP_MAX_KMH,
   rpmAt,
 } from "./engines";
-import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, CARS, rivalsBeaten, saveRivalsBeaten, EXHAUSTS, FINISHES, rollMaxFor } from "./mods";
+import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, CARS, rivalsBeaten, saveRivalsBeaten, EXHAUSTS, FINISHES, rollMaxFor, diveMaxFor } from "./mods";
 import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from "./profile";
 import { num } from "./format";
 
@@ -688,10 +688,12 @@ export interface EngineEvents {
 interface AiBody extends Attitude {
   prevBeta: number;
   rollMax: number;
+  /** How far its nose may dive; undefined is the fleet's limit (diveMaxFor). */
+  diveMax?: number;
   latAccel: number;
 }
-const newAiBody = (rollMax: number): AiBody => ({
-  roll: 0, pitch: 0, rollVel: 0, pitchVel: 0, prevBeta: 0, rollMax, latAccel: 0,
+const newAiBody = (rollMax: number, diveMax?: number): AiBody => ({
+  roll: 0, pitch: 0, rollVel: 0, pitchVel: 0, prevBeta: 0, rollMax, diveMax, latAccel: 0,
 });
 
 interface RemotePlayer {
@@ -4425,7 +4427,7 @@ export class GameEngine {
       // The rival leans as the car they brought does: a race-kitted
       // coupe stiff, the saloon soft. Not the player's build — a rival
       // does not inherit your coilovers because you own the same model.
-      body: newAiBody(rollMaxFor(rivalCar?.style, rivalCar?.kit)),
+      body: newAiBody(rollMaxFor(rivalCar?.style, rivalCar?.kit), diveMaxFor(rivalCar?.trike)),
       def,
       mesh,
       s: this.track.wrap(this.player.s + 260),
@@ -6481,7 +6483,7 @@ export class GameEngine {
     // Both on springs — the one law in attitude.ts, which the rival and
     // the traffic go through too. A body settles on its suspension; it
     // does not arrive.
-    stepAttitude(this, latAccel, longAccel, this.tune.rollMax, dt);
+    stepAttitude(this, latAccel, longAccel, this.tune.rollMax, dt, this.tune.diveMax);
     this.carBody.rotation.z = this.roll;
     this.carBody.rotation.x = this.pitch;
     // ...and the wheels stay where the road is. Those two lines rotate
@@ -7092,7 +7094,7 @@ export class GameEngine {
    * road.
    */
   private poseAiBody(mesh: THREE.Object3D, b: AiBody, latAccel: number, longAccel: number, dt: number): void {
-    stepAttitude(b, latAccel, longAccel, b.rollMax, dt);
+    stepAttitude(b, latAccel, longAccel, b.rollMax, dt, b.diveMax);
     mesh.rotateX(b.pitch);
     mesh.rotateZ(b.roll);
     this.applySuspension(mesh, b.roll, b.pitch);

@@ -24,6 +24,11 @@
 //             rims gets gold rims — which is the bug the one-place
 //             wheel rule was extracted to fix, and it is here because a
 //             refactor nobody tried to break is a comment.
+//   moves     Driven in the real engine (a steady run, a 200 km/h stop,
+//             full lock, a slide): every tyre lays the road at its own
+//             radius, every hub stays on it, the nose tyre steers inside
+//             its opening and stays under the bonnet, the rear tyres stay
+//             clear of the cut body.
 //   three     Three wheels, the nose one in view, and the rear pair 1.4
 //             times the fleet's tyre, in proportion, standing in holes
 //             cut for them, each with its own brake and its own rate of
@@ -795,6 +800,182 @@ const rear = await page.evaluate(async (id) => {
     check(menu.count === 3, `the menu's Black Demon has ${menu.count} wheels`) + " " +
     check(Math.abs(k - 0.86 / 1.4) < 0.04 && Math.abs(t1 / t2 - 1) < 0.02,
       `the rear tyres turn ${k.toFixed(2)}x as fast as the front one (want ${(0.86 / 1.4).toFixed(2)}): a tyre ${(1.4 / 0.86).toFixed(2)}x the size turning at the small one's rate skates`));
+}
+
+// ---- 9. It moves ----------------------------------------------------
+//
+// Everything above was measured with the car standing still. This drives
+// it, in the real engine, as the player's car, and measures the tyres in
+// the BODY's own frame (the shell rolls and pitches on its springs, the
+// hubs stay with the road), because that is where a tyre meets a panel:
+//
+//   rolling    each tyre lays the road at its own radius: 1.000 of the
+//              distance, the rears at 0.61x the nose tyre's turns
+//   contact    every hub at its own tyre's radius above the road, in a
+//              steady run, a 200 km/h stop, full lock either way, a slide
+//   lock       the nose tyre steers its lock and stays inside the opening
+//              in the nose (TRIKE_NOSE.halfW) at full lock
+//   bonnet     the nose tyre never stands above the bonnet's skin. It did:
+//              the body dives, the tyre stays on the road and comes up
+//              through the hood by (nose axle) x (dive), 43 mm above it in
+//              a stop with the fleet's 2.6 degree dive limit. The Demon
+//              dives to 1.3 now (mods.ts diveMaxFor), which is visual
+//              only: the load transfer that decides grip is grip.ts's own
+//   walls      the rear tyres stay inboard of the cut's flat back wall
+await page.click("text=START ENGINE");
+await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 600000 });
+// The authored shells and tyres land minutes after boot on software GL; a
+// drive of the procedural stand-in would be a drive of a different car.
+{
+  const t0 = Date.now();
+  for (;;) {
+    const st = await page.evaluate(() => {
+      const e = window.__grnEngine;
+      let shells = 0, authored = 0, tyres = 0, ta = 0;
+      e.carBody.traverse((o) => {
+        if (!o.isMesh) return;
+        if (o.userData.shell) { shells++; if (o.geometry.userData.authored) authored++; }
+        if (o.userData.wheelPart === "tire" && (o.parent?.userData.spokes ?? 0) > 0) { tyres++; if (o.geometry.userData.authored) ta++; }
+      });
+      return shells > 0 && authored === shells && ta === tyres;
+    });
+    if (st || Date.now() - t0 > 420000) break;
+    await page.waitForTimeout(3000);
+  }
+}
+const moving = await page.evaluate(async () => {
+  const e = window.__grnEngine;
+  const THREE = window.__grnThree;
+  e.skipCinematic?.();
+  e.setPaused(true);
+  const body = e.carBody;
+  const wheels = body.userData.wheels;
+  const R = body.userData.wheelR;
+  const sc = body.scale;
+  const ks = wheels.map((w) => w.userData.rMul ?? 1);
+  // cars.ts's own numbers (TIRE_RADIUS, TIRE_HALF_W, TRIKE_NOSE.halfW).
+  const TIRE_RADIUS = 0.375, TIRE_HALF_W = 0.1325, NOSE_HALF_W = 0.235;
+  const tyreMeshes = wheels.map((w) => { const out = []; w.traverse((o) => { if (o.isMesh && o.userData.wheelPart === "tire") out.push(o); }); return out; });
+  const V = new THREE.Vector3();
+  const park = () => {
+    const away = e.track.wrap(2400 + e.track.length / 2);
+    for (const t of e.traffic) t.s = away;
+    if (e.rival) { e.rival.s = away; e.rival.speed = 0; }
+  };
+  // The bonnet's top skin over the nose tyre, body frame, read with the body level.
+  const shell = (() => { let m; body.traverse((o) => { if (o.isMesh && o.userData.shell === "body") m = o; }); return m; })();
+  const skin = {};
+  body.rotation.set(0, 0, 0);
+  body.updateMatrixWorld(true);
+  { const rc = new THREE.Raycaster();
+    for (let zi = 180; zi <= 240; zi += 5) {
+      const z = zi / 100;
+      rc.set(new THREE.Vector3(0, 3, z).applyMatrix4(body.matrixWorld), new THREE.Vector3(0, -1, 0));
+      const h = rc.intersectObject(shell, false)[0];
+      skin[zi] = h ? (h.point.y - body.position.y) / sc.y : null;
+    } }
+  const skinAt = (z) => skin[Math.min(240, Math.max(180, Math.round(z * 20) * 5))] ?? null;
+  const probe = (acc) => {
+    body.updateMatrixWorld(true);
+    wheels.forEach((w, i) => { w.getWorldPosition(V); acc.hub[i] = Math.max(acc.hub[i], Math.abs(V.y - body.position.y - R * ks[i])); });
+    wheels.forEach((w, i) => {
+      const xIn = Math.abs(w.position.x) - TIRE_HALF_W * w.scale.x - 0.03;
+      for (const m of tyreMeshes[i]) {
+        const pa = m.geometry.attributes.position;
+        for (let k = 0; k < pa.count; k += 3) {
+          V.fromBufferAttribute(pa, k).applyMatrix4(m.matrixWorld);
+          body.worldToLocal(V);
+          const ax = Math.abs(V.x);
+          if (i === 0) {
+            acc.noseX = Math.max(acc.noseX, ax);
+            if (ax < 0.15 && V.z < 2.42) { const t = skinAt(V.z); if (t !== null) acc.noseOut = Math.max(acc.noseOut, V.y - t); }
+          } else acc.wall = Math.min(acc.wall, ax - xIn);
+        }
+      }
+    });
+    acc.steer = Math.max(acc.steer, Math.abs(wheels[0].rotation.y));
+    acc.pitch = Math.max(acc.pitch, Math.abs(e.pitch));
+    acc.roll = Math.max(acc.roll, Math.abs(e.roll));
+  };
+  const newAcc = () => ({ hub: wheels.map(() => 0), noseX: 0, noseOut: -1e9, wall: 1e9, steer: 0, pitch: 0, roll: 0 });
+  const drive = (n, input, hold, acc, every = 6) => {
+    for (let i = 0; i < n; i++) {
+      park();
+      if (hold !== undefined) { e.player.speed = hold; e.prevSpeed = hold; }
+      e.setTouchInput(input);
+      e.update(1 / 60);
+      if (window.__vclock) window.__vclock.t += 1000 / 60;
+      if (acc && i % every === 0) probe(acc);
+    }
+  };
+  const level = () => { e.roll = 0; e.pitch = 0; e.rollVel = 0; e.pitchVel = 0; e.heading = 0; e.driftYaw = 0; e.player.s = 2400; e.player.lat = 0; };
+  const runs = {};
+  // rest
+  level(); e.player.speed = 0;
+  drive(30, { throttle: 0, brake: 0, steer: 0 });
+  runs.rest = newAcc(); probe(runs.rest);
+  // a steady run: arc against road
+  level();
+  drive(600, { throttle: 1, brake: 0, steer: 0 });
+  const s0 = e.player.s;
+  const a0 = wheels.map((w) => w.rotation.x);
+  runs.run = newAcc();
+  drive(180, { throttle: 0.35, brake: 0, steer: 0 }, undefined, runs.run);
+  const dS = e.track.deltaAhead(s0, e.player.s);
+  const arcs = wheels.map((w, i) => ((w.rotation.x - a0[i]) * R * ks[i]) / dS);
+  const turns = wheels.map((w, i) => w.rotation.x - a0[i]);
+  // a stop from 200 km/h
+  level(); e.player.speed = 200 / 3.6; e.prevSpeed = e.player.speed;
+  drive(6, { throttle: 0, brake: 0, steer: 0 }, 200 / 3.6);
+  runs.brake = newAcc();
+  drive(150, { throttle: 0, brake: 1, steer: 0 }, undefined, runs.brake, 3);
+  // full lock each way at 60 km/h
+  for (const [name, dir] of [["lockL", 1], ["lockR", -1]]) {
+    level();
+    drive(30, { throttle: 0.4, brake: 0, steer: 0 }, 60 / 3.6);
+    runs[name] = newAcc();
+    drive(200, { throttle: 0.4, brake: 0, steer: dir }, 60 / 3.6, runs[name]);
+  }
+  // a slide
+  level(); e.player.speed = 240 / 3.6; e.steerSmooth = 0; e.slipVel = 0;
+  if (window.__grnDriftModel) Object.assign(e.ds, window.__grnDriftModel.newDriftState());
+  e.touch.drift = true;
+  runs.slide = newAcc();
+  for (let f = 0; f < 360 && Math.abs(e.driftYaw) < 0.55; f++) {
+    park();
+    e.player.speed = Math.max(20, e.player.speed);
+    e.setTouchInput({ steer: 1, throttle: 1, brake: 0 });
+    e.update(1 / 60);
+    if (window.__vclock) window.__vclock.t += 1000 / 60;
+    if (f % 3 === 0) probe(runs.slide);
+  }
+  e.touch.drift = false;
+  return { count: wheels.length, ks, scaleY: sc.y, arcs, turns, runs, skinNose: skinAt(2.25) };
+});
+{
+  const m = moving;
+  const mm = (g) => g * m.scaleY * 1000;
+  const names = Object.keys(m.runs);
+  console.log(`moving     ${m.count} wheels driven through ${names.join(", ")}`);
+  const arcOk = m.arcs.every((a) => Math.abs(a - 1) < 0.005);
+  const ratio = m.turns[1] / m.turns[0];
+  console.log(`rolling    each tyre lays ${m.arcs.map((a) => a.toFixed(4)).join(" / ")} of the road; rears turn ${ratio.toFixed(3)}x the nose tyre ` +
+    check(arcOk && Math.abs(ratio - m.ks[0] / m.ks[1]) < 0.01,
+      `the tyres lay ${m.arcs.map((a) => a.toFixed(4))} of the road (want 1.000), rears ${ratio.toFixed(3)}x the nose tyre's turns (want ${(m.ks[0] / m.ks[1]).toFixed(3)})`));
+  const hub = Math.max(...names.flatMap((n) => m.runs[n].hub));
+  console.log(`contact    worst hub ${(hub * 1000).toFixed(1)} mm off its tyre's radius in every pose ` +
+    check(hub < 0.005, `a hub is ${(hub * 1000).toFixed(1)} mm off the road: the suspension is not keeping a tyre on it`));
+  const lockX = Math.max(m.runs.lockL.noseX, m.runs.lockR.noseX);
+  const steer = Math.min(m.runs.lockL.steer, m.runs.lockR.steer);
+  console.log(`lock       nose tyre steers ${(steer * 57.3).toFixed(0)} deg and reaches ${mm(lockX).toFixed(0)} mm out of the nose's ${mm(0.235).toFixed(0)} mm opening ` +
+    check(steer > 0.4 && lockX <= 0.235,
+      `the nose tyre steers ${(steer * 57.3).toFixed(0)} deg and reaches ${mm(lockX).toFixed(0)} mm: ${steer > 0.4 ? "past the opening in the nose, into the bodywork" : "it is not steering"}`));
+  const out = Math.max(...names.map((n) => m.runs[n].noseOut));
+  console.log(`bonnet     nose tyre ${out <= 0 ? `${(-mm(out)).toFixed(0)} mm under` : `${mm(out).toFixed(0)} mm ABOVE`} the bonnet's skin at its worst; the stop dives ${(m.runs.brake.pitch * 57.3).toFixed(2)} deg ` +
+    check(out <= 0, `the nose tyre comes up ${mm(out).toFixed(0)} mm through the bonnet as the body dives ${(m.runs.brake.pitch * 57.3).toFixed(2)} deg: the dive limit is too large for it`));
+  const wall = Math.min(...names.map((n) => m.runs[n].wall));
+  console.log(`walls      rear tyres ${mm(wall).toFixed(0)} mm inboard of the cut's back wall at the closest ` +
+    check(wall >= 0, `a rear tyre is ${(-mm(wall)).toFixed(0)} mm through the inboard wall of its opening`));
 }
 
 await browser.close();

@@ -449,6 +449,23 @@ export function rollMaxFor(style: RollStyle = "sedan", kit: KitLevel = "street",
 }
 
 /**
+ * How far a car's nose may dive, radians, where that is not the fleet's
+ * (attitude.ts pitchDiveMax, 0.045 = 2.6 degrees), or undefined for the
+ * fleet's.
+ *
+ * A three-wheeler's one front tyre stands in the nose, its top 52 mm under
+ * the bonnet's skin. The body dives on its springs and the tyre stays on
+ * the road, so the tyre rises through the bonnet by (nose axle 2.05 m) x
+ * (dive): at 1.45 degrees it touches, and the fleet's 2.6 put it 43 mm
+ * above the bonnet in a 200 km/h stop (measured, tests/demon.mjs section 9).
+ * 0.0225 rad, 1.3 degrees, leaves 5 mm under overshoot.
+ */
+export const TRIKE_DIVE_MAX = 0.0225;
+export function diveMaxFor(trike?: boolean): number | undefined {
+  return trike ? TRIKE_DIVE_MAX : undefined;
+}
+
+/**
  * id to hex, for the renderer.
  *
  * Re-exported rather than defined here: the swatches live in paints.ts,
@@ -1800,6 +1817,8 @@ export interface TuneEffects {
   steerRate: number;
   /** Body lean at full cornering force, radians — see ROLL_DEG_PER_G. */
   rollMax: number;
+  /** How far the nose may dive, radians; undefined is the fleet's limit. */
+  diveMax?: number;
   /** The same thing before conversion, for tools that want to read it. */
   rollDegPerG: number;
   /** Fraction of impact damage a cage absorbs (0 = none, 1 = all). */
@@ -2134,6 +2153,7 @@ export function computeEffects(
     driftAngleMult,
     steerRate,
     rollMax: rollMaxRad(rollDegPerG),
+    diveMax: diveMaxFor(car.trike),
     rollDegPerG,
     crashResist,
     engine,

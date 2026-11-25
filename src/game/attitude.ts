@@ -70,11 +70,24 @@ export function lateralAccel(curvature: number, speed: number, betaRate: number)
   return (curvature * speed + betaRate) * speed;
 }
 
-/** One frame of the springs. */
-export function stepAttitude(a: Attitude, latAccel: number, longAccel: number, rollMax: number, dt: number): void {
+/**
+ * One frame of the springs.
+ *
+ * `diveMax` is how far this car's nose may drop, radians, where it is not
+ * the fleet's `pitchDiveMax`. It is visual: the load transfer that decides
+ * grip is its own state (grip.ts pitchG), which this does not touch.
+ */
+export function stepAttitude(
+  a: Attitude,
+  latAccel: number,
+  longAccel: number,
+  rollMax: number,
+  dt: number,
+  diveMax: number = ATTITUDE.pitchDiveMax
+): void {
   const A = ATTITUDE;
   const rollTarget = clamp(-latAccel / A.rollRefAccel, -1, 1) * rollMax;
-  const pitchTarget = clamp(-longAccel * A.pitchPerAccel, A.pitchSquatMax, A.pitchDiveMax);
+  const pitchTarget = clamp(-longAccel * A.pitchPerAccel, A.pitchSquatMax, diveMax);
   const dts = Math.min(dt, A.maxStep);
   a.rollVel += ((rollTarget - a.roll) * A.rollK - a.rollVel * A.rollC) * dts;
   a.roll += a.rollVel * dts;

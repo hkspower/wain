@@ -333,7 +333,7 @@ const hubErrorWith = (order) => {
   check(!/steerSmooth \* 0\.52/.test(engine), "the road-wheel lock must come from HANDLING, not a literal");
   check(/HANDLING\.roadWheelLock/.test(engine), "the player must steer the road wheels against HANDLING.roadWheelLock");
   check(!/MAX_ROLL/.test(engine), "the fleet-wide MAX_ROLL fallback is dead and must stay deleted");
-  check(!/rollVel \+= \(\(rollTarget/.test(engine) && /stepAttitude\(this, latAccel, longAccel, this\.tune\.rollMax, dt\)/.test(engine),
+  check(!/rollVel \+= \(\(rollTarget/.test(engine) && /stepAttitude\(this, latAccel, longAccel, this\.tune\.rollMax, dt(, this\.tune\.diveMax)?\)/.test(engine),
     "the player must go through stepAttitude, not an inline copy of the springs");
   check((engine.match(/this\.poseAiBody\(/g) ?? []).length >= 4, "rival, cine rival, traffic and remotes must all pose through poseAiBody");
   check(!/\(dHead \/ 30\)/.test(engine) && !/asin\(THREE\.MathUtils\.clamp\(crossY[^]*asin\(THREE\.MathUtils\.clamp\(crossY/.test(engine),
