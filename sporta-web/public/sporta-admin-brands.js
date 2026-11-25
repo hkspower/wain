@@ -19336,6 +19336,235 @@
 })()
 /* ===== ADMIN CRM PHONES - end ============================================== */
 
+/* ===== ADMIN ACCOUNTS - begin ===============================================
+ * 20. Accounts: monthly and yearly figures (owner, 2026-11-25: "make account system for yearly and monthly reports"; placement chosen:
+ *     an "Accounts" button in the Orders header, next to Invoices).
+ *
+ * READS admin.php?r=accounts_report&year=YYYY (GET, the admin session). The server answers twelve months and the year, each the XBRL
+ * figures: sales (paid orders, less refunds recorded in the period), cost of goods, gross profit and delivery income. BEFORE EXPENSES:
+ * the shop records no dated expenses, so no expense figure and no profit-after-expenses is shown. Stock value is left out: it is the
+ * stock today, not at each month's end.
+ *
+ * Until the API release that carries accounts_report is live, the route answers an error and the dialog says the report is not
+ * available yet (nothing is invented). Reads only, writes nothing, stores nothing. Built with textContent. No timer, no observer:
+ * the button is checked after a click, a route change, the tab showing again and a few times once the page is up.
+ */
+;(function () {
+  'use strict'
+  try {
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaAccounts) return
+  try { Object.defineProperty(window, '__sportaAccounts', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var BTN = 'data-sporta-acc-open'
+  var MONTHS = {
+    en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    ar: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
+  }
+  var STR = {
+    en: {
+      open: 'Accounts', title: 'Accounts', close: 'Close', year: 'Year',
+      intro: 'Sales, cost of goods and gross profit for each month of the year and for the year. Before expenses: the shop does not record expenses here.',
+      month: 'Month', sales: 'Sales (paid orders)', cost: 'Cost of goods', gross: 'Gross profit', delivery: 'Delivery income', total: 'Year total',
+      csv: 'Download CSV', loading: 'Reading the figures…', failed: 'Could not read the figures. Try again.',
+      notYet: 'This report is not available yet. It appears after the next shop update.', signedOut: 'The session ended. Sign in again.',
+      note: 'Stock value is not included: it is the stock today, not at the end of each month.', kwd: 'KWD'
+    },
+    ar: {
+      open: 'الحسابات', title: 'الحسابات', close: 'إغلاق', year: 'السنة',
+      intro: 'المبيعات وتكلفة البضاعة والربح الإجمالي لكل شهر من السنة وللسنة كاملة. قبل المصاريف: المتجر لا يسجل المصاريف هنا.',
+      month: 'الشهر', sales: 'المبيعات (الطلبات المدفوعة)', cost: 'تكلفة البضاعة', gross: 'الربح الإجمالي', delivery: 'دخل التوصيل', total: 'إجمالي السنة',
+      csv: 'تنزيل CSV', loading: 'جارٍ قراءة الأرقام…', failed: 'تعذّرت قراءة الأرقام. حاول مرة أخرى.',
+      notYet: 'هذا التقرير غير متاح بعد. يظهر بعد التحديث القادم للمتجر.', signedOut: 'انتهت الجلسة. سجّل الدخول من جديد.',
+      note: 'قيمة المخزون غير مشمولة: هي المخزون اليوم، وليس في نهاية كل شهر.', kwd: 'د.ك'
+    }
+  }
+  var lang = 'en'
+  var ui = null, modal = null, opener = null, seq = 0
+  var S = { year: new Date().getFullYear(), data: null }
+
+  function t(k) { return (STR[lang] || STR.en)[k] }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = String(text); return n }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function langOf(node) { var l = node && node.closest ? node.closest('[lang]') : null; return (l && l.getAttribute('lang') === 'ar') || document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en' }
+  function num(v) { var n = Number(v); return isFinite(n) ? n : 0 }
+  function fmt(v) { return num(v).toFixed(3) }
+
+  function call(year) {
+    return fetch(API + '?r=accounts_report&year=' + encodeURIComponent(year), { method: 'GET', credentials: 'same-origin', cache: 'no-store', headers: { 'X-Sporta-Admin': '1' } })
+      .then(function (r) { return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } }) })
+      .catch(function () { return { ok: false, status: 0, body: null } })
+  }
+
+  function load() {
+    var mine = ++seq
+    S.data = null; S.error = ''; draw()
+    call(S.year).then(function (r) {
+      if (mine !== seq || !modal) return
+      if (r.ok && r.body && Array.isArray(r.body.months)) S.data = r.body
+      else if (r.status === 401 || r.status === 403) S.error = t('signedOut')
+      else if (r.status === 404 || r.status === 405 || r.status === 400) S.error = t('notYet')
+      else S.error = t('failed')
+      draw()
+    })
+  }
+
+  function csvCell(v) {
+    var s = String(v == null ? '' : v)
+    if (/^[=+\-@]/.test(s)) s = "'" + s
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+  }
+  function exportCsv() {
+    if (!S.data) return
+    var cols = ['month', 'sales', 'cost', 'gross', 'delivery']
+    var head = [t('month'), t('sales'), t('cost'), t('gross'), t('delivery')]
+    var rows = [head.join(',')]
+    S.data.months.forEach(function (m, i) {
+      var v = m.values || {}
+      rows.push([MONTHS.en[i] + ' ' + S.year, fmt(v.Revenue), fmt(v.CostOfSales), fmt(v.GrossProfit), fmt(v.OtherIncome)].map(csvCell).join(','))
+    })
+    var y = S.data.year_total || {}
+    rows.push([t('total') + ' ' + S.year, fmt(y.Revenue), fmt(y.CostOfSales), fmt(y.GrossProfit), fmt(y.OtherIncome)].map(csvCell).join(','))
+    var blob = new Blob(['﻿' + rows.join('\n') + '\n'], { type: 'text/csv;charset=utf-8' })
+    var url = URL.createObjectURL(blob)
+    var a = el('a'); a.href = url; a.download = 'accounts-' + S.year + '.csv'
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(function () { URL.revokeObjectURL(url) }, 5000)
+  }
+
+  function draw() {
+    if (!ui) return
+    var body = ui.body
+    while (body.firstChild) body.removeChild(body.firstChild)
+    if (ui.year) ui.year.value = String(S.year)
+    if (S.error) { body.appendChild(el('p', 'sacc-msg sacc-err', S.error)); return }
+    if (!S.data) { body.appendChild(el('p', 'sacc-msg', t('loading'))); return }
+    var tbl = el('table', 'sacc-table')
+    var tr = el('tr'); [t('month'), t('sales'), t('cost'), t('gross'), t('delivery')].forEach(function (h) { tr.appendChild(el('th', '', h)) }); tbl.appendChild(el('thead')).appendChild(tr)
+    var tb = el('tbody')
+    S.data.months.forEach(function (m, i) {
+      var v = m.values || {}
+      var row = el('tr'); row.appendChild(el('th', '', MONTHS[lang][i]))
+      ;[v.Revenue, v.CostOfSales, v.GrossProfit, v.OtherIncome].forEach(function (x) { row.appendChild(el('td', 'num', fmt(x))) })
+      tb.appendChild(row)
+    })
+    var y = S.data.year_total || {}
+    var tot = el('tr', 'sacc-total'); tot.appendChild(el('th', '', t('total')))
+    ;[y.Revenue, y.CostOfSales, y.GrossProfit, y.OtherIncome].forEach(function (x) { tot.appendChild(el('td', 'num', fmt(x))) })
+    tb.appendChild(tot)
+    tbl.appendChild(tb)
+    body.appendChild(el('p', 'sacc-unit', t('kwd')))
+    body.appendChild(tbl)
+    body.appendChild(el('p', 'sacc-note', t('note')))
+    if (ui.csv) ui.csv.disabled = false
+  }
+
+  function closeModal() {
+    if (!modal) return
+    document.removeEventListener('keydown', modal.onKey, true)
+    document.body.style.overflow = modal.prevOverflow
+    if (modal.root.parentNode) modal.root.parentNode.removeChild(modal.root)
+    seq++
+    var back = opener && opener.isConnected ? opener : null
+    modal = null; ui = null
+    if (back) back.focus()
+  }
+
+  function ensureStyle() {
+    if (document.getElementById('sacc-style')) return
+    var s = el('style'); s.id = 'sacc-style'
+    s.textContent = [
+      '.sacc-root{position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(15,23,42,.55)}',
+      '.sacc{width:min(56rem,100%);max-height:92vh;overflow:auto;border-radius:1rem;background:#fff;color:#1f1a17;box-shadow:0 20px 50px rgba(0,0,0,.35);padding:1.25rem}',
+      '.sacc-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}',
+      '.sacc-title{font-size:1.25rem;font-weight:700;margin:0}',
+      '.sacc-x{min-width:2.75rem;min-height:2.75rem;border:0;background:transparent;font-size:1.5rem;cursor:pointer;color:inherit}',
+      '.sacc-intro,.sacc-note{font-size:.875rem;color:#4b5563;margin:.5rem 0}',
+      '.sacc-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;margin:.75rem 0}',
+      '.sacc-f{display:flex;align-items:center;gap:.5rem;font-weight:600}',
+      '.sacc-year{min-height:2.75rem;padding:.25rem .5rem;border:1px solid #6b7280;border-radius:.5rem;background:#fff;color:inherit}',
+      '.sacc-btn{min-height:2.75rem;padding:.5rem 1rem;border:1px solid #6b7280;border-radius:.75rem;background:#fff;color:inherit;font-weight:600;cursor:pointer}',
+      '.sacc-btn:disabled{opacity:.5;cursor:not-allowed}',
+      '.sacc-btn:focus-visible,.sacc-x:focus-visible,.sacc-year:focus-visible{outline:3px solid #b34d00;outline-offset:2px}',
+      '.sacc-table{width:100%;border-collapse:collapse;font-size:.9375rem}',
+      '.sacc-table th,.sacc-table td{padding:.5rem .625rem;border-bottom:1px solid #e5e7eb;text-align:start}',
+      '.sacc-table td.num{text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap}',
+      '.sacc-table tr.sacc-total th,.sacc-table tr.sacc-total td{font-weight:700;border-top:2px solid #1f1a17}',
+      '.sacc-msg{padding:1rem;border-radius:.75rem;background:#f3f4f6}',
+      '.sacc-err{background:#fff1f2;color:#9f1239}',
+      '.sacc-unit{font-size:.8125rem;color:#4b5563;margin:0 0 .25rem}'
+    ].join('\n')
+    document.head.appendChild(s)
+  }
+
+  function openModal() {
+    if (modal) return
+    ensureStyle()
+    lang = langOf(document.querySelector('.admin-content') || document.body)
+    var root = el('div', 'sacc-root'); root.setAttribute('data-sporta-acc-root', ''); root.setAttribute('lang', lang); root.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr')
+    var dlg = el('div', 'sacc'); dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'sacc-title'); root.appendChild(dlg)
+    var head = el('div', 'sacc-head'); var h = el('h3', 'sacc-title', t('title')); h.id = 'sacc-title'; head.appendChild(h)
+    var x = el('button', 'sacc-x', '×'); x.type = 'button'; x.setAttribute('aria-label', t('close')); x.addEventListener('click', closeModal); head.appendChild(x)
+    dlg.appendChild(head)
+    dlg.appendChild(el('p', 'sacc-intro', t('intro')))
+    var bar = el('div', 'sacc-bar')
+    var lab = el('label', 'sacc-f', t('year'))
+    var sel = el('select', 'sacc-year'); sel.id = 'sacc-year'
+    var now = new Date().getFullYear()
+    for (var y = now; y >= now - 4; y--) { var o = el('option', '', String(y)); o.value = String(y); sel.appendChild(o) }
+    sel.value = String(S.year)
+    sel.addEventListener('change', function () { S.year = Number(sel.value); load() })
+    lab.setAttribute('for', 'sacc-year'); lab.insertBefore(sel, null)
+    bar.appendChild(lab)
+    var csv = el('button', 'sacc-btn', t('csv')); csv.type = 'button'; csv.disabled = true; csv.addEventListener('click', exportCsv)
+    bar.appendChild(csv)
+    dlg.appendChild(bar)
+    var body = el('div', 'sacc-body'); dlg.appendChild(body)
+    modal = { root: root, prevOverflow: document.body.style.overflow }
+    modal.onKey = function (e) { if (e.key === 'Escape') { e.stopPropagation(); closeModal() } }
+    document.addEventListener('keydown', modal.onKey, true)
+    document.body.style.overflow = 'hidden'
+    document.body.appendChild(root)
+    ui = { body: body, year: sel, csv: csv }
+    load()
+    x.focus()
+  }
+
+  // ------------------------------------------------------------------ the entry on the Orders screen (as the Invoices button)
+  function ordersHeading() {
+    var hs = document.querySelectorAll('main.admin-content .admin-page h1, .admin-page h1')
+    for (var i = 0; i < hs.length; i++) if (clean(hs[i].textContent) === 'Orders' && shown(hs[i])) return hs[i]
+    return null
+  }
+  function ensure() {
+    var h = ordersHeading()
+    var have = document.querySelector('[' + BTN + ']')
+    if (!h) { if (have && !modal) have.remove(); return }
+    var head = h.closest('.admin-page-header') || h.parentElement
+    if (!head) return
+    var group = head.lastElementChild
+    var inGroup = !!(group && group !== head.firstElementChild && group.tagName === 'DIV' && group.querySelector('button'))
+    var host = inGroup ? group : head
+    if (have && have.isConnected && have.parentNode === host) return
+    if (have) have.remove()
+    lang = langOf(head)
+    var b = el('button', inGroup ? group.querySelector('button').className : 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700', t('open'))
+    b.type = 'button'; b.setAttribute(BTN, '1')
+    if (!inGroup) { b.style.whiteSpace = 'nowrap'; b.style.flexShrink = '0'; b.style.height = '2.5rem'; b.style.lineHeight = '1.25rem'; b.style.alignSelf = 'center' }
+    b.addEventListener('click', function () { opener = b; openModal() })
+    host.insertBefore(b, inGroup && group.lastElementChild ? group.lastElementChild : null)
+  }
+  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200); setTimeout(ensure, 2800); setTimeout(ensure, 6000) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+  } catch (e) {}
+})()
+/* ===== ADMIN ACCOUNTS - end ================================================= */
+
 /* ===== ADMIN INVOICES - begin ===============================================
  * 19. Invoices (owner request 2026-11-18: "make invoice system" in /backends).
  *
