@@ -2595,6 +2595,27 @@ if ($r === 'xbrl_export') {
     exit;
 }
 
+// Monthly and yearly accounts (owner, 2026-11-25: "make account system for yearly and monthly reports"). The figures are
+// BEFORE expenses: the shop records no expenses, so none are shown or invented. Each month and the year are one xbrl_build()
+// call (the same figures as the XBRL export: sales, refunds, cost of goods, gross profit, delivery income, stock). Reads only.
+if ($r === 'accounts_report') {
+    if ($method !== 'GET') store_fail('method_not_allowed', 405);
+    require_once __DIR__ . '/xbrl.php';
+    $year = is_string($_GET['year'] ?? null) ? $_GET['year'] : '';
+    if (!preg_match('/^(20\d\d)$/', $year)) store_fail('invalid_year', 400);
+    $y = (int)$year;
+    $settings = store_setting($db, 'inventory_finance');
+    $months = [];
+    for ($m = 1; $m <= 12; $m++) {
+        $from = sprintf('%04d-%02d-01', $y, $m);
+        $to = (new DateTimeImmutable($from))->modify('last day of this month')->format('Y-m-d');
+        $out = xbrl_build($db, $from, $to, $settings, 'Sporta', 'SPORTA-PLACEHOLDER');
+        $months[] = ['month' => $m, 'from' => $from, 'to' => $to, 'values' => $out['values']];
+    }
+    $yearOut = xbrl_build($db, sprintf('%04d-01-01', $y), sprintf('%04d-12-31', $y), $settings, 'Sporta', 'SPORTA-PLACEHOLDER');
+    store_out(['year' => $y, 'basis' => 'before_expenses', 'months' => $months, 'year_total' => $yearOut['values']]);
+}
+
 if ($r === 'inventory_movements') {
     if ($method !== 'GET') store_fail('method_not_allowed', 405);
     $rawLimit = $_GET['limit'] ?? '50';

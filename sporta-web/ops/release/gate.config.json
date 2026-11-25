@@ -1210,6 +1210,19 @@
       ]
     },
     {
+      "name": "accounts-report",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 13,
+      "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig"
+      ]
+    },
+    {
       "name": "admin-crm-phones",
       "needs": "browser",
       "parallelSafe": true,
