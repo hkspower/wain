@@ -41,7 +41,7 @@ for (const slug of Object.keys(want)) {
 }
 const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z'
 const bk = '/bk/inv-backup-' + stamp + '.sql'
-cp.execFileSync('mariadb-dump', ['--defaults-extra-file=/tmp/my.cnf', '--single-transaction', '--no-create-db', 'product_variants', 'inventory_movements'], { encoding: 'utf8', stdio: ['ignore', fs.openSync(bk, 'w'), 'inherit'] })
+cp.execFileSync('mariadb-dump', ['--defaults-extra-file=/tmp/my.cnf', '--single-transaction', name, 'product_variants', 'inventory_movements'], { encoding: 'utf8', stdio: ['ignore', fs.openSync(bk, 'w'), 'inherit'] })
 const bsize = fs.statSync(bk).size
 console.log('BACKUP ' + bk + ' ' + bsize + ' bytes')
 if (bsize < 500) { console.log('FAIL backup too small'); process.exit(1) }
