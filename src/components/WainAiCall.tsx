@@ -1937,8 +1937,12 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
               edge, where the floating card used to sit clear of it. */}
           <header className="flex shrink-0 items-center gap-3 bg-gradient-to-l from-coral-800 to-coral-600 p-4 pt-[calc(1rem+env(safe-area-inset-top))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] text-white">
             <span className="min-w-0 flex-1">
+              {/* Her call is the centre's call, not hers by name: a call can
+                  be handed to سالم mid-line, and a header that still said شوق
+                  would name the wrong person (25 November). His call keeps
+                  his name. */}
               <span className="block font-display text-lg font-semibold leading-tight">
-                {copy.name}
+                {persona === "shouq" ? WAIN_AI_COPY.centre : copy.name}
               </span>
               {/* The status is the one thing that changes without the visitor
                   touching anything, so it is the thing that gets announced —
