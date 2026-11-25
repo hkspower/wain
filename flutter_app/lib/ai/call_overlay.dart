@@ -272,8 +272,12 @@ class _Sheet extends StatelessWidget {
               ),
               const SizedBox(height: 8),
             ],
+            // The generic failure offers the typed chat too, as the web's
+            // failure screen does (25 November): a caller who cannot get
+            // through still has a second way to ask.
             if (call.phase == CallPhase.failed &&
-                call.error == CallCopy.speechUnavailable) ...[
+                (call.error == CallCopy.speechUnavailable ||
+                    call.error == CallCopy.callFailed)) ...[
               FilledButton(
                 key: const ValueKey('call-type-salem'),
                 onPressed: call.typeToSalem,
