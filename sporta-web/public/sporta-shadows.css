@@ -1939,6 +1939,20 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
   max-width: none;
 }
 /* ==== end CATEGORY FULL WIDTH 1124 */
+
+/* ==== SHOP CATEGORY CHIPS FULL WIDTH 1124 (owner: "shop catogory", answered "show the chips again, full width") =========
+ * sporta-grid.css hides the shop's category chips (.catalog-filters) by design. The owner asked for them back: this
+ * overrides that one rule for the shop page and lets the chip row take the full screen width. Each chip stays a button
+ * with its own label and 44 px target; the row wraps on a phone. */
+:root .storefront-root .catalog-page .catalog-filters {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: .5rem;
+  width: 100%;
+  max-width: none;
+  margin-block-end: 1rem;
+}
+/* ==== end SHOP CATEGORY CHIPS FULL WIDTH 1124 */
 /* ==== PRODUCT CARDS 1119 (2026-11-19, owner: "improve cards style at products grids"; scans: PRODUCTS-GRID-SCAN-2026-11-18.md,
  * CARDS-SCAN-2026-11-18.md; proof: npm run test:cards-1119) =======================================================================
  * The frame of the card (16px radius, 1px border, resting shadow, 4:5 photo, the 44px heart and "+") is the owner's and stays. What
