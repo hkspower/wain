@@ -48,6 +48,10 @@ export default function AppTabBar() {
     ...(ticketCount > 0 ? [QUEUE_TAB] : []),
   ];
 
+  // The chat page is full screen: its own frame covers the whole viewport, so
+  // the bar is not drawn there (installed, it would sit over the input).
+  if (pathname.startsWith("/salem")) return null;
+
   return (
     <nav
       aria-label="تنقّل التطبيق"
