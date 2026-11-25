@@ -2,7 +2,13 @@ const fs = require('fs')
 const cp = require('child_process')
 const CFG = '/sporta/private/api-config.php'
 const text = fs.readFileSync(CFG, 'utf8')
-const pick = (k) => { const m = text.match(new RegExp("['\"]" + k + "['\"]\\s*(=>|:|=)\\s*['\"]([^'\"]*)['\"]")); return m ? m[2] : null }
+const pick = (k) => {
+  const lit = text.match(new RegExp("['\"]" + k + "['\"]\\s*=>\\s*['\"]([^'\"]*)['\"]"))
+  if (lit) return lit[1]
+  const f = text.match(new RegExp("['\"]" + k + "['\"]\\s*=>[^\\n]*?file_get_contents\\(\\s*['\"]([^'\"]+)['\"]"))
+  if (f) { try { return fs.readFileSync(f[1], 'utf8').trim() } catch (e) { console.log('FAIL cannot read the file named for ' + k + ': ' + f[1]); process.exit(1) } }
+  return null
+}
 const keysSeen = (text.match(/['\"][a-z_]*(db|mysql)[a-z_]*['\"]\s*(=>|:|=)/gi) || []).map((k) => k.replace(/\s*(=>|:|=)$/, '')).join(' ')
 console.log('CFG_KEYS ' + keysSeen)
 for (const k of ['db_host','db_name','db_user','db_pass']) { const m = text.match(new RegExp('.*' + k + '.*')); console.log('SHAPE ' + (m ? m[0].replace(/[A-Za-z0-9]/g, 'x') : 'none')) }
