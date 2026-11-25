@@ -13379,7 +13379,7 @@
   var REFRESH_MS = 120000, RETRY_MS = 30000
   var STYLE_ID = 'spt-ip-style'
   var CSS = [
-    '.admin-shell .admin-page .spt-ip{box-sizing:border-box;display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;width:2.75rem;height:2.75rem;min-height:2.75rem;min-width:2.75rem;margin-inline-end:.625rem;padding:0;border:0;background:none;border-radius:.5rem;vertical-align:middle;cursor:zoom-in}',
+    '.admin-shell .admin-page .spt-ip{box-sizing:border-box;display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;width:4.5rem;height:4.5rem;min-height:4.5rem;min-width:4.5rem;margin-inline-end:.75rem;padding:0;border:0;background:none;border-radius:.5rem;vertical-align:middle;cursor:zoom-in}',
     '.spt-ip:focus-visible,.spt-ipv-close:focus-visible{outline:3px solid #4f46e5;outline-offset:2px}',
     '.spt-ip-box{box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;height:100%;overflow:hidden;border:1px solid #e2e8f0;border-radius:.5rem;background:#f8fafc}',
     '.spt-ip-box img{display:block;width:100%;height:100%;object-fit:cover}',
@@ -13474,8 +13474,8 @@
       if (!url) { box.appendChild(el('span', 'spt-ip-none', 'No photo')); return }
       var img = el('img')
       img.alt = ''
-      img.width = 44
-      img.height = 44
+      img.width = 72
+      img.height = 72
       img.decoding = 'async'
       img.loading = 'lazy'
       img.src = url
