@@ -856,12 +856,13 @@ for (const [width, height] of [[390, 844], [320, 568]]) {
     // a 3px strip of white page showed between them on every visit.
     const { ctx, p } = await at('/salem/', { viewport: { width, height }, standalone: true });
     await p.waitForTimeout(200);
+    // The page has no tab bar (AppTabBar returns null on /salem), so the chat
+    // is full screen: the frame reaches the bottom edge and nothing is drawn under it.
     const m = await p.evaluate(() => {
       const frame = document.querySelector('header').parentElement.getBoundingClientRect();
-      const nav = document.querySelector('nav.app-chrome').getBoundingClientRect();
-      return { frameBottom: frame.bottom, navTop: nav.top };
+      return { frameBottom: frame.bottom, viewport: innerHeight, navPresent: !!document.querySelector('nav.app-chrome') };
     }).catch(() => null);
-    ok(`${width}×${height} installed: no strip between the chat and the tab bar`, !!m && Math.abs(m.navTop - m.frameBottom) < 0.5, JSON.stringify(m));
+    ok(`${width}×${height} installed: the chat is full screen, no tab bar`, !!m && !m.navPresent && Math.abs(m.frameBottom - m.viewport) < 0.5, JSON.stringify(m));
     await ctx.close();
   });
 }
@@ -950,12 +951,12 @@ await section('installed, typing: the tab bar steps aside', async () => {
   const tab = await typing(false);
   await tab.ctx.close();
   const app = await typing(true);
-  ok('installed: the tab bar is hidden while the box has focus', app.shown === 'none', String(app.shown));
+  ok('installed: the tab bar is hidden on this page (with the box focused)', app.shown === 'none', String(app.shown));
   ok('installed: …and the conversation gets the room a browser tab has', Math.abs(app.log - tab.log) < 1, `${app.log} vs ${tab.log}`);
   await app.p.evaluate(() => document.activeElement?.blur()).catch(() => {});
   await app.p.waitForTimeout(200);
   const back = await app.nav();
-  ok('installed: …and comes back when the box is left', !!back && back !== 'none', String(back));
+  ok('installed: …and it stays hidden when the box is left', back === 'none', String(back));
   await app.ctx.close();
 });
 await section('installed, typing: the tab bar steps aside (part 2)', async () => {
@@ -969,7 +970,7 @@ await section('installed, typing: the tab bar steps aside (part 2)', async () =>
   await p.evaluate(() => { document.documentElement.dataset.standalone = 'true'; }).catch(() => {});
   await p.waitForTimeout(200);
   const read = () => p.evaluate(() => ({
-    nav: getComputedStyle(document.querySelector('nav.app-chrome')).display,
+    nav: document.querySelector('nav.app-chrome') ? getComputedStyle(document.querySelector('nav.app-chrome')).display : 'none',
     top: Math.round((document.getElementById('salem-q')?.getBoundingClientRect() ?? { top: NaN, bottom: NaN, right: NaN }).top),
   })).catch(() => null);
   const before = await read();
@@ -977,7 +978,7 @@ await section('installed, typing: the tab bar steps aside (part 2)', async () =>
   await p.waitForTimeout(200);
   const after = await read();
   ok('installed, with a mouse: the box took the click', await p.evaluate(() => document.activeElement?.id === 'salem-q').catch(() => false));
-  ok('installed, with a mouse: …and the tab bar stays', !!after && after.nav !== 'none', JSON.stringify({ before, after }));
+  ok('installed, with a mouse: …and there is still no tab bar', !!after && after.nav === 'none', JSON.stringify({ before, after }));
   ok('installed, with a mouse: …and the box stays where it was clicked', !!before && !!after && before.top === after.top, JSON.stringify({ before, after }));
   await ctx.close();
 });

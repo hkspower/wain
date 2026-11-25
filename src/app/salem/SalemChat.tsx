@@ -926,7 +926,6 @@ export default function SalemChat() {
     if (status !== "connected" || !restartByKeyboardRef.current) return;
     restartByKeyboardRef.current = false;
     focusBox();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- focusBox reads the ref only
   }, [status]);
 
   const typing = status === "connected" && (pending || awaitingGreeting);
@@ -1150,20 +1149,18 @@ export default function SalemChat() {
     // grew instead, the box and the newest reply slid below the fold, and the
     // scroll-to-newest effect scrolled a list that could not scroll. Reported
     // as «she did not answer», 1 October. Installed, the body already pads
-    // for the tab bar, so the frame is that much shorter — except while the box
-    // has focus, when the tab bar steps aside (AppTabBar) and the frame takes
-    // its room: on Android the bar rode up over the keyboard and left 79px of
-    // conversation at 360×640, against 147 in a browser tab (15 October). On a
-    // touch screen only, where a keyboard comes up: installed on a computer, a
-    // click on the box took the app's navigation away and moved the box 68px
-    // from under the pointer that had just pressed it.
+    // for the tab bar. Installed, this page now hides the tab bar altogether
+    // (AppTabBar returns null on /salem), so the frame takes the whole
+    // viewport: full screen, with the back button in the header as the way out.
+    // The old step-aside rules for a focused box are gone with the bar; the
+    // keyboard case is the frame's own `--vvh`, which follows the visual viewport.
     //
     // `data-salem-frame`: the call bar's room is made here, not in <main>
     // (globals.css) — this frame is fixed, so padding the page moved nothing.
     <div
       ref={frameRef}
       data-salem-frame=""
-      className="fixed inset-x-0 top-0 z-10 flex h-[var(--vvh,100dvh)] flex-col overflow-hidden bg-sea-950 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] text-white standalone:h-[calc(var(--vvh,100dvh)-4.25rem-env(safe-area-inset-bottom))] standalone:pointer-coarse:has-[#salem-q:focus]:h-[var(--vvh,100dvh)]"
+      className="fixed inset-x-0 top-0 z-10 flex h-[var(--vvh,100dvh)] flex-col overflow-hidden bg-sea-950 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] text-white"
     >
       {/* On a wide screen every row keeps to one centred 42rem column
           (`md:px-[calc(50%-21rem)]`): the chat used to run the whole

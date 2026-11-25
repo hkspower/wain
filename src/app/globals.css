@@ -197,6 +197,20 @@ html[data-call-bar] [data-salem-frame] {
   }
 }
 
+/* سالم's page has no tab bar (AppTabBar returns null there), so installed, the
+   call bar drops to the bottom edge and keeps the home-indicator room the tab
+   bar's offset used to provide. Only on that page. */
+html[data-standalone="true"]:has([data-salem-frame]) #wain-ai-bar {
+  bottom: 0;
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+}
+
+/* The bar at the edge is taller by the home-indicator inset, so the room the
+   frame keeps for it grows by the same amount, or the bar lands on the form. */
+html[data-standalone="true"][data-call-bar] [data-salem-frame] {
+  padding-bottom: calc(3.8125rem + env(safe-area-inset-bottom));
+}
+
 /* The installed app's tab bar (AppTabBar), and two things about it that are
    rules of the page around it, so they are written here rather than as its
    classes — where they would also be bytes of script on every route, and
