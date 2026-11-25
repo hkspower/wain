@@ -75,3 +75,4 @@ SPORTA-WEBSITE.pdf
 # applied twice. They are masters, and masters do not live in the repo.
 brand/hero/ungraded/
 .claude/worktrees/
+__pycache__/

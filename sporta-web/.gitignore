@@ -40,3 +40,4 @@ dropin/images/
 
 # The release gate (scripts/release-gate.mjs): per-run logs and results
 /.gate/
+.lock

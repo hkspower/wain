@@ -41,7 +41,7 @@ const DEVICES = [
 const ROUTES = ['/', '/shop', `/product/${SAMPLE.slug}`, '/cart', '/checkout', '/returns', '/track']
 
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium',
   args: ['--host-resolver-rules=MAP www.sporta.com.kw 127.0.0.1:8188', '--no-proxy-server'],
 })
 
@@ -80,7 +80,17 @@ for (const d of DEVICES) {
 
         // horizontal overflow (ignore fixed overlays, they are viewport-anchored)
         if (el.closest('.cart-drawer, [role=dialog], .action-bar')) continue
-        if (cs.position !== 'fixed' && (b.right > vw + 1 || b.left < -1) && b.width <= vw + 2) {
+        // A slide that sits off to the side of a carousel is clipped by its own overflow-hidden box, which is inside the viewport:
+        // it is not a page overflow (the page does not scroll sideways; the sideways-scroll check is the page's own).
+        let clipped = false
+        for (let a = el.parentElement; a && !clipped; a = a.parentElement) {
+          const ac = getComputedStyle(a)
+          if (ac.overflowX === 'hidden' || ac.overflowX === 'clip') {
+            const ab = a.getBoundingClientRect()
+            if (ab.left >= -1 && ab.right <= vw + 1) clipped = true
+          }
+        }
+        if (!clipped && cs.position !== 'fixed' && (b.right > vw + 1 || b.left < -1) && b.width <= vw + 2) {
           const tag = el.tagName + '.' + String(el.className || '').slice(0, 40)
           if (!out.overflow.some((o) => o.tag === tag)) {
             out.overflow.push({ tag, left: Math.round(b.left), right: Math.round(b.right) })

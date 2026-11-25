@@ -66,6 +66,7 @@ const LIVE_ADDONS_JS = [
 // Files in public/ that are not add-ons and are loaded by something other than a
 // tag in index.html (the reason says what loads them).
 const PUBLIC_LOADED_BY = {
+  'sporta-catalogue.js': 'loaded on demand by sporta-features.js when a visitor opens /catalogue (CATALOGUE-1118); not linked by index.html on purpose',
   'sw.js': 'registered by src/main.jsx and by the live bundle (navigator.serviceWorker.register)',
   'site.webmanifest': '<link rel=manifest> in index.html',
   'backends.webmanifest': 'swapped in by boot.js on /backends (PWA for the admin)',
@@ -98,6 +99,22 @@ const KNOWN_HOSTS = {
   'wa.me': 'WhatsApp click-to-chat to the shop number +965 2209 1914 (Footer, Contact, Returns, sporta-features.js; WHATSAPP.md)',
   'www.instagram.com': 'the shop\'s Instagram, sameAs in JSON-LD and footer (index.html)',
   'www.tiktok.com': 'the shop\'s TikTok, sameAs in JSON-LD and footer (index.html)',
+  'www.facebook.com': 'the owner\'s Facebook profile: a link the Footer / Social editor in /backends writes (sporta-admin-brands.js)',
+  'www.youtube.com': 'the owner\'s YouTube channel: a link the Footer / Social editor in /backends writes (sporta-admin-brands.js)',
+  'www.snapchat.com': 'the owner\'s Snapchat profile: a link the Footer / Social editor in /backends writes (sporta-admin-brands.js)',
+  'www.threads.net': 'the owner\'s Threads profile: a link the Footer / Social editor in /backends writes (sporta-admin-brands.js)',
+  'x.com': 'the owner\'s X profile: a link the Footer / Social editor in /backends writes (sporta-admin-brands.js, sporta-features.js)',
+  't.me': 'the owner\'s Telegram channel: a link the Footer / Social editor in /backends writes (sporta-admin-brands.js)',
+  'business.google.com': 'Google Business Profile: a link in /backends -> Settings -> Google setup (ADMIN GOOGLE SETUP, 2026-11-19); opened by the owner, never fetched by the code',
+  'developers.google.com': 'Google documentation: a link in /backends -> Settings -> Google setup (ADMIN GOOGLE SETUP); opened by the owner, never fetched by the code',
+  'merchants.google.com': 'Google Merchant Center: a link in /backends -> Settings -> Google setup (ADMIN GOOGLE SETUP); opened by the owner, never fetched by the code',
+  'search.google.com': 'Google Search Console: a link in /backends -> Settings -> Google setup (ADMIN GOOGLE SETUP); opened by the owner, never fetched by the code',
+  'pagespeed.web.dev': 'PageSpeed Insights: a link in /backends -> Settings -> Google setup (ADMIN GOOGLE SETUP); opened by the owner, never fetched by the code',
+  'appleid.apple.com': 'Sign in with Apple (apple-lib.php): the Apple sign-in redirect and token endpoint; OFF until the owner sets the Apple keys (2026-11-18 release notes)',
+  'www.kpay.com.kw': 'KNET production gateway, the www spelling (KNET.md; dropin/php-knet config.example.php)',
+  'www.kpaytest.com.kw': 'KNET test gateway, the www spelling (KNET.md; dropin/php-knet config.example.php)',
+  'www.xbrl.org': 'XBRL taxonomy namespace written into the accounting XML (xbrl.php, ACCOUNTING-1118): an identifier string, never fetched',
+  'xbrl.ifrs.org': 'IFRS taxonomy namespace written into the accounting XML (xbrl.php, ACCOUNTING-1118): an identifier string, never fetched',
   'schema.org': 'JSON-LD @context (CLAUDE.md "Product structured data")',
   'www.w3.org': 'SVG / XML namespaces',
   'www.sitemaps.org': 'sitemap XML namespace (generate-seo.mjs)',
@@ -171,6 +188,7 @@ const KNOWN_LIFECYCLE = {
 // 5. MCP servers the repo may configure.
 const KNOWN_MCP = {
   elevenlabs: { command: 'uvx', pin: 'elevenlabs-mcp==0.11.0', why: 'CLAUDE.md "ElevenLabs MCP": pinned, key only as ${ELEVENLABS_API_KEY}; places phone calls and spends credits once on' },
+  'hostinger-vps': { command: 'node', pin: 'mcp/hostinger-mcp.mjs', why: 'CLAUDE.md item 4: the Hostinger API connector to the VPS (one-shot compose jobs, plan first, apply with the commit SHA); no secret in the file' },
 }
 
 // ---------------------------------------------------------------------------
@@ -208,6 +226,12 @@ const KNOWN_IMAGES = {
   'php:8.4-apache': 'the live apache-sporta image (CLAUDE.md item 4)',
   'mcr.microsoft.com/playwright:v1.49.0-noble': 'browser probes on the VPS (CLAUDE.md probing rules)',
   'alpine': 'sporta-apex-redirect idle container (VPS-SCAN-2026-10-31)',
+  'mariadb:11.8': 'throwaway MariaDB of the database-security audit rig (db-security-audit-test.mjs); the live server is MariaDB too (ops/db)',
+}
+// YAML files that are documented plans, not run by anything (ops/lb: the NOT APPLIED second-container plan, LOAD-CACHE-REPORT-2026-11-19).
+const KNOWN_YAML = {
+  'sporta-web/ops/lb/sporta.replicas.override.yml': 'step A of the second-container plan (ops/lb/README): NOT applied; applying is a shared-compose change the owner must approve',
+  'sporta-web/ops/lb/sporta.hardening.override.yml': 'step B of the second-container plan (ops/lb/README): NOT applied; recreates the containers, owner decision in a quiet hour',
 }
 const KNOWN_DOWNLOADERS = {
   'vps-deploy.mjs': 'downloads codeload.github.com/hkspower/wain/tar.gz/<sha> inside the deploy job and runs its own copy (GO-LIVE.md "Deploying to the VPS"); apk adds php84 unpinned from Alpine for the file audit',
@@ -424,6 +448,8 @@ for (const [f, why] of Object.entries(FORBIDDEN_PLATFORM)) {
 add('.github/ (root and sporta-web)', 'CI', ROOT, true, 'low', 'absent — CLAUDE.md item 2 holds')
 for (const f of walk(ROOT, (p) => /\.(ya?ml)$/.test(p) && !/node_modules|\/dist\//.test(p))) {
   if (basename(f) === 'pubspec.yaml') continue
+  const why = KNOWN_YAML[rel(f)]
+  if (why) { add(basename(f), 'yaml config', rel(f), true, 'low', why); continue }
   add(basename(f), 'yaml config', rel(f), false, 'medium', 'a YAML file in the repo that no rule explains (CI? compose?)')
 }
 
