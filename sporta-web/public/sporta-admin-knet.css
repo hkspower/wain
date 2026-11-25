@@ -1361,3 +1361,25 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   .admin-shell .admin-content .profiles-admin p,
   .admin-shell .admin-content .topbar-editor__segmented span { font-size: 12px !important; }
 }
+
+/* ==== ADMIN PHONE FIXES 1125 (phone only, up to 767 px) =======================================================
+ * Owner, 2026-11-25: "fix" after the full scan of the live /backends (BACKENDS-FULL-SCAN-2026-11-25.md, high H1-H7).
+ * [phone-1] H5: the live-data chip sits above the 64 px tab bar (and the safe area), not over its buttons.
+ * [phone-2] H3: the last control of a long screen clears the fixed tab bar.
+ * [phone-3] H6: a focused field or button scrolls clear of a fixed save bar or the tab bar.
+ * [phone-4] H1: Returns cards: long badges and labels wrap instead of pushing the column wider than the screen.
+ * [phone-5] H4: the Inventory editor table scrolls inside its own box, with the product column held on the left.
+ * [phone-6] H2: the KNET result-page address (monospace) wraps on a phone.
+ * [phone-7] H7: a long monospace value (a brand's /brand/... link) wraps instead of being cut off. */
+@media (max-width: 767px) {
+  .admin-shell .sal-chip { bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important; }
+  .admin-shell main.admin-content { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 1rem); }
+  .admin-shell .admin-content :is(input, select, textarea, button) { scroll-margin-bottom: 9rem; }
+  .admin-shell .admin-content .admin-returns__cards > * { min-width: 0; max-width: 100%; }
+  .admin-shell .admin-content .admin-returns__cards :is(span, small, button, p) { overflow-wrap: anywhere; white-space: normal; }
+  .admin-shell .sie-ov .sie-table { display: block; overflow-x: auto; max-width: 100%; }
+  .admin-shell .sie-ov .sie-table :is(td, th):first-child { position: sticky; inset-inline-start: 0; background: inherit; }
+  .admin-shell .payment-settings [class*="font-mono"],
+  .admin-shell .payment-settings code { overflow-wrap: anywhere; word-break: break-all; }
+  .admin-shell .admin-content [class*="font-mono"] { overflow-wrap: anywhere; }
+}
