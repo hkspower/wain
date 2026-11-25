@@ -147,7 +147,13 @@ const seen = new Set(), walker = document.createTreeWalker(document.body, NodeFi
 for (let n = walker.nextNode(); n; n = walker.nextNode()) { const e = n.parentElement
 if (!e || seen.has(e) || !n.textContent.trim() || svgIn(e) || !vis(e) || hid(e) || ['SCRIPT', 'STYLE', 'OPTION'].includes(e.tagName)) continue; seen.add(e)
 const c = S(e), fs = parseFloat(c.fontSize), bg = bgOf(e), col = blend(rgba(c.color), bg), dis = e.closest(':disabled, [aria-disabled=true]')
-if (fs < 12) out.tiny.push({ fs, s: sig(e) + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).slice(0, 3).join('.') : ''), t: n.textContent.trim().slice(0, 24) })
+if (fs < 12) {
+  // the element's own classes, else the nearest classed ancestors (a span that inherits its size from a parent has none of its own)
+  const cls = (x) => (typeof x.className === 'string' ? x.className.trim().split(/\s+/).slice(0, 3).join('.') : '')
+  let up = [], p = e
+  for (let i = 0; i < 4 && p && p !== document.body; i++, p = p.parentElement) { const c = cls(p); if (c) up.push(p.tagName.toLowerCase() + '.' + c) }
+  out.tiny.push({ fs, s: sig(e) + (cls(e) ? '.' + cls(e) : '') + (up.length ? ' <' + up.join(' < ') : ''), t: n.textContent.trim().slice(0, 24) })
+}
 const need = fs >= 24 || (fs >= 18.66 && +c.fontWeight >= 700) ? 3 : 4.5, r = ratio(col, bg)
 if (r < need && !dis) out.con.push({ r: Math.round(r * 100) / 100, need, fg: hex(col), bg: hex(bg), fs, s: sig(e), t: n.textContent.trim().slice(0, 24) }) }
 for (const e of document.body.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=color]), select, textarea')) { if (!vis(e)) continue
