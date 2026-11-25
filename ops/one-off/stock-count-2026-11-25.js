@@ -6,7 +6,7 @@ const pick = (k) => {
   const lit = text.match(new RegExp("['\"]" + k + "['\"]\\s*=>\\s*['\"]([^'\"]*)['\"]"))
   if (lit) return lit[1]
   const f = text.match(new RegExp("['\"]" + k + "['\"]\\s*=>[^\\n]*?file_get_contents\\(\\s*['\"]([^'\"]+)['\"]"))
-  if (f) { try { return fs.readFileSync(f[1], 'utf8').trim() } catch (e) { console.log('FAIL cannot read the file named for ' + k + ': ' + f[1]); process.exit(1) } }
+  if (f) { for (const cand of [f[1], '/sporta/private/' + k]) { try { return fs.readFileSync(cand, 'utf8').trim() } catch (e) { /* try the next */ } } console.log('FAIL cannot read the file named for ' + k); process.exit(1) }
   return null
 }
 const keysSeen = (text.match(/['\"][a-z_]*(db|mysql)[a-z_]*['\"]\s*(=>|:|=)/gi) || []).map((k) => k.replace(/\s*(=>|:|=)$/, '')).join(' ')
