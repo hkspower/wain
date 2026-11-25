@@ -5464,6 +5464,46 @@
     attach()
   } catch (e) { /* the build's own slider stays */ }
 })()
+/* ===== HERO PRELOAD 1124 (2026-11-24, owner: "make hero slide smooth" / "laggy with slide") =====================================
+ * The home slider's slides after the first are loading="lazy", so a photo can still be downloading when its slide comes up
+ * on a slow connection: the slide lands late and the change looks laggy. This block marks only the NEIGHBOURS of the slide
+ * on show (the one before and the one after, wrapping) as eager with high fetch priority, and re-marks them on each change.
+ * At most two photos are fetched ahead, never the whole set, so a phone does not download seven photos for one visit.
+ * It changes no class, style or layout; nothing of the slider is replaced. */
+;(function () {
+  'use strict'
+  try {
+    if (location.pathname.indexOf('/backends') === 0 || window.__sportaHeroPreload) return
+    window.__sportaHeroPreload = 1
+    var CAROUSEL = 'section[aria-roledescription="carousel"]', SLIDE = '.campaign-photo-hero'
+    var timer = 0
+    var run = function () {
+      timer = 0
+      var root = document.querySelector(CAROUSEL)
+      if (!root) return
+      var slides = root.querySelectorAll(SLIDE)
+      var n = slides.length
+      if (n < 2) return
+      var cur = 0
+      for (var i = 0; i < n; i++) { if (slides[i].getAttribute('aria-hidden') === 'false') { cur = i; break } }
+      var near = [(cur + 1) % n, (cur - 1 + n) % n]
+      for (var k = 0; k < near.length; k++) {
+        var img = slides[near[k]].querySelector('img')
+        if (!img) continue
+        if (img.getAttribute('loading') !== 'eager') img.setAttribute('loading', 'eager')
+        if (img.getAttribute('fetchpriority') !== 'high') img.setAttribute('fetchpriority', 'high')
+      }
+    }
+    var later = function () { if (!timer) timer = requestAnimationFrame(run) }
+    var start = function () {
+      run()
+      if (window.MutationObserver) new MutationObserver(later).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['aria-hidden'] })
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
+})()
+/* ===== HERO PRELOAD 1124 - end ===== */
+
 /* ===== HERO FEEL-1119 - end ===== */
 
 /* ===== ACCOUNT 1120 (2026-11-19, owner: "full inprove register and user profile"; proof: npm run test:account-1120) ======================
