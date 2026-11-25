@@ -42,10 +42,10 @@ export default function StartBar() {
     >
       <Link
         href="/find"
-        className="pointer-events-auto inline-flex min-h-tap items-center gap-3 rounded-full bg-ink-900 py-2 pe-2 ps-5 font-semibold text-white shadow-xl transition hover:bg-ink-800 active:scale-[0.98]"
+        className="pointer-events-auto inline-flex min-h-12 items-center gap-4 rounded-full bg-ink-900 py-2 pe-2 ps-6 font-semibold text-white shadow-xl transition hover:bg-ink-800 active:scale-[0.98]"
       >
-        <span className="font-display text-lg">إلى وين؟</span>
-        <span className="rounded-full bg-sun-400 px-4 py-1.5 text-sm text-ink-900">ابدأ</span>
+        <span className="font-display text-xl">إلى وين؟</span>
+        <span className="inline-flex min-h-9 items-center rounded-full bg-sun-400 px-5 text-base text-ink-900">ابدأ</span>
       </Link>
     </div>
   );
