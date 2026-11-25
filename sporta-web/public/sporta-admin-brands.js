@@ -11203,6 +11203,9 @@
 ;(function () {
   'use strict'
   try {
+  // RETIRED (owner, 2026-11-23: "remove products button, no need product"). The Remove product button is never drawn.
+  // The server route product_delete stays in admin.php; nothing here calls it. To bring the button back, delete this line.
+  return
   if (window.__sportaRemoveProduct) return
   try { Object.defineProperty(window, '__sportaRemoveProduct', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
