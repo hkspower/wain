@@ -1262,11 +1262,11 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   border-radius: .625rem !important;
 }
 
-.admin-table td.py-3,
-.admin-table th.py-2 { padding-block: .5rem !important; vertical-align: middle; }
+.admin-shell .admin-table td.py-3,
+.admin-shell .admin-table th.py-2 { padding-block: .5rem !important; vertical-align: middle; }
 
-.admin-table td.font-mono,
-.admin-table td.tabular-nums { white-space: nowrap; }
+.admin-shell .admin-table td.font-mono,
+.admin-shell .admin-table td.tabular-nums { white-space: nowrap; }
 
 @media (max-width: 767px) {
   .admin-shell .admin-content .admin-returns__badge,

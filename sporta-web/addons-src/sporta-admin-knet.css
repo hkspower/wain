@@ -2109,11 +2109,11 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
  * (scripts/fixtures/sizes-admin/orders.html). The same class is used by the other admin tables, so this applies
  * to them too; it changes padding and line breaks only, not colours or the contents. Amounts were already right-aligned.
  * [tbl-1] rows: 0.5rem above and below a cell (was 0.75rem), header 0.5rem, the middle line for cells that hold a button. */
-.admin-table td.py-3,
-.admin-table th.py-2 { padding-block: .5rem !important; vertical-align: middle; }
+.admin-shell .admin-table td.py-3,
+.admin-shell .admin-table th.py-2 { padding-block: .5rem !important; vertical-align: middle; }
 /* [tbl-2] a track ID (monospace) and an amount (tabular figures) never break across lines. Dates are not covered here. */
-.admin-table td.font-mono,
-.admin-table td.tabular-nums { white-space: nowrap; }
+.admin-shell .admin-table td.font-mono,
+.admin-shell .admin-table td.tabular-nums { white-space: nowrap; }
 
 /* ==== ADMIN MIN TEXT 1122 (phone: no text under 12px) =========================================================
  * Owner, 2026-11-25: "check very small font backends for mobile version". The live /backends on a 390 px phone
