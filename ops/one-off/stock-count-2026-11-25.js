@@ -13,8 +13,9 @@ const keysSeen = (text.match(/['\"][a-z_]*(db|mysql)[a-z_]*['\"]\s*(=>|:|=)/gi) 
 console.log('CFG_KEYS ' + keysSeen)
 for (const k of ['db_host','db_name','db_user','db_pass']) { const m = text.match(new RegExp('.*' + k + '.*')); console.log('SHAPE ' + (m ? m[0].replace(/[A-Za-z0-9]/g, 'x') : 'none')) }
 const host = pick('db_host'), name = pick('db_name'), user = pick('db_user'), pass = pick('db_pass')
+const dbHost = host === 'mariadb' ? '127.0.0.1' : host   // the job shares the database container's network namespace
 if (!host || !name || !user || pass === null) { console.log('FAIL config keys missing (names above, no values printed)'); process.exit(1) }
-fs.writeFileSync('/tmp/my.cnf', '[client]\nhost=' + host + '\nuser=' + user + '\npassword=' + pass + '\ndatabase=' + name + '\n', { mode: 0o600 })
+fs.writeFileSync('/tmp/my.cnf', '[client]\nhost=' + dbHost + '\nuser=' + user + '\npassword=' + pass + '\ndatabase=' + name + '\n', { mode: 0o600 })
 console.log('DB ' + host + ' ' + name)
 const tryRun = (fn, label) => { try { return fn() } catch (e) { console.log('FAIL ' + label + ': ' + String(e.stderr || e.message).split('\n').slice(0, 3).join(' | ').slice(0, 400)); process.exit(1) } }
 const q = (sql) => tryRun(() => cp.execFileSync('mariadb', ['--defaults-extra-file=/tmp/my.cnf', '-N', '-B', '-e', sql], { encoding: 'utf8' }), 'query')
