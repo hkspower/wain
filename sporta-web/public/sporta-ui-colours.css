@@ -369,6 +369,19 @@ html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__form-panel :
   -webkit-mask-image: var(--sporta-ai-mic);
   mask-image: var(--sporta-ai-mic);
 }
+/* [ai-3] the panel is inside the header, which is left-to-right, so the panel inherited ltr in Arabic: the greeting bubble sat at the
+ *        left, the question chips filled from the left (the first chip at the left edge), and the header put the close button at the right.
+ *        In an Arabic page the panel now reads right-to-left like the rest of the page. */
+:root[dir="rtl"] .storefront-root .app-header [role="dialog"].fixed {
+  direction: rtl;
+}
+/* [ai-4] the input's placeholder ends with "..." instead of stopping mid-word ("Ask about an order, delive"). */
+.storefront-root .app-header [role="dialog"].fixed input {
+  text-overflow: ellipsis;
+}
+.storefront-root .app-header [role="dialog"].fixed input::placeholder {
+  text-overflow: ellipsis;
+}
 /* ==== end AI PANEL 1119 */
 
 /* ==== TILE-FALLBACK-1112: category tiles keep a dark ground when their photo does not load (owner: "fix white page",
