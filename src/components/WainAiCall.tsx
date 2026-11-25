@@ -1998,10 +1998,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
               say it was the thing to press, and the red hang-up sat right
               under it at the same size. The middle zone takes the spare
               height now and the buttons are pinned to the foot, where a
-              thumb already is; `max-w-md` stops all of it stretching across
+              thumb already is; `max-w-xl` (576px) stops all of it stretching across
               a desktop window. */}
           <div className="flex flex-1 flex-col p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
-           <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
+           <div className="mx-auto flex w-full max-w-xl flex-1 flex-col">
             {(phase === "ringing" || phase === "live" || phase === "answering") && (
               <div className="flex flex-1 flex-col text-center">
                 {/* Her photo, as on /find, with the drawn face as a small
