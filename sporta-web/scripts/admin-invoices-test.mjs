@@ -25,7 +25,9 @@
 import { chromium } from 'playwright'
 import postcss from 'postcss'
 import tailwind from '@tailwindcss/postcss'
-import { readFileSync } from 'node:fs'
+import { readFileSync, mkdtempSync, readdirSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { LIVE, SCREEN, ORDERS, screenHtml, PAGE_CSS, FIXTURE_JS } from './fixtures/admin-products.mjs'
@@ -370,6 +372,42 @@ head('CSV')
   f = await grab()
   is(f.name === 'invoices-2026-10.csv' && f.text.replace(/^﻿/, '').trim().split('\r\n').length === 1 + 1, 'with a month chosen only that month is in the file, named for it', `${f.name}`)
   await pg.context().close()
+}
+
+// =============================================================================================== 6b. PDF per invoice
+head('PDF per invoice')
+{
+  // One ZIP holds one PDF per order shown (unzip and pdfinfo read them; each is one A4 page). The lines are drawn from the items route.
+  const { pg } = await openList()
+  const [dl] = await Promise.all([pg.waitForEvent('download', { timeout: 120000 }), pg.click(D('zip-all'))])
+  const zipPath = await dl.path()
+  is(/^invoices-pdf-\d{4}-\d{2}-\d{2}\.zip$/.test(dl.suggestedFilename()), 'the PDFs come as one ZIP named for today', dl.suggestedFilename())
+  const dir = mkdtempSync(join(tmpdir(), 'sinv-pdf-'))
+  execFileSync('unzip', ['-q', zipPath, '-d', dir])
+  const pdfs = readdirSync(dir).filter((n) => /^INV-\d{6}\.pdf$/.test(n)).sort()
+  is(pdfs.length === ORDER_ROWS.length && pdfs.includes('INV-000123.pdf'), 'one PDF per order shown, named INV- and the six-digit number', `${pdfs.length} files`)
+  let pages = 0, ok = true, bad = ''
+  for (const n of pdfs) {
+    const info = execFileSync('pdfinfo', [join(dir, n)], { encoding: 'utf8' })
+    const p = /Pages:\s+(\d+)/.exec(info), size = /Page size:\s+([\d.]+) x ([\d.]+)/.exec(info)
+    if (!p || p[1] !== '1' || !size || Math.abs(Number(size[1]) - 595.28) > 1 || Math.abs(Number(size[2]) - 841.89) > 1) { ok = false; bad = n + ' ' + info.split('\n').slice(0, 6).join(' | ') }
+    else pages++
+  }
+  is(ok && pages === pdfs.length, 'each PDF is one A4 page', bad)
+  // the picture on the page is the invoice, not a blank sheet: its JPEG is larger than a few kilobytes
+  const size123 = readdirSync(dir).includes('INV-000123.pdf') ? readFileSync(join(dir, 'INV-000123.pdf')).length : 0
+  is(size123 > 20000, 'the invoice carries its picture (a JPEG of the drawn page)', `${size123} bytes`)
+  await pg.context().close()
+  // the same ZIP on the Arabic screen: the sheet is drawn in Arabic, one page, still named INV-
+  const ar = await openList({ ar: true, w: 390, h: 800 })
+  await ar.pg.locator(D('zip-all')).waitFor({ timeout: 15000 })
+  const [adl] = await Promise.all([ar.pg.waitForEvent('download', { timeout: 120000 }), ar.pg.click(D('zip-all'))])
+  const adir = mkdtempSync(join(tmpdir(), 'sinv-pdf-ar-'))
+  execFileSync('unzip', ['-q', await adl.path(), '-d', adir])
+  const arPdfs = readdirSync(adir).filter((n) => /^INV-\d{6}\.pdf$/.test(n))
+  const arInfo = arPdfs.length ? execFileSync('pdfinfo', [join(adir, arPdfs[0])], { encoding: 'utf8' }) : ''
+  is(arPdfs.length > 0 && /Pages:\s+1\b/.test(arInfo), 'in Arabic the same ZIP, one page per order', `${arPdfs.length} files in ${adir}`)
+  await ar.pg.context().close()
 }
 
 // =============================================================================================== 7. failures

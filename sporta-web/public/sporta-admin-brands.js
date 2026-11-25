@@ -19390,7 +19390,10 @@
       capped: 'Stopped at {n} invoices. Narrow the search or choose a month.',
       check: 'Check', checkNote: 'The total is not subtotal minus discount plus delivery.',
       print: 'Print / Save as PDF', docLang: 'Invoice language', itemsLoading: 'Reading the items…', itemsFail: 'Could not read the items of this order.',
-      printHint: 'Print opens the browser\'s print window. Choose "Save as PDF" there to keep a file.', openRow: 'Open invoice {n}'
+      printHint: 'Print opens the browser\'s print window. Choose "Save as PDF" there to keep a file.', openRow: 'Open invoice {n}',
+      zip: 'Download all PDFs', zipBusy: 'Making the PDFs in your browser…', zipProgress: 'Making PDF {i} of {n}…',
+      zipDone: 'Downloaded {n} PDFs, one per invoice.', zipSome: 'The lines could not be read for {f} of them; those show no lines.',
+      zipFail: 'The PDFs could not be made. Try again.', zipTooMany: 'Choose a month first: at most {n} invoices go into one ZIP.'
     },
     ar: {
       open: 'الفواتير', title: 'الفواتير', close: 'إغلاق', back: 'رجوع إلى القائمة',
@@ -19404,7 +19407,10 @@
       capped: 'توقف التحميل عند {n} فاتورة. ضيّق البحث أو اختر شهرًا.',
       check: 'تحقق', checkNote: 'الإجمالي لا يساوي المجموع الفرعي ناقص الخصم زائد التوصيل.',
       print: 'طباعة / حفظ PDF', docLang: 'لغة الفاتورة', itemsLoading: 'جارٍ قراءة الأصناف…', itemsFail: 'تعذّرت قراءة أصناف هذا الطلب.',
-      printHint: 'تفتح الطباعة نافذة المتصفح. اختر «حفظ بصيغة PDF» هناك للاحتفاظ بملف.', openRow: 'فتح الفاتورة {n}'
+      printHint: 'تفتح الطباعة نافذة المتصفح. اختر «حفظ بصيغة PDF» هناك للاحتفاظ بملف.', openRow: 'فتح الفاتورة {n}',
+      zip: 'تنزيل كل الفواتير PDF', zipBusy: 'جارٍ إنشاء ملفات PDF في متصفحك…', zipProgress: 'جارٍ إنشاء الملف {i} من {n}…',
+      zipDone: 'تم تنزيل {n} ملف PDF، فاتورة لكل طلب.', zipSome: 'تعذّرت قراءة أصناف {f} منها؛ تظهر بلا أصناف.',
+      zipFail: 'تعذّر إنشاء ملفات PDF. حاول مرة أخرى.', zipTooMany: 'اختر شهرًا أولًا: لا يتجاوز الملف المضغوط {n} فاتورة.'
     }
   }
   // The words ON the invoice, per invoice language (the document can be in either language whatever the admin is in).
@@ -19716,6 +19722,9 @@
     ui.loadMore.hidden = !S.hasMore; ui.loadAll.hidden = !S.hasMore
     ui.loadMore.disabled = ui.loadAll.disabled = S.busy
     ui.csv.disabled = !list.length
+    // the PDF ZIP: a month or a search narrows it; more than ZIP_MAX in one file is refused with the reason, not started
+    ui.zip.disabled = ZIPS.busy || !list.length || list.length > ZIP_MAX
+    ui.zip.title = list.length > ZIP_MAX ? t('zipTooMany', { n: ZIP_MAX }) : ''
   }
   function buildList() {
     var body = ui.body
@@ -19741,6 +19750,7 @@
     body.appendChild(ctl)
     var act = el('div', 'sinv-actions')
     var csv = btn('', t('csv'), exportCsv, 'csv'); act.appendChild(csv)
+    var zipAll = btn('', t('zip'), downloadAllPdfs, 'zip-all'); act.appendChild(zipAll)
     var loadMore = btn('', t('loadMore'), function () { load(true, false) }, 'load-more'); act.appendChild(loadMore)
     var loadAll = btn('', t('loadAll'), function () { load(true, true) }, 'load-all'); act.appendChild(loadAll)
     body.appendChild(act)
@@ -19749,9 +19759,10 @@
     var err = el('p', 'sinv-err'); err.setAttribute('role', 'alert'); err.setAttribute('data-sinv', 'error'); body.appendChild(err)
     var retry = btn('', t('retry'), function () { load(S.rows.length > 0, false) }, 'retry'); retry.hidden = true; body.appendChild(retry)
     var none = el('p', 'sinv-hint', t('none')); none.hidden = true; body.appendChild(none)
+    var zipStatus = el('p', 'sinv-hint'); zipStatus.setAttribute('role', 'status'); zipStatus.setAttribute('data-sinv', 'zip-status'); body.appendChild(zipStatus)
     var ul = el('ul', 'sinv-list'); ul.setAttribute('data-sinv', 'list'); body.appendChild(ul)
     ui.search = q; ui.month = month; ui.sum = sum; ui.more = more; ui.err = err; ui.retry = retry; ui.none = none; ui.list = ul
-    ui.csv = csv; ui.loadMore = loadMore; ui.loadAll = loadAll
+    ui.csv = csv; ui.loadMore = loadMore; ui.loadAll = loadAll; ui.zip = zipAll; ui.zipStatus = zipStatus
     draw()
   }
 
@@ -19863,6 +19874,262 @@
     back.focus()
   }
 
+  // ------------------------------------------------------------------ PDF per invoice, in the browser
+  /* One A4 page per order, drawn on a canvas at 150 dpi and stored as a JPEG inside a one-page PDF 1.4 (the same method as the
+   * catalogue PDF). The words are part of the picture: a reader can look at them and print them, but cannot search or copy them.
+   * The lines come from the same `items` route the invoice screen reads, and the money from the same functions, so a PDF and the
+   * screen say the same thing. Nothing is sent anywhere: the PDFs are built here and saved to the owner's computer as one ZIP. */
+  var PDF_W = 1240, PDF_H = 1754, PDF_M = 90, ZIP_MAX = 400
+  var ZIPS = { run: 0, busy: false }
+  var CHECK_NOTE = {
+    en: 'Check: the total is not subtotal minus discount plus delivery.',
+    ar: 'تحقق: الإجمالي لا يساوي المجموع الفرعي ناقص الخصم زائد التوصيل.'
+  }
+  var PDF_FONT = '"IBM Plex Arabic","Alexandria","Segoe UI",Tahoma,Arial,"Noto Sans Arabic",system-ui,sans-serif'
+
+  /** Draws one invoice on a canvas and returns it. Start-based x (0 = the content edge the reader starts from) keeps Arabic mirrored. */
+  function drawInvoiceCanvas(o, items, l) {
+    var D = DOC[l], m = money(o), rtl = l === 'ar', CW = PDF_W - 2 * PDF_M
+    var c = document.createElement('canvas'); c.width = PDF_W; c.height = PDF_H
+    var g = c.getContext('2d')
+    g.fillStyle = '#fff'; g.fillRect(0, 0, PDF_W, PDF_H)
+    g.textBaseline = 'alphabetic'
+    function font(px, bold) { g.font = (bold ? '700 ' : '400 ') + px + 'px ' + PDF_FONT }
+    function ax(x) { return rtl ? PDF_W - PDF_M - x : PDF_M + x }
+    function put(text, x, y, align, color) {
+      // start: the reader's first edge; end: the other one; 'center' sits on the page's middle
+      g.fillStyle = color || '#111'
+      if (align === 'center') { g.textAlign = 'center'; g.fillText(text, PDF_W / 2, y); return }
+      var leftSide = align === 'end' ? rtl : !rtl
+      g.textAlign = leftSide ? 'left' : 'right'
+      g.fillText(text, ax(x), y)
+    }
+    function rule(y, h, color) { g.fillStyle = color || '#111'; g.fillRect(rtl ? PDF_W - PDF_M - CW : PDF_M, y, CW, h) }
+    function fit(text, max) {
+      var s = clean(text)
+      if (g.measureText(s).width <= max) return s
+      while (s.length > 1 && g.measureText(s + '…').width > max) s = s.slice(0, -1)
+      return s + '…'
+    }
+    function wrap(text, max) {
+      var words = clean(text).split(' '), lines = [], cur = ''
+      words.forEach(function (w) {
+        var test = cur ? cur + ' ' + w : w
+        if (cur && g.measureText(test).width > max) { lines.push(cur); cur = w } else cur = test
+      })
+      if (cur) lines.push(cur)
+      return lines
+    }
+
+    // the head: the shop on the start edge, the document on the other
+    var y = 150
+    font(58, true); put('SPORTA', 0, y, 'start')
+    font(24, false); put('Sports Wear · www.sporta.com.kw', 0, y + 44, 'start', '#555')
+    font(48, true); put(D.invoice, CW, y, 'end')
+    font(30, true); put(invNo(o), CW, y + 48, 'end')
+    font(24, true); put(D[stateKey(o)], CW, y + 90, 'end', '#333')
+    if (o.fulfilment_status === 'cancelled') { font(24, true); put(D.cancelled, CW, y + 126, 'end', '#be123c') }
+    y = 290
+    rule(y, 4)
+    y += 46
+
+    // the facts, two to a row
+    var facts = [[D.order, o.track_id, true], [D.date, when(o.created_at, l, true)], [D.method, methodText(o, l)], [D.status, D[stateKey(o)]]]
+    if (o.paid_at) facts.push([D.paidOn, when(o.paid_at, l, true)])
+    if (clean(o.cbk_paymentid)) facts.push([D.paymentId, clean(o.cbk_paymentid), true])
+    if (clean(o.cbk_reference)) facts.push([D.reference, clean(o.cbk_reference), true])
+    var COL = 560
+    facts.forEach(function (f, i) {
+      var x = (i % 2) * COL, fy = y + Math.floor(i / 2) * 84
+      font(20, true); put(f[0].toUpperCase(), x, fy, 'start', '#555')
+      font(27, false); put(fit(f[1], COL - 40), x, fy + 36, 'start')
+    })
+    y += Math.ceil(facts.length / 2) * 84 + 18
+
+    // the buyer: name, phone, the whole address (the public invoice leaves the phone and street out; this one is the owner's copy)
+    var billLines = [[clean(o.customer_name) || '—', 'bold']]
+    if (clean(o.customer_phone)) billLines.push([D.phone + ': ' + phoneText(o.customer_phone), 'ltr'])
+    var ad = addressLines(o, D); if (ad) { font(26, false); wrap(ad, CW - 60).forEach(function (s) { billLines.push([s, '']) }) }
+    var boxH = 64 + billLines.length * 40
+    g.strokeStyle = '#cfd4d9'; g.lineWidth = 2
+    g.strokeRect(rtl ? PDF_W - PDF_M - CW : PDF_M, y, CW, boxH)
+    font(20, true); put(D.billed.toUpperCase(), 30, y + 40, 'start', '#555')
+    billLines.forEach(function (b, i) {
+      font(b[1] === 'bold' ? 30 : 26, b[1] === 'bold'); put(fit(b[0], CW - 60), 30, y + 78 + i * 40, 'start')
+    })
+    y += boxH + 36
+
+    // the lines: item, size, quantity, unit price, amount. Long orders shrink their rows; past what fits, the rest are said, not hidden.
+    var COLS = { item: 0, size: 600, qty: 800, unit: 930, amount: CW }
+    font(20, true)
+    put(D.item.toUpperCase(), COLS.item, y, 'start', '#555'); put(D.size.toUpperCase(), COLS.size, y, 'start', '#555')
+    put(D.qty.toUpperCase(), COLS.qty, y, 'end', '#555'); put(D.unit.toUpperCase(), COLS.unit, y, 'end', '#555'); put(D.amount.toUpperCase(), COLS.amount, y, 'end', '#555')
+    y += 14; rule(y, 2)
+    var bottom = PDF_H - 330, rows = items || [], rowH = 58, fs = 27
+    if (rows.length) {
+      var room = (bottom - y) / rows.length
+      if (room < rowH) { rowH = Math.max(30, Math.floor(room)); fs = rowH < 40 ? 20 : 24 }
+    }
+    var shown = rows.length
+    var fitRows = Math.max(1, Math.floor((bottom - y - 60) / rowH))
+    if (shown > fitRows) shown = fitRows
+    var yy = y + 8
+    for (var i = 0; i < shown; i++) {
+      var it = rows[i], qty = Number(it.qty) || 0, unit = fils(it.unit_price)
+      var base = yy + rowH - Math.round(rowH * 0.3)
+      font(fs, false)
+      put(fit(lineName(it, l), 580), COLS.item, base, 'start')
+      put(fit(clean(it.size), 150), COLS.size, base, 'start')
+      put(String(qty), COLS.qty, base, 'end')
+      put(kwd(unit), COLS.unit, base, 'end')
+      put(kwd(unit * qty), COLS.amount, base, 'end')
+      yy += rowH; rule(yy, 1, '#dde1e5')
+    }
+    if (shown < rows.length) { font(22, false); put(rows.length - shown + ' more lines are not shown on this PDF: open the invoice on the screen.', COLS.item, yy + 36, 'start', '#be123c'); yy += 50 }
+    y = Math.max(yy + 40, y)
+
+    // the totals, on the end side
+    var TX = 540
+    function trow(label, value, strong) {
+      font(strong ? 32 : 26, !!strong)
+      put(label, TX, y, 'start'); put(value, COLS.amount, y, 'end')
+      y += strong ? 58 : 44
+    }
+    if (!m.plain) {
+      trow(D.subtotal, kwd(m.sub) + ' ' + D.kwd)
+      if (m.disc > 0) trow(D.discount + (clean(o.discount_code) ? ' (' + clean(o.discount_code) + ')' : ''), '-' + kwd(m.disc) + ' ' + D.kwd)
+      trow(D.delivery, m.del > 0 ? kwd(m.del) + ' ' + D.kwd : D.free)
+    }
+    rule(y - 34, 3)
+    trow(D.total, kwd(m.tot) + ' ' + D.kwd, true)
+    if (m.off) { font(22, true); put(CHECK_NOTE[l], 0, y, 'start', '#be123c'); y += 40 }
+
+    // the buyer's note, then the footer at the foot of the sheet
+    if (clean(o.customer_note)) {
+      y += 20
+      font(20, true); put(D.note.toUpperCase(), 0, y, 'start', '#555')
+      font(26, false); wrap(o.customer_note, CW - 40).slice(0, 4).forEach(function (s, i) { put(s, 0, y + 36 + i * 36, 'start') })
+    }
+    font(24, false); put(D.thanks, 0, PDF_H - 150, 'center', '#555')
+    return c
+  }
+
+  /** The JPEG of one invoice, wrapped in a one-page PDF 1.4 (A4, the picture filling the page). */
+  function invoicePdf(o, items, l) {
+    var c = drawInvoiceCanvas(o, items, l)
+    return new Promise(function (res, rej) {
+      c.toBlob(function (b) { if (b) res(b); else rej(new Error('jpeg')) }, 'image/jpeg', 0.9)
+    }).then(function (b) { return b.arrayBuffer() }).then(function (buf) {
+      c.width = 0; c.height = 0
+      return pdfFile(new Uint8Array(buf))
+    })
+  }
+  function pdfFile(jpeg) {
+    var enc = new TextEncoder(), parts = [], offs = [], len = 0
+    function push(x) { var u = typeof x === 'string' ? enc.encode(x) : x; parts.push(u); len += u.length }
+    function obj(n, body) { offs[n] = len; push(n + ' 0 obj\n' + body + '\nendobj\n') }
+    var content = 'q 595.28 0 0 841.89 0 0 cm /Im1 Do Q'
+    push('%PDF-1.4\n'); push(new Uint8Array([37, 226, 227, 207, 211, 10]))
+    obj(1, '<< /Type /Catalog /Pages 2 0 R >>')
+    obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>')
+    obj(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /XObject << /Im1 5 0 R >> >> /Contents 4 0 R >>')
+    obj(4, '<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream')
+    offs[5] = len
+    push('5 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + PDF_W + ' /Height ' + PDF_H + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpeg.length + ' >>\nstream\n')
+    push(jpeg); push('\nendstream\nendobj\n')
+    var xref = len, x = 'xref\n0 6\n0000000000 65535 f \n'
+    for (var i = 1; i <= 5; i++) x += String(offs[i]).padStart(10, '0') + ' 00000 n \n'
+    push(x + 'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n')
+    return concatBytes(parts)
+  }
+  function concatBytes(list) {
+    var n = 0; list.forEach(function (a) { n += a.length })
+    var out = new Uint8Array(n), p = 0
+    list.forEach(function (a) { out.set(a, p); p += a.length })
+    return out
+  }
+  var CRC_TABLE = null
+  function crc32(u8) {
+    if (!CRC_TABLE) {
+      CRC_TABLE = []
+      for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; CRC_TABLE[n] = c >>> 0 }
+    }
+    var crc = 0xFFFFFFFF
+    for (var i = 0; i < u8.length; i++) crc = CRC_TABLE[(crc ^ u8[i]) & 0xFF] ^ (crc >>> 8)
+    return (crc ^ 0xFFFFFFFF) >>> 0
+  }
+  /** A ZIP of stored (uncompressed) entries: the PDFs are already compressed JPEG, so deflate would gain nothing. */
+  function zipFile(files) {
+    var enc = new TextEncoder(), locals = [], central = [], offset = 0, cdSize = 0
+    var d = new Date()
+    var dosTime = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)
+    var dosDate = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()
+    files.forEach(function (f) {
+      var name = enc.encode(f.name), crc = crc32(f.data), size = f.data.length
+      var lh = new DataView(new ArrayBuffer(30))
+      lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true)
+      lh.setUint16(10, dosTime, true); lh.setUint16(12, dosDate, true); lh.setUint32(14, crc, true)
+      lh.setUint32(18, size, true); lh.setUint32(22, size, true); lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true)
+      locals.push(new Uint8Array(lh.buffer), name, f.data)
+      var ch = new DataView(new ArrayBuffer(46))
+      ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true)
+      ch.setUint16(12, dosTime, true); ch.setUint16(14, dosDate, true); ch.setUint32(16, crc, true); ch.setUint32(20, size, true); ch.setUint32(24, size, true)
+      ch.setUint16(28, name.length, true); ch.setUint32(42, offset, true)
+      central.push(new Uint8Array(ch.buffer), name)
+      cdSize += 46 + name.length
+      offset += 30 + name.length + size
+    })
+    var end = new DataView(new ArrayBuffer(22))
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true)
+    end.setUint32(12, cdSize, true); end.setUint32(16, offset, true)
+    return concatBytes(locals.concat(central, [new Uint8Array(end.buffer)]))
+  }
+  function saveBlob(blob, name) {
+    var url = URL.createObjectURL(blob); var a = el('a'); a.href = url; a.download = name; a.style.display = 'none'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    setTimeout(function () { URL.revokeObjectURL(url) }, 8000)
+  }
+  function zipMsg(s, cls) { if (ui && ui.zipStatus) { ui.zipStatus.textContent = s; ui.zipStatus.className = cls || 'sinv-hint' } }
+  function pause(ms) { return new Promise(function (res) { setTimeout(res, ms) }) }
+  /** The visible list (search, payment and month filters), one PDF per order, one ZIP. Items are read one order at a time. */
+  function downloadAllPdfs() {
+    if (ZIPS.busy || !ui) return
+    var list = visible().slice()
+    if (!list.length || list.length > ZIP_MAX) return
+    var run = ++ZIPS.run, l = lang, files = [], failed = 0
+    ZIPS.busy = true
+    draw()
+    zipMsg(t('zipBusy'))
+    function one(i) {
+      if (run !== ZIPS.run) return Promise.resolve(false)   // the dialog closed: nothing is saved
+      if (i >= list.length) return Promise.resolve(true)
+      var o = list[i]
+      zipMsg(t('zipProgress', { i: i + 1, n: list.length }))
+      return call('items&order=' + encodeURIComponent(o.id)).then(function (r) {
+        var rows = rowsOf(r.body)
+        if (!r.ok || !rows) { failed++; rows = [] }
+        return invoicePdf(o, rows, l)
+      }).then(function (bytes) {
+        if (run !== ZIPS.run) return
+        files.push({ name: invNo(o) + '.pdf', data: bytes })
+        return pause(30)
+      }).then(function () { return one(i + 1) })
+    }
+    one(0).then(function (ok) {
+      if (run !== ZIPS.run) return
+      ZIPS.busy = false
+      if (ok && files.length) {
+        var now = new Date()
+        saveBlob(new Blob([zipFile(files)], { type: 'application/zip' }), 'invoices-pdf-' + (S.month || (now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()))) + '.zip')
+        zipMsg(t('zipDone', { n: files.length }) + (failed ? ' ' + t('zipSome', { f: failed }) : ''))
+      }
+      draw()
+    }).catch(function () {
+      if (run !== ZIPS.run) return
+      ZIPS.busy = false; zipMsg(t('zipFail'), 'sinv-err'); draw()
+    })
+  }
+
   // ------------------------------------------------------------------ the dialog
   var modal = null, opener = null
   function closeModal() {
@@ -19871,6 +20138,7 @@
     document.body.style.overflow = modal.prevOverflow
     if (modal.root.parentNode) modal.root.parentNode.removeChild(modal.root)
     S.seq++; S.busy = false; S.cur = null; S.view = 'list'
+    ZIPS.run++; ZIPS.busy = false
     var back = opener && opener.isConnected ? opener : null
     modal = null; ui = null
     if (back) back.focus()
