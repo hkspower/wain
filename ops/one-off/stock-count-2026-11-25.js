@@ -16,7 +16,8 @@ const host = pick('db_host'), name = pick('db_name'), user = pick('db_user'), pa
 if (!host || !name || !user || pass === null) { console.log('FAIL config keys missing (names above, no values printed)'); process.exit(1) }
 fs.writeFileSync('/tmp/my.cnf', '[client]\nhost=' + host + '\nuser=' + user + '\npassword=' + pass + '\ndatabase=' + name + '\n', { mode: 0o600 })
 console.log('DB ' + host + ' ' + name)
-const q = (sql) => cp.execFileSync('mariadb', ['--defaults-extra-file=/tmp/my.cnf', '-N', '-B', '-e', sql], { encoding: 'utf8' })
+const tryRun = (fn, label) => { try { return fn() } catch (e) { console.log('FAIL ' + label + ': ' + String(e.stderr || e.message).split('\n').slice(0, 3).join(' | ').slice(0, 400)); process.exit(1) } }
+const q = (sql) => tryRun(() => cp.execFileSync('mariadb', ['--defaults-extra-file=/tmp/my.cnf', '-N', '-B', '-e', sql], { encoding: 'utf8' }), 'query')
 const want = {
   'cagliari-calcio-sweatshirt-navy': { S: 0, M: 12, L: 9, XL: 16, '2XL': 20, '3XL': 3, '4XL': 1, '5XL': 3 },
   'sgomma-t-shirt-navy': { S: 1 },
@@ -53,13 +54,13 @@ const sqlFor = (p) => {
 const verify = "SELECT COUNT(*) FROM product_variants WHERE sku IN (" + plan.map((p) => "'" + p.sku + "'").join(',') + ") AND stock NOT IN (0);"
 const body = plan.map(sqlFor).join('\n')
 const run = (commit) => cp.execFileSync('mariadb', ['--defaults-extra-file=/tmp/my.cnf', '-N', '-B'], { encoding: 'utf8', input: 'START TRANSACTION;\n' + body + '\nSELECT ROW_COUNT() AS dummy;\nSELECT COUNT(*) AS movements FROM inventory_movements WHERE type = ' + "'count'" + ' AND note LIKE ' + "'Physical count, workbook 2026-11-25%'" + ';\n' + (commit ? 'COMMIT;' : 'ROLLBACK;') + '\n' })
-const dry = run(false)
+const dry = tryRun(() => run(false), 'dry run')
 console.log('DRY ' + dry.trim().split('\n').join(' | '))
 const expectUpdates = plan.filter((p) => p.before !== p.after).length
 const expectRows = plan.length
 const movementsDry = Number(dry.trim().split('\n').pop())
 if (movementsDry !== expectUpdates) { console.log('FAIL dry run would write ' + movementsDry + ' movements, expected ' + expectUpdates + ' (a version or stock moved since the read)'); process.exit(1) }
-run(true)
+tryRun(() => run(true), 'commit run')
 const after = q('SELECT sku, slug, size, stock, inventory_version FROM product_variants WHERE slug IN (' + slugs + ') ORDER BY slug, size').trim().split('\n').filter(Boolean).map((l) => l.split('\t'))
 console.log('AFTER ' + after.length + ' rows')
 for (const r of after) console.log('  ' + r.join(' '))
