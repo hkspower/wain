@@ -2104,6 +2104,56 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   border-radius: .625rem !important;
 }
 
+/* ==== ADMIN TABLE 1122 (orders table: tighter rows, dates and track IDs on one line) ========================
+ * Owner, 2026-11-22: "arrange order table layout" (density + alignment). The orders table is `table.admin-table`
+ * (scripts/fixtures/sizes-admin/orders.html). The same class is used by the other admin tables, so this applies
+ * to them too; it changes padding and line breaks only, not colours or the contents. Amounts were already right-aligned.
+ * [tbl-1] rows: 0.5rem above and below a cell (was 0.75rem), header 0.5rem, the middle line for cells that hold a button. */
+.admin-table td.py-3,
+.admin-table th.py-2 { padding-block: .5rem !important; vertical-align: middle; }
+/* [tbl-2] a track ID (monospace) and an amount (tabular figures) never break across lines. Dates are not covered here. */
+.admin-table td.font-mono,
+.admin-table td.tabular-nums { white-space: nowrap; }
+
+/* ==== ADMIN MIN TEXT 1122 (phone: no text under 12px) =========================================================
+ * Owner, 2026-11-25: "check very small font backends for mobile version". The live /backends on a 390 px phone
+ * (scripts/admin-mobile-scan.mjs, light) measured 43 text runs at 8.96-11.84 px: the Returns badges and ids, the
+ * Support status and ids, the Theme editor's current value and preview, the CRM and Topbar small labels. Each named
+ * class below is raised to 12 px on phones only (up to 767 px); wider screens keep their sizes. */
+@media (max-width: 767px) {
+  .admin-shell .admin-content .admin-returns__badge,
+  .admin-shell .admin-content .support-admin__status,
+  .admin-shell .admin-content .theme-editor__current,
+  .admin-shell .admin-content .theme-editor__font-upload p,
+  .admin-shell .admin-content .crm-tile span,
+  .admin-shell .admin-content .support-admin__mobile .m-row span,
+  .admin-shell .admin-content .support-admin__head p,
+  .admin-shell .admin-content .profiles-admin p,
+  .admin-shell .admin-content .topbar-editor__segmented span { font-size: 12px !important; }
+}
+
+/* ==== ADMIN PHONE FIXES 1125 (phone only, up to 767 px) =======================================================
+ * Owner, 2026-11-25: "fix" after the full scan of the live /backends (BACKENDS-FULL-SCAN-2026-11-25.md, high H1-H7).
+ * [phone-1] H5: the live-data chip sits above the 64 px tab bar (and the safe area), not over its buttons.
+ * [phone-2] H3: the last control of a long screen clears the fixed tab bar.
+ * [phone-3] H6: a focused field or button scrolls clear of a fixed save bar or the tab bar.
+ * [phone-4] H1: Returns cards: long badges and labels wrap instead of pushing the column wider than the screen.
+ * [phone-5] H4: the Inventory editor table scrolls inside its own box, with the product column held on the left.
+ * [phone-6] H2: the KNET result-page address (monospace) wraps on a phone.
+ * [phone-7] H7: a long monospace value (a brand's /brand/... link) wraps instead of being cut off. */
+@media (max-width: 767px) {
+  .admin-shell .sal-chip { bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important; }
+  .admin-shell main.admin-content { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 1rem); }
+  .admin-shell .admin-content :is(input, select, textarea, button) { scroll-margin-bottom: 9rem; }
+  .admin-shell .admin-content .admin-returns__cards > * { min-width: 0; max-width: 100%; }
+  .admin-shell .admin-content .admin-returns__cards :is(span, small, button, p) { overflow-wrap: anywhere; white-space: normal; }
+  .admin-shell .sie-ov .sie-table { display: block; overflow-x: auto; max-width: 100%; }
+  .admin-shell .sie-ov .sie-table :is(td, th):first-child { position: sticky; inset-inline-start: 0; background: inherit; }
+  .admin-shell .payment-settings [class*="font-mono"],
+  .admin-shell .payment-settings code { overflow-wrap: anywhere; word-break: break-all; }
+  .admin-shell .admin-content [class*="font-mono"] { overflow-wrap: anywhere; }
+}
+
 /* ==== SIZES: /backends compact density (owner request 2026-11-03, "reduce over sizes all", admin lane) ====
    Everything above this line is untouched; this section is the last thing in the file, so a cut at its first line gives the file as
    it was (scripts/sizes-admin-test.mjs does exactly that to measure BEFORE).
@@ -2252,54 +2302,4 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
 @media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
   .admin-shell .admin-content :is(button, select, input, a, label, summary).min-h-11,
   .admin-shell :is(input, select, textarea).min-h-11 { min-height: max(40px, 2.4rem) !important; }
-}
-
-/* ==== ADMIN TABLE 1122 (orders table: tighter rows, dates and track IDs on one line) ========================
- * Owner, 2026-11-22: "arrange order table layout" (density + alignment). The orders table is `table.admin-table`
- * (scripts/fixtures/sizes-admin/orders.html). The same class is used by the other admin tables, so this applies
- * to them too; it changes padding and line breaks only, not colours or the contents. Amounts were already right-aligned.
- * [tbl-1] rows: 0.5rem above and below a cell (was 0.75rem), header 0.5rem, the middle line for cells that hold a button. */
-.admin-table td.py-3,
-.admin-table th.py-2 { padding-block: .5rem !important; vertical-align: middle; }
-/* [tbl-2] a track ID (monospace) and an amount (tabular figures) never break across lines. Dates are not covered here. */
-.admin-table td.font-mono,
-.admin-table td.tabular-nums { white-space: nowrap; }
-
-/* ==== ADMIN MIN TEXT 1122 (phone: no text under 12px) =========================================================
- * Owner, 2026-11-25: "check very small font backends for mobile version". The live /backends on a 390 px phone
- * (scripts/admin-mobile-scan.mjs, light) measured 43 text runs at 8.96-11.84 px: the Returns badges and ids, the
- * Support status and ids, the Theme editor's current value and preview, the CRM and Topbar small labels. Each named
- * class below is raised to 12 px on phones only (up to 767 px); wider screens keep their sizes. */
-@media (max-width: 767px) {
-  .admin-shell .admin-content .admin-returns__badge,
-  .admin-shell .admin-content .support-admin__status,
-  .admin-shell .admin-content .theme-editor__current,
-  .admin-shell .admin-content .theme-editor__font-upload p,
-  .admin-shell .admin-content .crm-tile span,
-  .admin-shell .admin-content .support-admin__mobile .m-row span,
-  .admin-shell .admin-content .support-admin__head p,
-  .admin-shell .admin-content .profiles-admin p,
-  .admin-shell .admin-content .topbar-editor__segmented span { font-size: 12px !important; }
-}
-
-/* ==== ADMIN PHONE FIXES 1125 (phone only, up to 767 px) =======================================================
- * Owner, 2026-11-25: "fix" after the full scan of the live /backends (BACKENDS-FULL-SCAN-2026-11-25.md, high H1-H7).
- * [phone-1] H5: the live-data chip sits above the 64 px tab bar (and the safe area), not over its buttons.
- * [phone-2] H3: the last control of a long screen clears the fixed tab bar.
- * [phone-3] H6: a focused field or button scrolls clear of a fixed save bar or the tab bar.
- * [phone-4] H1: Returns cards: long badges and labels wrap instead of pushing the column wider than the screen.
- * [phone-5] H4: the Inventory editor table scrolls inside its own box, with the product column held on the left.
- * [phone-6] H2: the KNET result-page address (monospace) wraps on a phone.
- * [phone-7] H7: a long monospace value (a brand's /brand/... link) wraps instead of being cut off. */
-@media (max-width: 767px) {
-  .admin-shell .sal-chip { bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important; }
-  .admin-shell main.admin-content { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 1rem); }
-  .admin-shell .admin-content :is(input, select, textarea, button) { scroll-margin-bottom: 9rem; }
-  .admin-shell .admin-content .admin-returns__cards > * { min-width: 0; max-width: 100%; }
-  .admin-shell .admin-content .admin-returns__cards :is(span, small, button, p) { overflow-wrap: anywhere; white-space: normal; }
-  .admin-shell .sie-ov .sie-table { display: block; overflow-x: auto; max-width: 100%; }
-  .admin-shell .sie-ov .sie-table :is(td, th):first-child { position: sticky; inset-inline-start: 0; background: inherit; }
-  .admin-shell .payment-settings [class*="font-mono"],
-  .admin-shell .payment-settings code { overflow-wrap: anywhere; word-break: break-all; }
-  .admin-shell .admin-content [class*="font-mono"] { overflow-wrap: anywhere; }
 }

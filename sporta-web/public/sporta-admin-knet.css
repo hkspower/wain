@@ -1262,6 +1262,37 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   border-radius: .625rem !important;
 }
 
+.admin-table td.py-3,
+.admin-table th.py-2 { padding-block: .5rem !important; vertical-align: middle; }
+
+.admin-table td.font-mono,
+.admin-table td.tabular-nums { white-space: nowrap; }
+
+@media (max-width: 767px) {
+  .admin-shell .admin-content .admin-returns__badge,
+  .admin-shell .admin-content .support-admin__status,
+  .admin-shell .admin-content .theme-editor__current,
+  .admin-shell .admin-content .theme-editor__font-upload p,
+  .admin-shell .admin-content .crm-tile span,
+  .admin-shell .admin-content .support-admin__mobile .m-row span,
+  .admin-shell .admin-content .support-admin__head p,
+  .admin-shell .admin-content .profiles-admin p,
+  .admin-shell .admin-content .topbar-editor__segmented span { font-size: 12px !important; }
+}
+
+@media (max-width: 767px) {
+  .admin-shell .sal-chip { bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important; }
+  .admin-shell main.admin-content { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 1rem); }
+  .admin-shell .admin-content :is(input, select, textarea, button) { scroll-margin-bottom: 9rem; }
+  .admin-shell .admin-content .admin-returns__cards > * { min-width: 0; max-width: 100%; }
+  .admin-shell .admin-content .admin-returns__cards :is(span, small, button, p) { overflow-wrap: anywhere; white-space: normal; }
+  .admin-shell .sie-ov .sie-table { display: block; overflow-x: auto; max-width: 100%; }
+  .admin-shell .sie-ov .sie-table :is(td, th):first-child { position: sticky; inset-inline-start: 0; background: inherit; }
+  .admin-shell .payment-settings [class*="font-mono"],
+  .admin-shell .payment-settings code { overflow-wrap: anywhere; word-break: break-all; }
+  .admin-shell .admin-content [class*="font-mono"] { overflow-wrap: anywhere; }
+}
+
 .admin-shell .admin-content h1.text-2xl:not([class*="__preview"] *) { font-size: 1.375rem !important; line-height: 1.2 !important; }
 .admin-shell .admin-content .admin-page-layout:is([class~="space-y-5"], [class~="space-y-6"], [class~="space-y-8"]) > :not(:last-child) { margin-block-end: 1rem !important; }
 .admin-shell .admin-content form:is([class~="space-y-4"], [class~="space-y-5"], [class~="space-y-6"]):not([class*="__preview"] *) > :not(:last-child) { margin-block-end: 1rem !important; }
@@ -1332,35 +1363,4 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
 @media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
   .admin-shell .admin-content :is(button, select, input, a, label, summary).min-h-11,
   .admin-shell :is(input, select, textarea).min-h-11 { min-height: max(40px, 2.4rem) !important; }
-}
-
-.admin-table td.py-3,
-.admin-table th.py-2 { padding-block: .5rem !important; vertical-align: middle; }
-
-.admin-table td.font-mono,
-.admin-table td.tabular-nums { white-space: nowrap; }
-
-@media (max-width: 767px) {
-  .admin-shell .admin-content .admin-returns__badge,
-  .admin-shell .admin-content .support-admin__status,
-  .admin-shell .admin-content .theme-editor__current,
-  .admin-shell .admin-content .theme-editor__font-upload p,
-  .admin-shell .admin-content .crm-tile span,
-  .admin-shell .admin-content .support-admin__mobile .m-row span,
-  .admin-shell .admin-content .support-admin__head p,
-  .admin-shell .admin-content .profiles-admin p,
-  .admin-shell .admin-content .topbar-editor__segmented span { font-size: 12px !important; }
-}
-
-@media (max-width: 767px) {
-  .admin-shell .sal-chip { bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important; }
-  .admin-shell main.admin-content { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 1rem); }
-  .admin-shell .admin-content :is(input, select, textarea, button) { scroll-margin-bottom: 9rem; }
-  .admin-shell .admin-content .admin-returns__cards > * { min-width: 0; max-width: 100%; }
-  .admin-shell .admin-content .admin-returns__cards :is(span, small, button, p) { overflow-wrap: anywhere; white-space: normal; }
-  .admin-shell .sie-ov .sie-table { display: block; overflow-x: auto; max-width: 100%; }
-  .admin-shell .sie-ov .sie-table :is(td, th):first-child { position: sticky; inset-inline-start: 0; background: inherit; }
-  .admin-shell .payment-settings [class*="font-mono"],
-  .admin-shell .payment-settings code { overflow-wrap: anywhere; word-break: break-all; }
-  .admin-shell .admin-content [class*="font-mono"] { overflow-wrap: anywhere; }
 }

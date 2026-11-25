@@ -222,6 +222,10 @@ export const translations = {
       // Said when /api cannot be reached at all. It points at a person,
       // because a broken assistant that only apologises is a dead end.
       failed: 'I could not reach the shop just now. Please try again, or call us on +965 22091914.',
+      // Said when the device has no connection (navigator.onLine is false): the fix is on the visitor's side.
+      offline: 'You seem to be offline. Check your connection and send your question again.',
+      // Said when the shop answers with a server error (5xx): the fix is to wait, not to check the phone.
+      serverBusy: 'The assistant is busy at the moment. Please try again in a minute, or call us on +965 22091914.',
       tooFast: 'That was a lot of questions at once — give me a moment and ask again.',
       starters: ['Where is my order?', 'When will it arrive?', 'Can I return an item?', 'How can I pay?'],
       amount: 'Total',
@@ -729,6 +733,8 @@ export const translations = {
       greeting: 'أهلًا بك. أقدر أتحقق من طلبك، أو أشرح لك التوصيل والإرجاع، أو أساعدك في اختيار المقاس.',
       thinking: 'جارٍ التحقق…',
       failed: 'تعذّر الوصول إلى المتجر الآن. حاول مرة أخرى أو اتصل بنا على \u2066+965 22091914\u2069.',
+      offline: 'يبدو أنك غير متصل بالإنترنت. تحقق من الاتصال ثم أرسل سؤالك مرة أخرى.',
+      serverBusy: 'المساعد مشغول حاليًا. حاول مرة أخرى بعد دقيقة، أو اتصل بنا على +965 22091914.',
       tooFast: 'وصلتني أسئلة كثيرة دفعة واحدة — أمهلني لحظة ثم أعد السؤال.',
       starters: ['وين طلبي؟', 'متى يوصل؟', 'أقدر أرجّع قطعة؟', 'كيف أدفع؟'],
       amount: 'الإجمالي',

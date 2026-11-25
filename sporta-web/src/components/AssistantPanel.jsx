@@ -67,10 +67,14 @@ export default function AssistantPanel({ onClose }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: msg, lang }),
       })
-      const d = await res.json()
+      // A body that is not JSON (an error page from the host) reads as null,
+      // so a 5xx is still recognised by its status below.
+      const d = await res.json().catch(() => null)
       // A 429 is the throttle, and it deserves its own sentence rather than
       // the generic failure — the shop is fine, the visitor is just fast.
       if (res.status === 429) setLog((l) => [...l, { from: 'ai', text: T.tooFast }])
+      // A 5xx is the shop's own trouble: say so, and say what to do (wait, or call).
+      else if (res.status >= 500) setLog((l) => [...l, { from: 'ai', text: T.serverBusy }])
       else if (!d?.reply) setLog((l) => [...l, { from: 'ai', text: T.failed }])
       // `auto` is consumed once, by the Speaker that renders for this message.
       // It is stamped on the message rather than read from state at play time
@@ -81,9 +85,11 @@ export default function AssistantPanel({ onClose }) {
         auto: spoken || handsFree,
       }])
     } catch {
-      // Offline, or /api not reachable. Say so, and point at a human — the one
-      // thing worse than no answer is a spinner that never resolves.
-      setLog((l) => [...l, { from: 'ai', text: T.failed }])
+      // No connection on the device: the visitor can fix that, so say so
+      // first. Otherwise /api is not reachable: say so, and point at a human —
+      // the one thing worse than no answer is a spinner that never resolves.
+      const offline = typeof navigator !== 'undefined' && navigator.onLine === false
+      setLog((l) => [...l, { from: 'ai', text: offline ? T.offline : T.failed }])
     }
     setBusy(false)
   }
@@ -122,7 +128,7 @@ export default function AssistantPanel({ onClose }) {
             {m.data?.kind === 'products' && <ProductRow items={m.data.items} T={T} cart={cart} ar={ar} />}
           </div>
         ))}
-        {busy && <p className="text-sm text-slate-400">{T.thinking}</p>}
+        {busy && <p className="text-sm text-slate-600 dark:text-slate-300">{T.thinking}</p>}
         <div ref={endRef} />
       </div>
 
