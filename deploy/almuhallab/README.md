@@ -81,3 +81,18 @@ Checked before deploying, on Apache 2.4.58 with this `.htaccess` over HTTPS: 65 
 (first visits, deploys with and without typed text, offline, redirects, a `?v=`-only change, the
 form, language, the 404 page, the 410s), the 146 checks from the rebuild, and the hand-over from the
 current worker.
+
+## Spacing and alignment on the home and service pages (26 November)
+
+| file | contents | sha256 |
+|---|---|---|
+| `almuhallab-spacing-dfbba7c9.zip` | `index.html`, the four service pages, `site-v200.css` (one stylesheet, `?v=20261126-align1`), `sw.js` (cache `almuhallab-v202-align1`) | `dfbba7c9de443cfd192c72c07efa956ca9df811d7168005cda06367dd67b6d61` |
+
+- Section gaps match: the dark band and the hero no longer double or cancel them.
+- Text inside cards sits on one inset per kind of box, instead of 16 to 36px.
+- Card links in the same row sit on one line on tablets.
+- The phone header button fits at 360px; below 390px it reads «ابدأ».
+- The form's name and email pair is spaced like the other fields, and the dropdown arrow sits inside the border.
+- The bars and bodies of the dark screens (terminal, browser, chat) line up.
+
+Checked on Apache 2.4.58 with the live `.htaccess` over HTTPS: 65 checks of the site, 146 checks of the pages, and a re-measure at 11 widths (no page overflows at any of them).
