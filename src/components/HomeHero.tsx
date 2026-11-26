@@ -51,9 +51,9 @@ export default function HomeHero() {
           them below the first screen). The picture itself is not redrawn: this
           box clips it, and the sun and label keep their positions in the
           picture's own coordinates. The cut fades out over its last sixteenth (below the sun) so
-          the sea does not stop in a hard line. Kept to 72% of the picture's
+          the sea does not stop in a hard line. Kept to 68.5%, the waterline, so no boat tops hang at the edge (25 November). The picture's
           height; from `sm` the whole picture shows, as before. */}
-      <div className="relative w-full overflow-hidden max-sm:aspect-[1080/1382] max-sm:[mask-image:linear-gradient(to_bottom,#000_94%,transparent)]">
+      <div className="relative w-full overflow-hidden max-sm:aspect-[1080/1315] max-sm:[mask-image:linear-gradient(to_bottom,#000_94%,transparent)]">
         <div className="home-hero relative aspect-[9/16] w-full">
           {/* AVIF first, and the WebP when the AVIF cannot be drawn — Safari's
               Lockdown Mode picks the AVIF and then refuses to decode it. */}

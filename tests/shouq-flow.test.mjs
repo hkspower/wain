@@ -683,14 +683,16 @@ await section('after the answer, the call waits for the next question', async ()
   ok('the results are there to see', (await p.locator('a[href^="/places/"]').count()) > 0);
   // Not a launcher: /search keeps its one-call-button count of zero (find.test).
   ok('the bar is not a second call button', (await p.locator('button[data-shouq-launcher]:visible').count()) === 0);
-  // The sheet comes out from under the bar: the bar's bottom edge is the
-  // viewport's, in both modes, so nothing the page draws there (the tab bar in
-  // the installed app) paints over it.
+  // The bar sits on the foot of the screen, and above the tab bar where the
+  // tab bar is drawn: on a phone, in the browser or installed (25 November).
+  // Nothing the page draws there paints over it.
   const under = await p.evaluate(() => {
     const r = document.querySelector('#wain-ai-bar')?.getBoundingClientRect();
-    return r ? { bottom: r.bottom, vh: innerHeight, h: r.height } : null;
+    const nav = document.querySelector('nav.app-chrome');
+    const navShown = !!nav && getComputedStyle(nav).display !== 'none';
+    return r ? { bottom: r.bottom, expect: navShown ? nav.getBoundingClientRect().top : innerHeight, h: r.height } : null;
   });
-  ok('the bar sits at the foot of the screen', !!under && Math.abs(under.bottom - under.vh) < 1 && under.h >= 48, JSON.stringify(under));
+  ok('the bar sits at the foot of the screen, above the tab bar when it is drawn', !!under && Math.abs(under.bottom - under.expect) < 1 && under.h >= 48, JSON.stringify(under));
 
   await p.evaluate(() => { window.__startInGesture = null; window.__nextTranscript = 'بحر'; });
   await bar.getByRole('button', { name: 'اسأل مرة ثانية' }).click({ timeout: 4000 }).catch(() => {});

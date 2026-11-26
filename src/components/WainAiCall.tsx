@@ -1872,7 +1872,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
         id="wain-ai-bar"
         role="region"
         aria-label={`${WAIN_AI_COPY.centre} — ${copy.name}`}
-        className="fixed inset-x-0 bottom-0 z-[60] border-t border-line bg-white px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 shadow-md standalone:bottom-[calc(4.25rem+env(safe-area-inset-bottom))] standalone:pb-2"
+        className="fixed inset-x-0 bottom-0 z-[60] border-t border-line bg-white px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 shadow-md max-sm:bottom-[calc(4.25rem+env(safe-area-inset-bottom))] standalone:bottom-[calc(4.25rem+env(safe-area-inset-bottom))] standalone:pb-2"
       >
         <div className="mx-auto flex max-w-2xl items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}

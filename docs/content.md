@@ -15,8 +15,8 @@ empty on the server.
 | places | 52 |
 | categories | 8 |
 | areas (distinct `areaAr`) | 21 |
-| routes (files under `src/app`) | 13 |
-| pages built | 64 |
+| routes (files under `src/app`) | 14 |
+| pages built | 65 |
 | hub actions | 3 |
 | voice clip lines, per persona | 124 |
 
@@ -29,6 +29,7 @@ Ordering is live on **0 of 52** places (**0** with a WhatsApp number, which is w
 | `/about/` | عن وين |  |
 | `/add/` | سجّل مكانك مجاناً |  |
 | `/admin/` | لوحة التحكّم | noindex |
+| `/callcenter/` | مركز الاتصال |  |
 | `/explore/` | استكشف |  |
 | `/find/` | دوّر |  |
 | `/orders/` | طلباتي | noindex |

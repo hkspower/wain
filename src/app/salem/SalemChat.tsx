@@ -205,7 +205,7 @@ function sidewaysRoom(): number {
   return sideways && short <= PHONE_SHORT_SIDE_PX ? short - SIDEWAYS_CHROME_PX : 0;
 }
 
-export default function SalemChat() {
+export default function SalemChat({ inline = false }: { inline?: boolean } = {}) {
   const [free, setFree] = useState(FREE);
   const freeRef = useRef(FREE);
   const [status, setStatus] = useState<SalemStatus>(FREE ? "connected" : "connecting");
@@ -1157,10 +1157,17 @@ export default function SalemChat() {
     //
     // `data-salem-frame`: the call bar's room is made here, not in <main>
     // (globals.css) — this frame is fixed, so padding the page moved nothing.
+    // Inline (on /callcenter, as one tab of two): the same chat in the page's
+    // flow, not over it. The fixed frame and its `data-salem-frame` marker are
+    // for the page of its own only — that marker moves the call bar to the edge.
     <div
       ref={frameRef}
-      data-salem-frame=""
-      className="fixed inset-x-0 top-0 z-10 flex h-[var(--vvh,100dvh)] flex-col overflow-hidden bg-sea-950 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] text-white"
+      {...(inline ? {} : { "data-salem-frame": "" })}
+      className={
+        inline
+          ? "relative flex h-[min(42rem,calc(100dvh-14rem))] min-h-[24rem] flex-col overflow-hidden rounded-2xl bg-sea-950 text-white"
+          : "fixed inset-x-0 top-0 z-10 flex h-[var(--vvh,100dvh)] flex-col overflow-hidden bg-sea-950 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] text-white"
+      }
     >
       {/* On a wide screen every row keeps to one centred 42rem column
           (`md:px-[calc(50%-21rem)]`): the chat used to run the whole
