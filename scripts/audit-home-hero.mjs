@@ -24,7 +24,7 @@
  *   2. The page does not slide sideways.
  *   3. The picture is full width and has the master's ratio, sits inside the
  *      screen, and actually loaded. From `sm` it is whole; below `sm` the
- *      clip keeps its top 72% (the sea is cut on purpose, 2 November), and the
+ *      clip keeps its top 68.5% (the sea is cut on purpose, 2 November; the cut moved to the waterline on 25 November), and the
  *      sun, the labels and the search link must all sit in what remains.
  *   4. The sun link is a circle on the picture's sun: centre and diameter
  *      within SUN_TOL_PX of the disc's, measured in the master.
@@ -214,12 +214,12 @@ for (const [width, height] of VIEWPORTS) {
   // the sides. Never cropped either way — the ratio check above holds that.
   else if (img.w < m.vw - 0.5) say(`${where}: the picture is ${Math.round(img.w)}px wide on a ${m.vw}px screen — it spans the full width`);
   // The visible picture. From `sm` it is the whole picture. Below `sm` the
-  // clip keeps the top 72% (1382 of the master's 1920 px, the rule written in
+  // clip keeps the top 68.5% (1315 of the master's 1920 px, the rule written in
   // HomeHero.tsx) and nothing else: the sea below it is cut on purpose.
   const phone = width < 640;
   const visibleH = m.clip.h;
-  const want = phone ? (1382 / 1920) * img.h : img.h;
-  if (Math.abs(visibleH - want) > 1) say(`${where}: the visible picture is ${Math.round(visibleH)}px, expected ${Math.round(want)}px${phone ? " (the top 72% on a phone)" : " (the whole picture)"}`);
+  const want = phone ? (1315 / 1920) * img.h : img.h;
+  if (Math.abs(visibleH - want) > 1) say(`${where}: the visible picture is ${Math.round(visibleH)}px, expected ${Math.round(want)}px${phone ? " (the top 68.5% on a phone)" : " (the whole picture)"}`);
   if (Math.abs(m.clip.t - img.t) > 0.5) say(`${where}: the picture does not start at the top of its clip`);
   const visibleEnd = m.clip.t + m.clip.h;
   if (img.t < m.sec.t - 0.5) say(`${where}: the picture starts above its section`);
