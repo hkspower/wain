@@ -3879,6 +3879,7 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
     $everyArea = true;
     $closed = ['ar' => [], 'en' => []];
     $ownTime = ['ar' => [], 'en' => []];
+    $askTime = ['ar' => [], 'en' => []];
     $open = 0;
     $minFils = $fils;
     $maxFils = $fils;
@@ -3898,9 +3899,9 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
                 // A governorate with its own delivery-time text (/backends -> Shipping) is not promised the standard one.
                 $te = rtrim(trim((string) ($z['time_en'] ?? '')), " .،");
                 $ta = rtrim(trim((string) ($z['time_ar'] ?? '')), " .،");
-                // A time written in one language only is still that governorate's time.
-                if ($te === '') $te = $ta;
-                if ($ta === '') $ta = $te;
+                // A time written in ONE language is not printed inside a sentence of the other: there the line says to ask.
+                if ($te === '' && $ta !== '') $askTime['en'][] = $govNames[$gov][0] ?? (string) $gov;
+                if ($ta === '' && $te !== '') $askTime['ar'][] = $govNames[$gov][1] ?? (string) $gov;
                 if ($te !== '') $ownTime['en'][$govNames[$gov][0] ?? (string) $gov] = $te;
                 if ($ta !== '') $ownTime['ar'][$govNames[$gov][1] ?? (string) $gov] = $ta;
             }
@@ -3935,6 +3936,8 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
     // of its own. One text for every open governorate replaces it; a text for some is said after it, by name.
     $whenEn = 'within 24 hours';
     $whenAr = 'خلال ٢٤ ساعة';
+    foreach ($askTime['en'] as $name) $extraEn .= ' For ' . $name . ' I do not have the delivery time in English here: ask us on WhatsApp ' . $phone . '.';
+    foreach ($askTime['ar'] as $name) $extraAr .= ' ما عندي هني مدة التوصيل إلى ' . $name . ' بالعربي: اسألنا على واتساب ' . $phoneRtl . '.';
     foreach (['en', 'ar'] as $lng) {
         $own = $ownTime[$lng];
         if (!$own) continue;
@@ -3948,15 +3951,17 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         }
     }
     // What can come back, by the two switches.
-    $backEn = $canReturn && $canExchange ? 'Returns and exchanges are free' : ($canReturn ? 'Returns are free' : 'Exchanges are free');
-    $backAr = $canReturn && $canExchange ? 'الإرجاع والاستبدال مجانيان' : ($canReturn ? 'الإرجاع مجاني' : 'الاستبدال مجاني');
+    // "You can REQUEST a free return or exchange" is the live About page's own sentence. The line used to open "Returns
+    // and exchanges are free", an entitlement; what the shop publishes is a request its team reviews (scan 2026-11-26).
+    $backEn = $canReturn && $canExchange ? 'You can request a free return or exchange' : ($canReturn ? 'You can request a free return' : 'You can request a free exchange');
+    $backAr = $canReturn && $canExchange ? 'تقدر تطلب إرجاع أو استبدال مجانًا' : ($canReturn ? 'تقدر تطلب إرجاع مجانًا' : 'تقدر تطلب استبدال مجانًا');
     // THE EXCEPTION, AS THE LIVE SHOP WRITES IT. This said "women's clothing can be returned but not exchanged". The rule
     // is a per-product flag (products.no_exchange, the owner's to set in /backends), the Returns page accepts the request
     // either way, and a flagged product's page says "Ask us to review exchange options for this item": a flat "no"
     // for every women's piece was stricter than anything the shop publishes (scan 2026-11-26).
     $tailEn = $canReturn && $canExchange ? '; some items need our review before an exchange.'
         : ($canReturn ? '; exchanges are not offered at the moment.' : '; returns for a refund are not offered at the moment.');
-    $tailAr = $canReturn && $canExchange ? '، وبعض القطع يحتاج استبدالها مراجعتنا أولًا.'
+    $tailAr = $canReturn && $canExchange ? '، وبعض القطع يحتاج استبدالها إلى مراجعتنا أولًا.'
         : ($canReturn ? '، والاستبدال غير متاح حاليًا.' : '، والإرجاع غير متاح حاليًا.');
     // «لديك يومان», but «خلال يومين»: the dual changes with its place in the sentence, the other counts do not.
     $dArNom = $win === 2 ? 'يومان' : $dAr;
@@ -4106,9 +4111,9 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         'location' => [
             // ٢٤ and the phone number in separate sentences, as in returns.
             // "For confirmed orders", as delivery and ask_track_eta say it.
-            'ar' => 'سبورتا متجر إلكتروني، ما عندنا فرع تزوره. نوصّل ' . ($everyArea ? 'لجميع مناطق الكويت' : 'داخل الكويت') . ' خلال ٢٤ ساعة للطلبات المؤكدة. وتقدر تتواصل معنا على '
+            'ar' => 'سبورتا متجر إلكتروني، ما عندنا فرع تزوره. نوصّل ' . ($everyArea ? 'لجميع مناطق الكويت' : 'داخل الكويت') . ' ' . $whenAr . ' للطلبات المؤكدة. وتقدر تتواصل معنا على '
                   . $phoneRtl . ' أو ' . $email,
-            'en' => 'Sporta is an online shop — there is no branch to visit. We deliver ' . ($everyArea ? 'to every area in Kuwait' : 'inside Kuwait') . ' within 24 hours for confirmed orders, and you can reach us on '
+            'en' => 'Sporta is an online shop — there is no branch to visit. We deliver ' . ($everyArea ? 'to every area in Kuwait' : 'inside Kuwait') . ' ' . $whenEn . ' for confirmed orders, and you can reach us on '
                   . $phone . ' or ' . $email,
         ],
         // One voice per reply: it used to open in Gulf first person and close
@@ -4148,8 +4153,8 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         ],
         // The same request, for someone who asked WHEN: the promise first.
         'ask_track_eta' => [
-            'ar' => 'التوصيل داخل الكويت خلال ٢٤ ساعة للطلبات المؤكدة. أرسل لي رقم الطلب (يبدأ بـ SP) وسأتحقق من حالته فورًا.',
-            'en' => 'Delivery inside Kuwait is within 24 hours for confirmed orders. Send me your order number (it starts with SP) and I will check it right away.',
+            'ar' => 'التوصيل داخل الكويت ' . $whenAr . ' للطلبات المؤكدة. أرسل لي رقم الطلب (يبدأ بـ SP) وسأتحقق من حالته فورًا.',
+            'en' => 'Delivery inside Kuwait is ' . $whenEn . ' for confirmed orders. Send me your order number (it starts with SP) and I will check it right away.',
         ],
         // The same request, for someone who says it did not come or is late: no
         // 24-hour promise (the hour has passed), and a way out if there is no number.
@@ -4170,8 +4175,8 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         // means DELIVERY (١٤ يومًا من الاستلام), so the passive read as "the order
         // was delivered".
         'stage_packing' => [
-            'ar' => 'استلمنا طلبك وهو قيد التجهيز. الطلبات المؤكدة داخل الكويت تصل خلال ٢٤ ساعة.',
-            'en' => 'We have your order and it is being prepared. Confirmed orders inside Kuwait arrive within 24 hours.',
+            'ar' => 'استلمنا طلبك وهو قيد التجهيز. الطلبات المؤكدة داخل الكويت تصل ' . $whenAr . '.',
+            'en' => 'We have your order and it is being prepared. Confirmed orders inside Kuwait arrive ' . $whenEn . '.',
         ],
         'stage_shipped' => [
             'ar' => 'الطلب مع المندوب الآن وفي طريقه إليك.',
@@ -4185,7 +4190,7 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         // للملابس النسائية» excepted from nothing, and gave the exchange no
         // window or condition.
         'stage_delivered' => $canReturn && $canExchange ? [
-            'ar' => 'تم تسليم هذا الطلب. لديك ' . $dArNom . ' من الاستلام لإرجاع أو استبدال أي قطعة غير ملبوسة وبطاقاتها عليها، وبعض القطع يحتاج استبدالها مراجعتنا أولًا. ابدأ من صفحة الإرجاع.',
+            'ar' => 'تم تسليم هذا الطلب. لديك ' . $dArNom . ' من الاستلام لإرجاع أو استبدال أي قطعة غير ملبوسة وبطاقاتها عليها، وبعض القطع يحتاج استبدالها إلى مراجعتنا أولًا. ابدأ من صفحة الإرجاع.',
             'en' => 'This order has been delivered. You have ' . $dEn . ' from delivery to return an unworn item with its tags, or to exchange it — some items need our review before an exchange. Start on our Returns page.',
         ] : [
             // One of the two is switched off in /backends: only the other is offered.
@@ -4195,8 +4200,10 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         // The same order once the window has closed: no promise, and where to write. A person can still look (returns.php sends an
         // old or undated delivery to manual review rather than refusing it).
         'stage_delivered_old' => [
-            'ar' => 'تم تسليم هذا الطلب قبل أكثر من ' . $dAr . '، وبذلك انتهت مدة الإرجاع والاستبدال. إذا كان فيه مشكلة في القطعة، راسلنا على واتساب ' . $phoneRtl . ' مع رقم الطلب ونشوف حالتك.',
-            'en' => 'This order was delivered more than ' . $dEn . ' ago, so the return and exchange window has closed. If something is wrong with the item, message us on WhatsApp ' . $phone . ' with the order number and we will look at it.',
+            // A request made after the window is not refused by the code (returns.php sends it to manual review), so the
+            // line does not say the door is shut.
+            'ar' => 'تم تسليم هذا الطلب قبل أكثر من ' . $dAr . '، يعني بعد مدة ' . ($canReturn && $canExchange ? 'الإرجاع والاستبدال' : ($canReturn ? 'الإرجاع' : 'الاستبدال')) . '. الطلب اللي يتقدم الحين ما ينرفض تلقائيًا، فريقنا يراجعه. ابدأ من صفحة الإرجاع، أو راسلنا على واتساب ' . $phoneRtl . ' مع رقم الطلب.',
+            'en' => 'This order was delivered more than ' . $dEn . ' ago, which is past the ' . ($canReturn && $canExchange ? 'return and exchange' : ($canReturn ? 'return' : 'exchange')) . ' window. A request made now is not refused automatically: our team reviews it. Start on our Returns page, or message us on WhatsApp ' . $phone . ' with the order number.',
         ],
         // TRUE FOR pending, failed AND review. It used to say "try again from
         // the order tracking page", but the gateways only start a new attempt
@@ -4214,8 +4221,8 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         // payment_status 'refunded': every fils went back by a Credit made in the KPay portal. No promise about days (the bank decides),
         // no "will not be prepared" (the order may have been delivered), and a way to reach a person.
         'stage_refunded' => [
-            'ar' => 'تم استرجاع مبلغ هذا الطلب إلى بطاقتك. قد يستغرق ظهوره في حسابك عدة أيام حسب البنك. إذا كان لديك سؤال، راسلنا على واتساب ' . $phoneRtl . ' مع رقم الطلب.',
-            'en' => 'The money for this order has been refunded to your card. It can take a few days to show in your account, depending on your bank. If you have a question, message us on WhatsApp ' . $phone . ' with the order number.',
+            'ar' => 'تم استرجاع مبلغ هذا الطلب إلى بطاقتك، وموعد ظهوره في حسابك يعتمد على البنك. إذا كان لديك سؤال، راسلنا على واتساب ' . $phoneRtl . ' مع رقم الطلب.',
+            'en' => 'The money for this order has been refunded to your card. When it shows in your account depends on your bank. If you have a question, message us on WhatsApp ' . $phone . ' with the order number.',
         ],
         // payment_status 'voided': the transaction was voided before it settled, so nothing was charged to keep.
         'stage_voided' => [
@@ -4223,8 +4230,8 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
             'en' => 'The payment for this order was voided before it was completed, so you will not be charged; if the amount shows in your account for a while, your bank will release it. If you have a question, message us on WhatsApp ' . $phone . ' with the order number.',
         ],
         'no_order' => [
-            'ar' => 'لم أجد طلبًا بهذا الرقم. تأكد منه كما يظهر في رسالة التأكيد، أو راسلنا على واتساب ' . $phoneRtl . ' ونساعدك.',
-            'en' => 'I could not find an order with that number. Check it against your confirmation message, or message us on WhatsApp ' . $phone . ' and we will help.',
+            'ar' => 'لم أجد طلبًا بهذا الرقم. تأكد منه كما يظهر في صفحة تأكيد الطلب، أو راسلنا على واتساب ' . $phoneRtl . ' ونساعدك.',
+            'en' => 'I could not find an order with that number. Check it against the number on your order confirmation page, or message us on WhatsApp ' . $phone . ' and we will help.',
         ],
         // Honest for a product miss AND an unrecognised question. It used to
         // say "I did not follow" to a question it had understood, and «لم أفهم
@@ -4465,7 +4472,7 @@ function assistant_llm_request(array $cfg, string $message, string $reply, ?arra
 // with room for a rewording to say it more warmly — and the test measures
 // that it stays so. 400 was set when a two-sentence rule kept replies short;
 // it still fits.
-const ASSISTANT_LLM_MAX_CHARS = 400;
+const ASSISTANT_LLM_MAX_CHARS = 420;      // one and a half times the longest fixed sentence (269 characters since 2026-11-26)
 
 // The model's text, or null — and null whenever it is anything but a
 // rewording of what the shop already said. A cut-off reply (max_tokens), a

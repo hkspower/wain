@@ -798,8 +798,8 @@ head('the copy: one register for search, digits that never mix, the full returns
      'found_other says "the same kind", not "the closest"', other)
   // Returns: the exception beside the promise, saying what is still allowed.
   const [ret, retAr] = [await c('returns', false), await c('returns', true)]
-  is(/^Returns and exchanges are free within 14 days of delivery if the item is unworn with its tags; some items need our review before an exchange\./.test(ret),
-     'returns (en): free, 14 days, the condition and the exception in one sentence, as the live product pages word it', ret)
+  is(/^You can request a free return or exchange within 14 days of delivery if the item is unworn with its tags; some items need our review before an exchange\./.test(ret),
+     'returns (en): a free return or exchange can be REQUESTED (the live About page\'s sentence), 14 days, the condition and the exception in one sentence', ret)
   is(!/women/i.test(ret) && !/النسائية/.test(retAr), 'and no flat "women\'s clothing cannot be exchanged": the rule is a per-product flag whose page says "ask us to review"', ret)
   is(/the phone number on the order/.test(ret) && !/the phone on the order/.test(ret), 'and "the phone NUMBER on the order", not the handset', ret)
   // THE SIBLING THAT FORGOT THEM: stage_delivered promised an exchange for
@@ -807,7 +807,7 @@ head('the copy: one register for search, digits that never mix, the full returns
   const [del, delAr] = [await c('stage_delivered', false), await c('stage_delivered', true)]
   is(/unworn item with its tags/.test(del) && /some items need our review before an exchange/.test(del) && /14 days from delivery/.test(del),
      'stage_delivered (en) carries the condition and the review exception', del)
-  is(/غير ملبوسة وبطاقاتها عليها/.test(delAr) && /وبعض القطع يحتاج استبدالها مراجعتنا أولًا/.test(delAr) && /١٤ يومًا/.test(delAr)
+  is(/غير ملبوسة وبطاقاتها عليها/.test(delAr) && /وبعض القطع يحتاج استبدالها إلى مراجعتنا أولًا/.test(delAr) && /١٤ يومًا/.test(delAr)
      && /لإرجاع أو استبدال/.test(delAr) && !/إلا للملابس/.test(delAr),
      'stage_delivered (ar) too — the exchange inside the same 14 days and condition, with the review exception', delAr)
   // The other two siblings: cancel's return carries its condition, location
@@ -818,8 +818,8 @@ head('the copy: one register for search, digits that never mix, the full returns
   // Checkout is «إتمام الطلب» everywhere, including the no-settings payment line.
   const payNull = await php(`require ${JSON.stringify(AP)}; echo json_encode(assistant_payment_line(null, true, '+965 1'), JSON_UNESCAPED_UNICODE);`)
   is(/عند إتمام الطلب/.test(payNull) && !/إتمام الشراء/.test(payNull), 'the payment fallback calls checkout «إتمام الطلب», like every other line', payNull)
-  is(/^الإرجاع والاستبدال مجانيان خلال ١٤ يومًا/.test(retAr) && /غير ملبوسة وبطاقاتها عليها/.test(retAr) && /وبعض القطع يحتاج استبدالها مراجعتنا أولًا/.test(retAr),
-     'returns (ar): the dual, the condition and the exception', retAr)
+  is(/^تقدر تطلب إرجاع أو استبدال مجانًا خلال ١٤ يومًا/.test(retAr) && /غير ملبوسة وبطاقاتها عليها/.test(retAr) && /وبعض القطع يحتاج استبدالها إلى مراجعتنا أولًا/.test(retAr),
+     'returns (ar): the request, the condition and the exception', retAr)
   is(!/ومعها البطاقات/.test(retAr), 'and not the stiff «ومعها البطاقات»')
   const cancelAr = await c('cancel', true)
   is(/كلّمنا أو راسلنا واتساب/.test(cancelAr) && !/تواصل معنا فورًا باتصال/.test(cancelAr), 'cancel (ar) is Kuwaiti, not the calque «تواصل معنا باتصال أو واتساب»', cancelAr)
@@ -2004,7 +2004,7 @@ head('the fixed sentences say only what is true')
      && lines.ar.includes('التوصيل داخل الكويت خلال ٢٤ ساعة للطلبات المؤكدة، ورسوم التوصيل ١ د.ك لجميع مناطق الكويت. يصلك اتصال من المندوب قبل الوصول.'),
      'at the default 1 KWD the delivery sentence is byte-for-byte the old one, so cached audio stays valid')
   const ret = await canned('returns', false)
-  is(/free within 14 days/.test(ret) && /Returns page/.test(ret) && /WhatsApp/.test(ret), 'returns: free, 14 days, and HOW to start', ret)
+  is(/free return or exchange within 14 days/.test(ret) && /Returns page/.test(ret) && /WhatsApp/.test(ret), 'returns: free, 14 days, and HOW to start', ret)
   const retAr = await canned('returns', true)
   is(!/لترتيب الطلب/.test(retAr) && /صفحة الإرجاع/.test(retAr), 'and the Arabic no longer says "to arrange the ORDER"')
   const sizes = await canned('sizes', false)
@@ -3069,7 +3069,8 @@ await unthrottle()
     const oldAr = await canned('stage_delivered_old', true)
     const fresh = await canned('stage_delivered', false)
     is(A[0].reply === old && A[1].reply === old, 'delivered 68 days ago: no return promise, and where to write', A[0].reply.slice(0, 60))
-    is(!/within 14 days|14 days from delivery|You have 14/.test(old) && /WhatsApp/.test(old) && /closed/.test(old), 'the old-order line promises nothing and gives the WhatsApp number', old)
+    is(!/within 14 days|14 days from delivery|You have 14/.test(old) && /WhatsApp/.test(old) && /past the return and exchange window/.test(old) && /not refused automatically/.test(old),
+       'the old-order line promises no window, says a late request is still reviewed (returns.php does not refuse it), and gives the WhatsApp number', old)
     is(A[2].reply === oldAr && !/لديك ١٤/.test(oldAr), 'in Arabic too', A[2].reply.slice(0, 40))
     is(A[3].reply === fresh && A[4].reply === fresh, 'delivered 3 and 13 days ago: still told the window', `${A[3].reply.slice(0, 30)} | ${A[4].reply.slice(0, 30)}`)
     is(A[5].reply === old, 'an undated delivery on an order placed 90 days ago is judged by when it was placed', A[5].reply.slice(0, 40))

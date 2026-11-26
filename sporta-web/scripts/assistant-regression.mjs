@@ -384,16 +384,11 @@ how do you deal with damaged items // the policy question: the returns line, not
 ابي ارجع لكم القطعة
 
 # suite payment/payment
-do you take knet
 كيف ادفع كي نت
-كاش؟
-الكاش متوفر؟
 do you accept cards?
 card?
-cash on delivery?
 paying online
 can I pay by card
-cash?
 shlon adfa3
 can I use my card
 card accepted?
@@ -401,10 +396,7 @@ do you accept debit
 تقبلون البطاقات؟
 تقبلون بطاقة؟
 نقدا عند الاستلام
-ادفع للمندوب؟
 ينفع ادفع للمندوب كاش
-can I pay by knet at checkout
-تقبلون كي نت بس؟
 how do I pay
 كيف أدفع؟
 
@@ -1211,29 +1203,15 @@ when will it come
 # common payment/payment
 كيف ادفع؟
 طرق الدفع
-تقبلون كي نت؟
-اقدر ادفع كاش؟
-الدفع عند الاستلام متوفر؟
 ادفع اونلاين؟
-في دفع عند الاستلام؟
 how can I pay
 payment methods?
-do you accept knet
-can I pay cash on delivery
-is cash on delivery available
 can I pay online
 can I pay when it arrives?
-is payment upon delivery possible?
 شنو طرق الدفع
 ينفع ادفع بالبطاقة؟
-ادفع للمندوب كاش؟
-hi, do you accept knet?
 السلام عليكم، طريقة الدفع؟
 ما هي طرق الدفع المتاحة؟
-هل يوجد دفع عند الاستلام؟
-can I pay by cash
-do you accept cash
-pay on delivery?
 
 # common returns/returns
 ابي ارجع القطعة
@@ -1371,7 +1349,6 @@ I don't want it anymore, cancel
 
 # common recommend/recommend
 وش تنصحني
-شنو الأكثر مبيعا
 any recommendations
 gift ideas
 ابي هدية
@@ -1565,16 +1542,6 @@ how long is delivery
 كم رسوم التوصيل
 المندوب يتصل قبل؟
 متى يجي المندوب
-
-# common payment/payment
-does the delivery guy take knet
-المندوب ياخذ كي نت؟
-اقدر ادفع للمندوب بطاقة؟
-can I pay the courier by card
-knet?
-كي نت؟
-الدفع كاش؟
-can I pay in cash when it arrives
 
 # common contact/contact
 I have a problem
@@ -1988,6 +1955,45 @@ const SETUP = [
 // (assistant_faq_keys()), reported by assistant_faq_last() because those answers are built from the owner's settings
 // and are in no table to map back through. None of the older versions can match them, which is the point.
 const KNOWLEDGE = String.raw`
+# common payment/cod_machine
+اقدر ادفع للمندوب بطاقة؟
+can I pay the courier by card
+does the delivery guy take knet
+المندوب ياخذ كي نت؟
+
+# common payment/pay_method
+تقبلون كي نت؟
+اقدر ادفع كاش؟
+الدفع عند الاستلام متوفر؟
+في دفع عند الاستلام؟
+do you accept knet
+can I pay cash on delivery
+is cash on delivery available
+ادفع للمندوب كاش؟
+hi, do you accept knet?
+هل يوجد دفع عند الاستلام؟
+can I pay by cash
+do you accept cash
+pay on delivery?
+knet?
+كي نت؟
+الدفع كاش؟
+is payment upon delivery possible?
+can I pay in cash when it arrives
+
+# suite payment/pay_method
+do you take knet
+كاش؟
+الكاش متوفر؟
+cash on delivery?
+cash?
+ادفع للمندوب؟
+can I pay by knet at checkout
+تقبلون كي نت بس؟
+
+# common recommend/best_seller
+شنو الأكثر مبيعا
+
 # common contact/money_check
 انخصم مني المبلغ وما وصلني شي
 
