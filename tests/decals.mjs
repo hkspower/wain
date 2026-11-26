@@ -248,6 +248,271 @@ console.log(
   )}  five bodies, nothing lying on it`
 );
 
+// --- And it keeps off the flare ----------------------------------------
+//
+// flankRun measures the arch at the height of the beltline stripe, which
+// is the highest line on the flank and the one the arch reaches least.
+// The flag hangs 0.2 m down from there, where the arch reaches further
+// back, and it was placed 40 mm short of the stripe's run: the hoist
+// corner stood in the front flare by up to 187 mm (the SUV in the attack
+// kit), by 9 to 49 mm on the sedan, the gtr and the hatch, and merely
+// touched it on most of the rest. Read the way the eye reads it: the flag's front edge against the
+// least z any part of the front flare reaches in the flag's own band of
+// height, in the world, every body in every kit.
+const flareGap = await page.evaluate(() => {
+  const THREE = window.__grnThree;
+  const out = [];
+  const v = new THREE.Vector3();
+  for (const kit of ["street", "sport", "attack"]) {
+    for (const style of ["sedan", "zx", "gtr", "rx7", "hatch", "pony", "pickup", "super", "suv"]) {
+      const g = window.__grnBuildCar({
+        body: 0xffffff, style, kit, raceKit: kit === "attack", stickers: true, name: "Test",
+      });
+      g.updateMatrixWorld(true);
+      let flag = null;
+      const flares = [];
+      g.traverse((o) => {
+        if (!o.isMesh) return;
+        if (o.userData.decal === "flag" && o.position.x > 0) flag = o;
+        if (o.userData.archFlare && o.position.x > 0 && o.position.z > 0) flares.push(o);
+      });
+      if (!flag) { out.push({ kit, style, found: false }); continue; }
+      const fb = new THREE.Box3().setFromObject(flag);
+      let minZ = Infinity;
+      for (const f of flares) {
+        const pa = f.geometry.getAttribute("position");
+        for (let k = 0; k < pa.count; k++) {
+          v.fromBufferAttribute(pa, k).applyMatrix4(f.matrixWorld);
+          if (v.y >= fb.min.y && v.y <= fb.max.y && v.x > 0.5) minZ = Math.min(minZ, v.z);
+        }
+      }
+      out.push({ kit, style, found: true, gap: minZ - fb.max.z, hasFlare: Number.isFinite(minZ) });
+      g.traverse((o) => o.geometry && o.geometry.dispose?.());
+    }
+  }
+  return out;
+});
+let tight = 0;
+for (const c of flareGap) {
+  if (!c.found) { check(false, `the ${c.style} (${c.kit}) carries no flag`); tight++; continue; }
+  if (!c.hasFlare) { check(false, `the ${c.style} (${c.kit}) has no front flare to measure against`); tight++; continue; }
+  if (c.gap < 0.015) {
+    tight++;
+    console.log(`  ${c.kit.padEnd(6)} ${c.style.padEnd(7)} FAIL  the flag is ${(c.gap * 1000).toFixed(0)} mm from the flare`);
+  }
+}
+console.log(
+  `off flare ${check(
+    tight === 0,
+    `${tight} of ${flareGap.length} flag(s) are within 15 mm of the front flare, or over it`
+  )}  ${flareGap.length} body/kit pairs, least gap ${(Math.min(...flareGap.filter((c) => c.found).map((c) => c.gap)) * 1000).toFixed(0)} mm`
+);
+
+// --- The wordmark is whole, on every car -------------------------------
+//
+// nameDecalTexture drew the Latin name at a fixed 108 px with 12 px
+// tracking on a 1024 px canvas. 'BAREED 30 ANNIVERSARY' is about 1230 px
+// at that, so the flank read 'AREED 30 ANNIVERSAI'. Nothing measured the
+// ink against the canvas, so it sat there. Read off the decal's own
+// canvas, on every car the showroom lists: no ink on the two edge
+// columns, and the ink's bounding box at least 40 px inside them.
+const words = await page.evaluate(() => {
+  const out = [];
+  // The width each name would have at the fleet's 108 px with 12 px
+  // tracking, the way cars.ts measures it. Anything over 940 is shrunk to
+  // fit; everything else is drawn exactly as it always was.
+  const stack = getComputedStyle(document.body).getPropertyValue("--font-display-stack").trim() || "sans-serif";
+  const probe = document.createElement("canvas").getContext("2d");
+  probe.font = `800 108px ${stack}`;
+  probe.letterSpacing = "0px";
+  for (const car of window.__grnCars) {
+    if (!car.name) continue;
+    const natural = probe.measureText(car.name.toUpperCase()).width + 12 * car.name.length;
+    const g = window.__grnBuildCar({
+      body: car.color, style: car.style, stickers: true, name: car.name, nameAr: car.ar,
+    });
+    let img = null;
+    g.traverse((o) => {
+      const i = o.isMesh && o.material?.map?.image;
+      // The flank wordmark is the only 4:1 canvas on the car, 1024 wide.
+      if (i && i.width === 1024 && i.height === 256) img = i;
+    });
+    if (!img) { out.push({ id: car.id, name: car.name, found: false }); continue; }
+    const c = document.createElement("canvas");
+    c.width = img.width;
+    c.height = img.height;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    let x0 = c.width, x1 = -1, edge = 0;
+    for (let y = 0; y < c.height; y++) {
+      for (let x = 0; x < c.width; x++) {
+        if (d[(y * c.width + x) * 4 + 3] < 8) continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (x === 0 || x === c.width - 1) edge++;
+      }
+    }
+    out.push({ id: car.id, name: car.name, found: true, x0, x1, w: c.width, edge, natural });
+    g.traverse((o) => o.geometry && o.geometry.dispose?.());
+  }
+  return out;
+});
+let clipped = 0;
+const shrunk = words.filter((w) => w.natural > 940);
+console.log(
+  `  shrunk to fit: ${shrunk.length ? shrunk.map((w) => `${w.id} (${w.natural.toFixed(0)} px at the fleet size)`).join(", ") : "none"}; ` +
+    `the other ${words.length - shrunk.length} are drawn at the fleet's 108 px, widest ` +
+    `${Math.max(...words.filter((w) => w.natural <= 940).map((w) => w.natural)).toFixed(0)} px`
+);
+for (const w of words) {
+  if (!w.found) { check(false, `${w.id} (${w.name}) wears no flank wordmark`); clipped++; continue; }
+  const left = w.x0;
+  const right = w.w - 1 - w.x1;
+  const bad = w.edge > 0 || left < 40 || right < 40;
+  if (bad) clipped++;
+  console.log(
+    `  ${w.id.padEnd(16)} ${bad ? "FAIL" : "ok  "}  ink ${w.x0}..${w.x1} of ${w.w}` +
+      `  (${left} px left, ${right} px right${w.edge ? `, ${w.edge} px on the edge` : ""})`
+  );
+}
+console.log(
+  `whole     ${check(
+    clipped === 0 && words.length > 0,
+    `${clipped} flank wordmark(s) run to the canvas edge`
+  )}  ${words.length} names, each at least 40 px inside the canvas`
+);
+
+// --- The hood falcon reads on any paint --------------------------------
+//
+// The falcon and its two lines of type are near-white, which is right on
+// the accent bar they were laid out for and nothing on bare paint. The
+// Arabic line is 0.56 m wide on a 0.46 m bar, so its end letters landed
+// on the paint beside it: white on pale yellow is 1.4:1. On the one car
+// with twin stripes there is no bar at all, and the whole falcon was
+// white on a white bonnet, straddling both stripes.
+//
+//   edged     every light pixel has a dark one between it and the clear
+//             part of the texture, so each letter and each wing carries
+//             its own edge whatever it lies on. Measured on the texture:
+//             no light pixel may touch a transparent one.
+//   yellow    that edge, laid over the yellow Efreet RX Kai's paint, is
+//             at least 4:1 against the ink
+//   twin      on the Bareed the falcon is dark (at least 4.5:1 against
+//             its white paint), has no lines of type, and all of it lies
+//             in the gap between the stripes
+const hoods = await page.evaluate(() => {
+  const luma = (r, g, b) => {
+    const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  };
+  const hex = (n) => [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const out = {};
+  for (const id of ["efreet-rx-kai", "anniversary-30"]) {
+    const car = window.__grnCars.find((c) => c.id === id);
+    if (!car) { out[id] = null; continue; }
+    const g = window.__grnBuildCar({
+      body: car.color, style: car.style, accent: car.accent, stripes: car.stripes, stickers: true,
+    });
+    g.updateMatrixWorld(true);
+    let hood = null;
+    const stripes = [];
+    g.traverse((o) => {
+      if (o.userData.decal === "hood-falcon") hood = o;
+      if (o.isMesh && o.material?.name === "accent-stripe") stripes.push(o);
+    });
+    if (!hood) { out[id] = { found: false }; continue; }
+    const img = hood.material.map.image;
+    const c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    const W = c.width, H = c.height;
+    const at = (x, y) => { const i = (y * W + x) * 4; return [d[i], d[i + 1], d[i + 2], d[i + 3]]; };
+    let light = 0, bare = 0, x0 = W, x1 = -1, ink = null;
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        const [r, gg, b, a] = at(x, y);
+        if (a < 128) continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        const isLight = r > 190 && gg > 190 && b > 190;
+        if (!isLight) continue;
+        light++;
+        if (!ink) ink = [r, gg, b];
+        // A light pixel with a clear one right beside it has no edge.
+        if (at(x - 1, y)[3] < 40 || at(x + 1, y)[3] < 40 || at(x, y - 1)[3] < 40 || at(x, y + 1)[3] < 40) bare++;
+      }
+    }
+    // Ink colour for the twin variant: the commonest opaque pixel.
+    const tally = new Map();
+    for (let i = 0; i < d.length; i += 4 * 17) {
+      if (d[i + 3] < 250) continue;
+      const k = `${d[i]},${d[i + 1]},${d[i + 2]}`;
+      tally.set(k, (tally.get(k) ?? 0) + 1);
+    }
+    const common = [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0].split(",").map(Number) ?? null;
+    // The plane, in the car's own frame.
+    const inv = g.matrixWorld.clone().invert();
+    const plane = hood.geometry.parameters.width;
+    const inkLeft = (x0 / W - 0.5) * plane, inkRight = (x1 / W - 0.5) * plane;
+    let gap = Infinity;
+    for (const s of stripes) {
+      const b = new window.__grnThree.Box3().setFromObject(s).applyMatrix4(inv);
+      gap = Math.min(gap, Math.abs(b.min.x), Math.abs(b.max.x));
+    }
+    const body = hex(car.color);
+    // The edge as it lands on this car's paint: alpha 0.65 on the wings,
+    // 0.9 on the type, the weaker of the two.
+    const ringOnPaint = body.map((v, k) => 0.65 * [10, 12, 16][k] + 0.35 * v);
+    out[id] = {
+      found: true, light, bare,
+      inkRatio: ink ? (luma(...ink) + 0.05) / (luma(...ringOnPaint) + 0.05) : 0,
+      common,
+      commonVsPaint: common ? (Math.max(luma(...common), luma(...body)) + 0.05) / (Math.min(luma(...common), luma(...body)) + 0.05) : 0,
+      span: plane, reach: Math.max(Math.abs(inkLeft), Math.abs(inkRight)), gap: Number.isFinite(gap) ? gap : null,
+    };
+    g.traverse((o) => o.geometry && o.geometry.dispose?.());
+  }
+  return out;
+});
+{
+  const y = hoods["efreet-rx-kai"];
+  if (!y?.found) check(false, "efreet-rx-kai wears no hood falcon");
+  else {
+    const frac = y.bare / Math.max(1, y.light);
+    console.log(
+      `edged     ${check(
+        frac < 0.01,
+        `${(frac * 100).toFixed(2)}% of the falcon's light pixels touch a clear one — no dark edge there`
+      )}  ${y.light} light pixels, ${y.bare} with no edge`
+    );
+    console.log(
+      `yellow    ${check(
+        y.inkRatio >= 4,
+        `ink against its own edge on yellow paint is ${y.inkRatio.toFixed(1)}:1, want 4:1`
+      )}  ${y.inkRatio.toFixed(1)}:1 against the edge laid on the Kai's paint`
+    );
+  }
+  const t = hoods["anniversary-30"];
+  if (!t?.found) check(false, "anniversary-30 wears no hood falcon");
+  else {
+    console.log(
+      `twin ink  ${check(
+        t.commonVsPaint >= 4.5,
+        `falcon ink ${t.common?.join(",")} against white paint is ${t.commonVsPaint.toFixed(1)}:1, want 4.5:1`
+      )}  ink ${t.common?.join(",")} is ${t.commonVsPaint.toFixed(1)}:1 against the white paint`
+    );
+    console.log(
+      `twin gap  ${check(
+        t.gap !== null && t.reach <= 0.125 && t.reach < t.gap,
+        `falcon ink reaches |x| ${t.reach.toFixed(3)} against stripes at ${t.gap?.toFixed(3)} — it crosses one`
+      )}  ink to |x| ${t.reach.toFixed(3)}, stripes start at ${t.gap?.toFixed(3)}, plane ${t.span.toFixed(2)} m`
+    );
+  }
+}
+
 await browser.close();
 if (fail.length) {
   console.log(`\n${fail.length} problem${fail.length === 1 ? "" : "s"}:`);

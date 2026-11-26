@@ -3699,6 +3699,43 @@ function flareGeo(
  */
 const GTR_BULGE_W = 0.72;
 const GTR_BULGE_R = 0.03;
+/** Where the bulge sits and how it stands, so the geometry and the things
+ *  laid on its top — the rally pack's bar and falcon — read one set of
+ *  numbers and cannot drift apart. The slab is level: its top is the
+ *  skin at its centre, plus the lift, plus RISE. */
+const GTR_BULGE_Z = 1.55;
+const GTR_BULGE_LEN = 1.0;
+const GTR_BULGE_H = 0.06;
+const GTR_BULGE_LIFT = 0.02;
+/** How far the slab's top stands over its centre. Not half its height:
+ *  roundedBox extrudes a rounded outline and bevels it by the same
+ *  radius, which grows the solid outward by that radius on every side,
+ *  and the radius is clamped to the slab's half-height. So 0.06 m
+ *  stands 59 mm over its centre, not 30. */
+const GTR_BULGE_RISE = GTR_BULGE_H / 2 + Math.min(GTR_BULGE_R, GTR_BULGE_H / 2 - 1e-3);
+/** Where the gtr's third brake light stands along the lid: a 0.5 m bar,
+ *  80 mm deep with its bevel, centred here. */
+const GTR_STOP_BAR_Z = -1.7;
+
+/**
+ * The over-the-top twin stripes: half the paint gap between the two, and
+ * the width of each. Named because the falcon on a twin-striped bonnet is
+ * sized to the gap — TWIN_HOOD_SPAN is the plane, and the wingtips reach
+ * 122/256 of it from the centre. The stripe is a ribbon with no bevel, so
+ * its inner edge is at GAP exactly; that leaves about 10 mm of paint
+ * either side of the wingtip.
+ */
+const TWIN_STRIPE_GAP = 0.135;
+const TWIN_STRIPE_W = 0.2;
+const TWIN_HOOD_SPAN = 2 * TWIN_STRIPE_GAP - 0.01;
+/**
+ * The sunroof's glass: a 0.72 x 0.62 m slab, 20 mm thick with a 15 mm
+ * bevel, sunk 8 mm into the roof's skin — which leaves it standing 17 mm
+ * proud of the paint. Named because the twin stripes run over it, and a
+ * stripe laid on the roof's skin goes under it.
+ */
+const SUNROOF_LEN = 0.62;
+const SUNROOF_STAND = 0.02 / 2 + 0.015 - 0.008;
 
 /** One rivet head. Shared across every arch on every car. */
 const RIVET_R = 0.011;
@@ -4225,6 +4262,85 @@ function surfaceRibbon(
     if (i < steps) {
       const a = i * 2;
       idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * How far a painted stripe stands off the skin it lies on: the 6 mm the
+ * carbon panels stand at, so a car with a carbon bonnet has the two in one
+ * plane and the material's polygonOffset puts the stripe on top, instead
+ * of one of them winning by chance.
+ */
+const STRIPE_LIFT = 0.006;
+
+/**
+ * A stripe of paint laid ON a surface: one ribbon, its vertices on the
+ * surface, with no joins in it.
+ *
+ * The stripes were rows of short pitched boxes: four 12 mm plates for the
+ * bonnet bar and twenty-six a side for the twin stripes over the top,
+ * because a board levelled against its two ends sinks into the crown
+ * between them, which broke the boot stripe into two green patches. The
+ * cost was at the joins. Every plate took its own pitch, so its own angle
+ * to the light, and the green stepped by 10-13% at each one; a plate's
+ * rounded end left a groove between it and the next, which read as a dark
+ * line 24-36% down the bar; and the bar stood 20 mm off the paint, as
+ * thick as a plank. Paint is not thick.
+ *
+ * The ribbon is sampled instead of approximated, as surfaceRibbon is, but
+ * it is not surfaceRibbon: that one's triangles face DOWN, which a
+ * front-face material culls from above, and a stripe is only ever seen
+ * from above.
+ *
+ *   smoothed  the heights are read every ~5 cm and averaged with their
+ *             neighbours, so one ray landing on a facet does not ripple
+ *             the stripe. Averaging may only raise a point: at the foot of
+ *             a windscreen the surface jumps, and an average that took the
+ *             top of the step down 20 mm would bury it.
+ *   climbing  the stripe may fall away no faster than a plate could be
+ *             pitched (1.2 rad, the clamp the plates were held to), and
+ *             rises ahead of a step instead of stretching one quad across
+ *             it into a sheet.
+ */
+function drapedRibbon(
+  zRear: number,
+  zFront: number,
+  xA: number,
+  xB: number,
+  lift: number,
+  topAt: (z: number) => number,
+  stepM = 0.045
+): THREE.BufferGeometry {
+  const steps = Math.max(2, Math.ceil((zFront - zRear) / stepM));
+  const dz = (zFront - zRear) / steps;
+  const raw: number[] = [];
+  for (let i = 0; i <= steps; i++) raw.push(topAt(zRear + dz * i));
+  const h = raw.slice();
+  for (let i = 1; i < steps; i++) {
+    h[i] = Math.max((raw[i - 1] + 2 * raw[i] + raw[i + 1]) / 4, raw[i] - 0.002);
+  }
+  const climb = Math.tan(1.2) * dz;
+  for (let i = steps - 1; i >= 0; i--) h[i] = Math.max(h[i], h[i + 1] - climb);
+  for (let i = 1; i <= steps; i++) h[i] = Math.max(h[i], h[i - 1] - climb);
+
+  const pos: number[] = [];
+  const uv: number[] = [];
+  const idx: number[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const z = zRear + dz * i;
+    pos.push(xA, h[i] + lift, z, xB, h[i] + lift, z);
+    uv.push(0, dz * i, xB - xA, dz * i);
+    if (i < steps) {
+      const a = i * 2;
+      // (a, c, b) with c the next row on the left: the normal is +Y.
+      idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
     }
   }
   const g = new THREE.BufferGeometry();
@@ -4867,7 +4983,8 @@ function beltStripeTexture(): THREE.CanvasTexture {
  * inside the doors.
  *
  * So the shell is asked where its surface actually is. Two rays per
- * sample column, at the top and bottom edge of the strip, fired inward
+ * sample column (more, if `rows` says so), at the top and bottom edge of
+ * the strip, fired inward
  * from well outside the car; the ribbon is built through the hits with a
  * small standoff. Columns where the ray finds nothing are dropped, which
  * is what makes the run self-limiting: the graphic reaches exactly as far
@@ -4899,7 +5016,16 @@ function flankRibbon(
    * restores — the far side is the same artwork mirrored, so a wordmark
    * reads front-to-back on both flanks.
    */
-  mirrorU = false
+  mirrorU = false,
+  /**
+   * Rows of vertices from the top edge to the bottom one. Two is a
+   * straight chord between the rays at the two edges, which is all a
+   * stripe over a flat panel needs and what every caller but one still
+   * asks for. A mark 0.28 m tall on a flank that is not straight between
+   * its edges wants more: the chord goes under whatever bulges between
+   * them. The Black Demon's wears five.
+   */
+  rows = 2
 ): THREE.BufferGeometry | null {
   const ray = new THREE.Raycaster();
   ray.far = 60;
@@ -4913,48 +5039,58 @@ function flankRibbon(
     const hits = ray.intersectObject(shell, false);
     return hits.length ? hits[0].point.x : null;
   };
-  const cols: { z: number; xt: number; xb: number }[] = [];
+  // Row r of a column is at y = yTop - r/(rows-1) of the height, and the
+  // uv v is that same fraction turned the right way up.
+  const rowY = (r: number): number => yTop + ((yBot - yTop) * r) / (rows - 1);
+  const cols: { z: number; x: number[] }[] = [];
   for (let i = 0; i <= samples; i++) {
     const z = zA + ((zB - zA) * i) / samples;
-    const xt = surfaceX(yTop, z);
-    const xb = surfaceX(yBot, z);
-    if (xt === null || xb === null) continue;
-    cols.push({ z, xt, xb });
+    const x: number[] = [];
+    for (let r = 0; r < rows; r++) {
+      const xr = surfaceX(rowY(r), z);
+      if (xr === null) break;
+      x.push(xr);
+    }
+    if (x.length < rows) continue;
+    cols.push({ z, x });
   }
   if (cols.length < 2) return null;
 
   const n = cols.length;
-  const pos = new Float32Array(n * 2 * 3);
-  const uv = new Float32Array(n * 2 * 2);
+  const pos = new Float32Array(n * rows * 3);
+  const uv = new Float32Array(n * rows * 2);
   const zFirst = cols[0].z, zLast = cols[n - 1].z;
   const span = zLast - zFirst || 1;
   for (let i = 0; i < n; i++) {
     const c = cols[i];
     const off = side * standoff;
-    pos[i * 6 + 0] = c.xt + off; pos[i * 6 + 1] = yTop; pos[i * 6 + 2] = c.z;
-    pos[i * 6 + 3] = c.xb + off; pos[i * 6 + 4] = yBot; pos[i * 6 + 5] = c.z;
     // u runs 0 at the tail to 1 at the nose so the artwork's point lands
     // on the front wing whichever way the samples were walked.
     const raw = (c.z - zFirst) / span;
     const u = mirrorU ? 1 - raw : raw;
-    uv[i * 4 + 0] = u; uv[i * 4 + 1] = 1;
-    uv[i * 4 + 2] = u; uv[i * 4 + 3] = 0;
+    for (let r = 0; r < rows; r++) {
+      const k = i * rows + r;
+      pos[k * 3 + 0] = c.x[r] + off; pos[k * 3 + 1] = rowY(r); pos[k * 3 + 2] = c.z;
+      uv[k * 2 + 0] = u; uv[k * 2 + 1] = 1 - r / (rows - 1);
+    }
   }
   const idx: number[] = [];
   for (let i = 0; i < n - 1; i++) {
-    const a = i * 2, b = i * 2 + 1, c = (i + 1) * 2, dd = (i + 1) * 2 + 1;
-    // Wound so the face looks OUTWARD on the side it is on: a decal
-    // showing its back is invisible under a FrontSide material, and the
-    // two flanks mirror, so the order has to flip with them.
-    //
-    // These two were the wrong way round and the render is what caught
-    // it. With (a, b, c) on the right-hand side the cross product of
-    // (b - a) and (c - a) is (-h*dz, 0, h*dx) — pointing INTO the car —
-    // so the whole graphic faced inwards and all but vanished while
-    // every number the geometry test printed stayed green. Position was
-    // right; facing is not a position.
-    if (side > 0) { idx.push(a, c, b, b, c, dd); }
-    else { idx.push(a, b, c, b, dd, c); }
+    for (let r = 0; r < rows - 1; r++) {
+      const a = i * rows + r, b = i * rows + r + 1, c = (i + 1) * rows + r, dd = (i + 1) * rows + r + 1;
+      // Wound so the face looks OUTWARD on the side it is on: a decal
+      // showing its back is invisible under a FrontSide material, and the
+      // two flanks mirror, so the order has to flip with them.
+      //
+      // These two were the wrong way round and the render is what caught
+      // it. With (a, b, c) on the right-hand side the cross product of
+      // (b - a) and (c - a) is (-h*dz, 0, h*dx) — pointing INTO the car —
+      // so the whole graphic faced inwards and all but vanished while
+      // every number the geometry test printed stayed green. Position was
+      // right; facing is not a position.
+      if (side > 0) { idx.push(a, c, b, b, c, dd); }
+      else { idx.push(a, b, c, b, dd, c); }
+    }
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
@@ -5039,6 +5175,7 @@ function fullStripeTexture(): THREE.CanvasTexture {
 }
 
 let hoodDecalTex: THREE.CanvasTexture | null = null;
+let hoodDecalTwinTex: THREE.CanvasTexture | null = null;
 /**
  * The falcon on the bonnet.
  *
@@ -5059,76 +5196,131 @@ let hoodDecalTex: THREE.CanvasTexture | null = null;
  * a trailing edge, a body, a head and a tail — rather than as two
  * quadratics meeting at a point, which at any size above a thumbnail
  * read as a moustache.
+ *
+ * Near-white ink was all it had, which is only legible on the accent
+ * bar it was laid out for. The wordmark is 0.56 m wide on a 0.46 m bar,
+ * so its end letters, and the wingtips, land on bare paint, and on a
+ * pale car the whole thing was white on white. It gets the same dark
+ * edge the flank wordmark has, stroked under the fill, so each shape
+ * brings its own edge whatever it is lying on.
+ *
+ * `twin` is the other layout: over-the-top twin stripes leave no bar to
+ * sit on, only a paint gap between them. There the falcon is drawn alone,
+ * in dark ink, for a plane small enough to fit that gap. The lines of
+ * type would be unreadable at that size.
  */
-function hoodDecalTexture(): THREE.CanvasTexture {
-  if (hoodDecalTex) return hoodDecalTex;
+function hoodDecalTexture(twin = false): THREE.CanvasTexture {
+  const made = twin ? hoodDecalTwinTex : hoodDecalTex;
+  if (made) return made;
   // 1.2x the floor because it carries type. Not more: at 1.6 the rule
   // rounds up to a 2048 square, which is 16 MB of canvas for a sticker
   // the size of a dinner plate, and 2410 texels to the metre against
   // the 1506 the door roundel is sharp at. 1024 gives 1205, which is
   // the same order as the roundel and a quarter of the memory.
-  const S = decalPx(0.85, 1.2);
-  hoodDecalTex = textTexture(S, S, (ctx) => {
+  const S = decalPx(twin ? TWIN_HOOD_SPAN : 0.85, 1.2);
+  const tex = textTexture(S, S, (ctx) => {
     ctx.clearRect(0, 0, S, S);
+    // Saved and restored, because textTexture runs this again when the
+    // fonts land and a scale left on the context would compound.
+    ctx.save();
     const k = S / 256; // the art below is drawn in 256-space
     ctx.scale(k, k);
-    const INK = "#f2f4f7";
+    const INK = twin ? "#14181f" : "#f2f4f7";
     const RED = "#c1121f";
 
     // The falcon, wings back, seen from above — which is the view a
-    // bonnet decal is actually looked at from.
-    ctx.fillStyle = INK;
+    // bonnet decal is actually looked at from. Each piece is a function
+    // that lays out its own path, so the whole bird can be stroked and
+    // then filled in two passes: an edge drawn per piece would be
+    // painted over the next piece's fill and leave a dark seam across
+    // every join.
+    const pieces: Array<() => void> = [];
     for (const dir of [-1, 1]) {
-      ctx.beginPath();
-      ctx.moveTo(128, 74);
-      // leading edge, swept out and back
-      ctx.bezierCurveTo(128 + dir * 46, 66, 128 + dir * 96, 82, 128 + dir * 122, 126);
-      // wingtip, squared off the way a primary feather is
-      ctx.lineTo(128 + dir * 112, 138);
-      // trailing edge, notched back toward the body
-      ctx.bezierCurveTo(128 + dir * 84, 116, 128 + dir * 52, 108, 128 + dir * 26, 116);
-      ctx.lineTo(128 + dir * 18, 96);
-      ctx.closePath();
-      ctx.fill();
+      pieces.push(() => {
+        ctx.beginPath();
+        ctx.moveTo(128, 74);
+        // leading edge, swept out and back
+        ctx.bezierCurveTo(128 + dir * 46, 66, 128 + dir * 96, 82, 128 + dir * 122, 126);
+        // wingtip, squared off the way a primary feather is
+        ctx.lineTo(128 + dir * 112, 138);
+        // trailing edge, notched back toward the body
+        ctx.bezierCurveTo(128 + dir * 84, 116, 128 + dir * 52, 108, 128 + dir * 26, 116);
+        ctx.lineTo(128 + dir * 18, 96);
+        ctx.closePath();
+      });
     }
     // Body and tail: one tapering shape from the shoulders to a fanned end.
-    ctx.beginPath();
-    ctx.moveTo(118, 78);
-    ctx.lineTo(138, 78);
-    ctx.lineTo(146, 140);
-    ctx.lineTo(128, 168);
-    ctx.lineTo(110, 140);
-    ctx.closePath();
-    ctx.fill();
+    pieces.push(() => {
+      ctx.beginPath();
+      ctx.moveTo(118, 78);
+      ctx.lineTo(138, 78);
+      ctx.lineTo(146, 140);
+      ctx.lineTo(128, 168);
+      ctx.lineTo(110, 140);
+      ctx.closePath();
+    });
     // Head and hooked beak, which is the whole reason it reads as a
     // falcon rather than as an aeroplane.
-    ctx.beginPath();
-    ctx.arc(128, 66, 15, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(128, 54);
-    ctx.lineTo(142, 60);
-    ctx.lineTo(132, 72);
-    ctx.closePath();
-    ctx.fill();
+    pieces.push(() => {
+      ctx.beginPath();
+      ctx.arc(128, 66, 15, 0, Math.PI * 2);
+    });
+    pieces.push(() => {
+      ctx.beginPath();
+      ctx.moveTo(128, 54);
+      ctx.lineTo(142, 60);
+      ctx.lineTo(132, 72);
+      ctx.closePath();
+    });
+    if (!twin) {
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "rgba(10,12,16,0.65)";
+      ctx.lineWidth = 4;
+      for (const piece of pieces) {
+        piece();
+        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = INK;
+    for (const piece of pieces) {
+      piece();
+      ctx.fill();
+    }
     // The eye, in the one colour on the car that is not the paint.
     ctx.fillStyle = RED;
     ctx.beginPath();
     ctx.arc(133, 63, 4.2, 0, Math.PI * 2);
     ctx.fill();
 
-    // The wordmark, under the bird and clear of its tail.
-    ctx.fillStyle = INK;
-    ctx.textAlign = "center";
-    ctx.direction = "rtl";
-    ctx.font = `700 32px ${arabicUI()}`;
-    ctx.fillText("متسابقو الليل", 128, 206);
-    ctx.direction = "ltr";
-    ctx.font = `600 17px ${latinDisplay()}`;
-    ctx.fillText("NIGHT RACERS", 128, 230);
+    if (!twin) {
+      // The wordmark, under the bird and clear of its tail. Stroked
+      // harder than the bird because it is type: at 32 px the end
+      // letters are the part that left the bar. And wider than a hairline,
+      // because the edge has to survive the camera: from straight above
+      // a pixel is 8 mm of bonnet, 2.4 units of this art, and a ring of
+      // 1.75 units (the first cut, 3.5 wide) is under a pixel and melts
+      // into the paint it lies on. 6 gives a ring of 3 units a side.
+      ctx.textAlign = "center";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "rgba(10,12,16,0.9)";
+      ctx.fillStyle = INK;
+      ctx.direction = "rtl";
+      ctx.font = `700 32px ${arabicUI()}`;
+      ctx.lineWidth = 6;
+      ctx.strokeText("متسابقو الليل", 128, 206);
+      ctx.fillText("متسابقو الليل", 128, 206);
+      ctx.direction = "ltr";
+      ctx.font = `600 17px ${latinDisplay()}`;
+      ctx.lineWidth = 2;
+      ctx.strokeText("NIGHT RACERS", 128, 230);
+      ctx.fillText("NIGHT RACERS", 128, 230);
+    }
+    ctx.restore();
   });
-  hoodDecalTex.anisotropy = 16;
-  return hoodDecalTex;
+  tex.anisotropy = 16;
+  if (twin) hoodDecalTwinTex = tex;
+  else hoodDecalTex = tex;
+  return tex;
 }
 
 let flagDecalTex: THREE.CanvasTexture | null = null;
@@ -5530,25 +5722,58 @@ function nameDecalTexture(name: string, ar?: string): THREE.CanvasTexture {
   // repaints when its font lands instead of being frozen as whatever
   // the fallback drew.
   const W = 1024, H = 256;
+  // Ink never gets closer to the canvas edge than this. It covers the
+  // stroke on each side and the tracking Chrome adds after the last
+  // glyph, so a name that fits is whole and not clipped at the plane.
+  const FIT = W - 84;
   const tex = textTexture(W, H, (ctx) => {
     ctx.clearRect(0, 0, W, H);
     ctx.textAlign = "center";
+    const label = name.toUpperCase();
+    // Shrink to fit, as the crew decal does. 'BAREED 30 ANNIVERSARY' is
+    // 21 glyphs and about 1230 px at the fleet's 108 px with 12 px
+    // tracking, so it lost the B and half an A at one end and the last
+    // A and Y at the other. This runs inside the paint, because the
+    // first paint is with the fallback face's metrics and the repaint
+    // when the real font lands has to measure again. Measured with the
+    // tracking off and added by hand, so an engine that ignores
+    // letterSpacing in measureText fits it the same way.
+    let px = 108;
+    let ls = 12;
+    const widthAt = (size: number, track: number): number => {
+      ctx.letterSpacing = "0px";
+      ctx.font = `800 ${size}px ${latinDisplay()}`;
+      return ctx.measureText(label).width + track * label.length;
+    };
+    const w0 = widthAt(px, ls);
+    if (w0 > FIT) {
+      const k = FIT / w0;
+      px = Math.floor(108 * k);
+      ls = 12 * k;
+      while (px > 40 && widthAt(px, ls) > FIT) {
+        px -= 2;
+        ls = 12 * (px / 108);
+      }
+    }
+    const shrink = px / 108;
     // Letter-spaced caps, because a wordmark on a flank is read side-on
     // at speed and tight tracking closes up to a smear.
-    ctx.letterSpacing = "12px";
+    ctx.letterSpacing = `${ls}px`;
     // A dark backing stroke under every glyph. This is the whole fix
     // for legibility: the wordmark is near-white, and on a white,
     // silver or gold car it used to disappear into the paint entirely.
     // Stroking first and filling over it gives each letter its own edge
     // whatever it is standing on, which is what a real cut-vinyl decal
     // gets from its own thickness and shadow.
-    ctx.font = `800 108px ${latinDisplay()}`;
+    ctx.font = `800 ${px}px ${latinDisplay()}`;
     ctx.lineJoin = "round";
     ctx.strokeStyle = "rgba(10,12,16,0.9)";
-    ctx.lineWidth = 12;
-    ctx.strokeText(name.toUpperCase(), W / 2, 116);
+    // The stroke gets thinner with the type but not as fast: a smaller
+    // wordmark still has to hold its edge on white paint.
+    ctx.lineWidth = 12 * Math.max(shrink, 0.8);
+    ctx.strokeText(label, W / 2, 116);
     ctx.fillStyle = "#f4f6fa";
-    ctx.fillText(name.toUpperCase(), W / 2, 116);
+    ctx.fillText(label, W / 2, 116);
     ctx.letterSpacing = "0px";
     // The rule under it, with its own dark edge for the same reason.
     ctx.fillStyle = "rgba(10,12,16,0.9)";
@@ -5557,9 +5782,17 @@ function nameDecalTexture(name: string, ar?: string): THREE.CanvasTexture {
     ctx.fillRect(W / 2 - 214, 140, 428, 6);
     if (ar) {
       ctx.direction = "rtl";
-      ctx.font = `700 76px ${arabicUI()}`;
+      // The same shrink-to-fit. Every Arabic name in the fleet fits at
+      // 76 px today (the longest is 437 px), so this only guards the next
+      // long one.
+      let apx = 76;
+      ctx.font = `700 ${apx}px ${arabicUI()}`;
+      while (apx > 40 && ctx.measureText(ar).width > FIT) {
+        apx -= 2;
+        ctx.font = `700 ${apx}px ${arabicUI()}`;
+      }
       ctx.strokeStyle = "rgba(10,12,16,0.9)";
-      ctx.lineWidth = 10;
+      ctx.lineWidth = 10 * Math.max(apx / 76, 0.8);
       ctx.strokeText(ar, W / 2, 216);
       ctx.fillStyle = "#f4f6fa";
       ctx.fillText(ar, W / 2, 216);
@@ -5852,10 +6085,6 @@ function paintClearcoatFloor(m: THREE.MeshPhysicalMaterial): void {
   // and the floor is a uniform, so no car, finish or tier needs its own
   // program on account of it.
   m.customProgramCacheKey = () => "paint-cc-floor";
-}
-
-function seg0Pitch(p: number): number {
-  return Math.max(-1.2, Math.min(1.2, p));
 }
 
 function decalMat(map: THREE.CanvasTexture): THREE.MeshStandardMaterial {
@@ -6698,6 +6927,9 @@ export function createCar(colors: CarColors): THREE.Group {
    * had therefore never been seen on any car in the game.
    */
   const skinY = (z: number, fallback: number): number => deckY(bGeo, style, z) ?? fallback;
+  /** The top of the gtr's power bulge. A level slab, so one number. */
+  const gtrBulgeTop = (): number =>
+    skinY(GTR_BULGE_Z, d.hoodY) + GTR_BULGE_LIFT + GTR_BULGE_RISE;
   // Per-car glass when the tint is not factory. The shared material has
   // to stay shared for everything else — thirty traffic cars pointing at
   // one material is the whole reason it is a module constant — but a
@@ -6783,49 +7015,57 @@ export function createCar(colors: CarColors): THREE.Group {
       name: "accent-stripe",
       color: colors.accent,
       roughness: 0.4,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     });
-    // Laid in many short pieces for the same reason the single stripe
-    // is: a panel is not a ramp, and a long board levelled against its
-    // two ends sinks through everything curved in between. Over the top
-    // of a car that is most of the run — the windscreen and the hatch
-    // glass are the two steepest surfaces on the machine.
-    const PIECES = 26;
+    // One ribbon a side, draped over the whole run, for the reason the
+    // single stripe's is (see drapedRibbon): a panel is not a ramp, and a
+    // board levelled against its ends sinks through everything curved in
+    // between — over the top of a car that is most of the run, and the
+    // windscreen and the hatch glass are the two steepest surfaces on the
+    // machine. topSkinY follows whichever of bonnet, glass and roof is
+    // highest, and drapedRibbon holds the stripe to the slope it can climb
+    // where one of them hands over to the next.
     const zFront = d.nose - 0.1;
     const zRear = d.tail + 0.16;
-    const step = (zFront - zRear) / PIECES;
     // Half the gap between the two stripes. Narrow, because these sit
     // either side of the centreline rather than out on the panels.
-    const GAP = 0.135;
-    const WIDE = 0.2;
-    for (let i = 0; i < PIECES; i++) {
-      const a = zRear + i * step;
-      const b = a + step;
-      const mid = (a + b) / 2;
-      const yA = topSkinY(a);
-      const yB = topSkinY(b);
-      // Pitch, clamped: the windscreen is steep enough that an
-      // unclamped asin would flip a piece onto its edge.
-      const pitch = Math.atan2(yA - yB, step);
-      for (const sx of [-1, 1]) {
-        const seg = new THREE.Mesh(
-          roundedBox(WIDE, 0.011, step * 1.06, 0.004),
-          stripeMat
-        );
-        seg.position.set(
-          sx * (GAP + WIDE / 2),
-          (yA + yB) / 2 + 0.008,
-          mid
-        );
-        seg.rotation.x = Math.max(-1.2, Math.min(1.2, pitch));
-        group.add(seg);
-      }
-      if (mid > 0) {
-        const y0 = (yA + yB) / 2 + 0.008;
-        const sinA = Math.sin(seg0Pitch(pitch));
-        const prev: ((z: number) => number) | null = hoodStripeTop;
-        hoodStripeTop = (z: number): number =>
-          Math.max(y0 + (mid - z) * sinA + 0.011, prev ? prev(z) : -Infinity);
-      }
+    const GAP = TWIN_STRIPE_GAP;
+    const WIDE = TWIN_STRIPE_W;
+    // The sunroof's glass stands 17 mm over the roof and the stripes pass
+    // over it, as they did when they were plates 19 mm thick; laid on the
+    // roof's skin they would go under the glass for 0.62 m of the run. It
+    // is built wherever the crew's roof colours are not (see the roof
+    // furniture below), at the same z. The two share one place and have
+    // to move together: where the pane stands forward of the roof's front
+    // edge (the pony's does, over the windscreen) the stripe is on the
+    // pane and so off the glass, up to 0.2 m, until the pane is seated on
+    // the roof.
+    const sunroofZ = d.roof[0] + (bCabBack ? 0.28 : 0.18);
+    const hasSunroof = !colors.crew || colors.simple;
+    const stripeTop = (z: number): number => {
+      const y = topSkinY(z);
+      // One station past the slab's end, so the stripe has not started
+      // down before the glass has.
+      if (!hasSunroof || Math.abs(z - sunroofZ) > SUNROOF_LEN / 2 + 0.05) return y;
+      // Only where the glass is over the roof. On the pony the pane is
+      // seated at the roof's anchor and its front 0.39 m hangs past the
+      // roof's own front edge, flat, over the windscreen; a stripe carried
+      // along it stood 0.15-0.25 m off the screen and rose from the cowl
+      // like a tape. Past the roof's edge it is on the screen, under the
+      // overhang, as it was when it was plates (the pane is glass).
+      if (deckY(rGeo, style, z, "roof") === null) return y;
+      // The same height the glass itself is seated at.
+      const roofY = deckY(rGeo, style, sunroofZ, "roof") ?? d.roof[1];
+      return Math.max(y, roofY + SUNROOF_STAND);
+    };
+    for (const sx of [-1, 1]) {
+      const [xA, xB] = sx > 0 ? [GAP, GAP + WIDE] : [-GAP - WIDE, -GAP];
+      group.add(new THREE.Mesh(
+        drapedRibbon(zRear, zFront, xA, xB, STRIPE_LIFT, stripeTop, 0.05),
+        stripeMat
+      ));
     }
   }
 
@@ -6840,12 +7080,15 @@ export function createCar(colors: CarColors): THREE.Group {
       name: "accent-stripe",
       color: colors.accent,
       roughness: 0.35,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     });
-    // Each run is laid in short pieces rather than as one long board.
-    // A panel is not a ramp: levelled against its two ends only, a 0.9 m
-    // stripe sinks into the crown between them, which broke the boot
-    // stripe into two green patches with the middle missing.
-    const PIECES = 4;
+    // Each run is one ribbon draped on the panel it lies on (see
+    // drapedRibbon), where it was four short plates: a panel is not a
+    // ramp, and a stripe levelled against its two ends sinks into the
+    // crown between them, which broke the boot stripe into two green
+    // patches with the middle missing.
     // Where the stripe runs, derived from the body rather than typed in.
     //
     // Both runs were hardcoded saloon numbers, and the whole block was
@@ -6866,32 +7109,44 @@ export function createCar(colors: CarColors): THREE.Group {
     if (style === "sedan" || style === "gtr") {
       runs.push([d.tail + 0.22, d.roof[0] - 0.9]);
     }
+    // The gtr's power bulge is a level slab standing about 80 mm proud of
+    // the bonnet, and a stripe levelled against the bare shell goes
+    // INSIDE it: three of the four pieces were wholly buried, and from
+    // above the bonnet showed a plain rectangle of paint with green stubs
+    // at both ends. So on a gtr that wears the rally pack the bonnet run
+    // is cut at the bulge's two ends — the stub behind it and the stub
+    // ahead stay on the skin, and what lies between is laid flat on the
+    // slab. The Black Demon is left alone: its livery lays its own mark
+    // on the bulge and measures the top of whatever it finds there.
+    const onBulge = style === "gtr" && !colors.simple && colors.livery !== "demon";
+    const bulgeZ0 = GTR_BULGE_Z - GTR_BULGE_LEN / 2;
+    const bulgeZ1 = GTR_BULGE_Z + GTR_BULGE_LEN / 2;
+    const onSkin = (z: number): number => skinY(z, d.hoodY);
+    const onSlab = (): number => gtrBulgeTop();
+    // The bonnet's segments, for the hood decal to clear.
+    const bar: Array<[number, number, (z: number) => number]> = [];
     for (const [zRear, zFront] of runs) {
-      const step = (zFront - zRear) / PIECES;
-      for (let i = 0; i < PIECES; i++) {
-        const a = zRear + i * step;
-        const b = a + step;
-        const mid = (a + b) / 2;
-        const yA = skinY(a, d.hoodY);
-        const yB = skinY(b, d.hoodY);
-        // 12 mm thick, not 30: this is paint, and a stripe standing 3 cm
-        // off the bonnet is a spoiler.
-        const seg = new THREE.Mesh(roundedBox(0.46, 0.012, step * 1.02, 0.005), accentMat);
-        seg.position.set(0, (yA + yB) / 2 + 0.009, mid);
-        seg.rotation.x = Math.asin(Math.min(0.6, (yA - yB) / step));
-        group.add(seg);
-        // The hood decal has to clear whichever piece it lands on, or
-        // the stripe covers the falcon's middle. Measured at the decal's
-        // own z: the pieces are pitched, so the height at the centre of
-        // one is a centimetre off the height where the decal sits.
-        if (zFront > 0) {
-          const y0 = seg.position.y;
-          const sinA = Math.sin(seg.rotation.x);
-          const prev: ((z: number) => number) | null = hoodStripeTop;
-          hoodStripeTop = (z: number): number =>
-            Math.max(y0 + (mid - z) * sinA + 0.011, prev ? prev(z) : -Infinity);
-        }
+      // [from, to, how high the surface is]
+      const segs: Array<[number, number, (z: number) => number]> =
+        onBulge && zRear < bulgeZ0 && bulgeZ1 < zFront
+          ? [[zRear, bulgeZ0, onSkin], [bulgeZ0, bulgeZ1, onSlab], [bulgeZ1, zFront, onSkin]]
+          : [[zRear, zFront, onSkin]];
+      for (const [a, b, at] of segs) {
+        group.add(new THREE.Mesh(drapedRibbon(a, b, -0.23, 0.23, STRIPE_LIFT, at), accentMat));
+        if (zFront > 0) bar.push([a, b, at]);
       }
+    }
+    // The hood decal has to clear whichever piece it lands on, or the
+    // stripe covers the falcon's middle: the stripe's top, at a point
+    // along the bonnet, and nothing where there is no stripe.
+    if (bar.length) {
+      hoodStripeTop = (z: number): number => {
+        let top = -Infinity;
+        for (const [a, b, at] of bar) {
+          if (z >= a - 0.005 && z <= b + 0.005) top = Math.max(top, at(z) + STRIPE_LIFT + 0.002);
+        }
+        return top;
+      };
     }
   }
 
@@ -7594,6 +7849,9 @@ export function createCar(colors: CarColors): THREE.Group {
     const inner = outer - 0.28;
     const garnish = new THREE.Mesh(roundedBox(2 * (tailHalf - TAIL_PAD * 0.5), 0.3, 0.05, 0.02), grilleMat);
     garnish.position.set(0, d.tailY, tailAt(0) + 0.005);
+    // The Black Demon's tail mark is stuck to this panel and finds it by
+    // the flag, because buildTail makes it again on every refit.
+    garnish.userData.tailPanel = true;
     tailGroup.add(garnish);
     for (const sx of [-outer, -inner, inner, outer]) {
       const tz = tailAt(sx);
@@ -7735,7 +7993,7 @@ export function createCar(colors: CarColors): THREE.Group {
     let pitch = bCabBack ? -0.5 : -0.2;
     if (style === "zx") cherry.position.set(0, (deckY(bGeo, style, -1.98) ?? 0.86) + 0.02, -1.98);
     else if (style === "rx7") cherry.position.set(0, (deckY(bGeo, style, -1.86) ?? 0.8) + 0.02, -1.86);
-    else if (style === "gtr") cherry.position.set(0, d.deckY + 0.05, -1.7);
+    else if (style === "gtr") cherry.position.set(0, d.deckY + 0.05, GTR_STOP_BAR_Z);
     else {
       if (!rGeo.boundingBox) rGeo.computeBoundingBox();
       const z = rGeo.boundingBox!.min.z + 0.05; // just inside the roof's trailing edge
@@ -8142,7 +8400,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // the player makes deliberately, so it takes the whole panel and the
     // glass roof is what it costs.
     if (!colors.crew || colors.simple) {
-      const sunroof = new THREE.Mesh(roundedBox(0.72, 0.02, 0.62, 0.015), glassLocal);
+      const sunroof = new THREE.Mesh(roundedBox(0.72, 0.02, SUNROOF_LEN, 0.015), glassLocal);
       sunroof.userData.seeThrough = true;
       // On the roof's measured surface, like the rails below it. Seated on
       // the roof ANCHOR — the profile's top line — the glass sat 26 mm
@@ -8658,6 +8916,10 @@ export function createCar(colors: CarColors): THREE.Group {
     // it. This moves the one thing that was above the paint.
     const beltProbeZ = flankRun(d.beltY)[1];
     const beltY = Math.min(d.beltY, flankTopY(beltProbeZ, d.beltY) - 0.03);
+    // Said, for the one livery that has to stay clear of the chrome: the
+    // Black Demon's flank mark hangs from this strip, not from d.beltY,
+    // which on the gtr is 30 mm above where the chrome is.
+    group.userData.beltY = beltY;
     const [beltLen, beltZ] = flankRun(beltY);
 
     /**
@@ -8776,10 +9038,16 @@ export function createCar(colors: CarColors): THREE.Group {
 
     if (style === "gtr") {
       // Power bulge and the NACA-ish vents either side of it
-      const bulge = new THREE.Mesh(roundedBox(GTR_BULGE_W, 0.06, 1.0, GTR_BULGE_R), bodyMat);
-      bulge.position.set(0, skinY(1.55, d.hoodY) + 0.02, 1.55);
+      const bulge = new THREE.Mesh(
+        roundedBox(GTR_BULGE_W, GTR_BULGE_H, GTR_BULGE_LEN, GTR_BULGE_R),
+        bodyMat
+      );
+      bulge.position.set(0, skinY(GTR_BULGE_Z, d.hoodY) + GTR_BULGE_LIFT, GTR_BULGE_Z);
       group.add(bulge);
-      for (const sx of [-0.55, 0.55]) {
+      // Not on a car that is wearing the attack kit's louvres: those sit
+      // at the same x and run into the vents' z, and the two stacked as
+      // black pads on either side of the bulge.
+      for (const sx of colors.raceKit ? [] : [-0.55, 0.55]) {
         const vent = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.015, 0.4), gapMat);
         vent.position.set(sx, skinY(1.5, d.hoodY) + 0.004, 1.5);
         group.add(vent);
@@ -8792,8 +9060,10 @@ export function createCar(colors: CarColors): THREE.Group {
       // The gtr keeps its calling card by being in the widest band.
     }
     if (style === "zx") {
-      // Cooling slats let into the long hood
-      for (const sx of [-0.5, 0.5]) {
+      // Cooling slats let into the long hood. The attack kit's louvres
+      // replace them: they overlapped the louvres in x and z and the two
+      // read as a stair-stepped four-pad black V.
+      for (const sx of colors.raceKit ? [] : [-0.5, 0.5]) {
         const slat = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.014, 0.5), gapMat);
         slat.position.set(sx, skinY(1.45, d.hoodY) + 0.004, 1.45);
         group.add(slat);
@@ -9238,10 +9508,19 @@ export function createCar(colors: CarColors): THREE.Group {
       }
     }
 
-    // Vented hood: twin extraction louvres and a pair of intake scoops
+    // Vented hood: twin extraction louvres and a pair of intake scoops.
+    //
+    // The louvres sit outboard of the centre lane, because the falcon
+    // decal (wings to 0.405) and the accent bar (0.23) run down it. At
+    // x 0.36 and 0.34 wide their inner edge was at 0.19, inside both, so
+    // the wings ended in vertical cuts at the slab edges, the stripe was
+    // notched, and on the storm-s8 the Arabic line lost its end letters.
+    // At 0.60 and 0.30 the slab stands over |x| 0.44 to 0.76 (the bevel
+    // adds a radius each side) — clear of the wings, inside the hood's
+    // shut lines at 0.86, and off the gtr's bulge, which stops at 0.39.
     for (const sx of [-0.36, 0.36]) {
-      const louvre = new THREE.Mesh(roundedBox(0.34, 0.025, 0.5, 0.009), carbonMat);
-      louvre.position.set(sx, skinY(1.15, d.hoodY) + 0.015, 1.15);
+      const louvre = new THREE.Mesh(roundedBox(0.3, 0.025, 0.5, 0.009), carbonMat);
+      louvre.position.set(Math.sign(sx) * 0.6, skinY(1.15, d.hoodY) + 0.015, 1.15);
       louvre.rotation.x = -0.06; // follows the hood's fall
       group.add(louvre);
       const scoop = new THREE.Mesh(roundedBox(0.16, 0.07, 0.22, 0.02), carbonMat);
@@ -9436,46 +9715,90 @@ export function createCar(colors: CarColors): THREE.Group {
     // mark is built the same way. (The rally pack's own flank decals
     // still use the old placement; moving those moves five silhouettes'
     // worth of decisions and is not this car's job.)
-    // Centred in the flank's clear middle — between the character crease
-    // and the chrome belt — rather than on the beltline itself, which is
-    // where the crew badge sits and is a moulding rather than a panel.
-    // In the flank's clear lane, between the character crease and the
-    // chrome belt. Dropping it lower buys height — there is bodywork all
-    // the way to the sill — and spends it: the arch is a circle, so the
-    // lower the band the further it reaches, and a 400 mm mark centred
-    // just above the crease came out with its bottom third behind the
-    // rear tyre. Height that is behind a wheel is not height.
-    const QY = (d.creaseY + d.beltY) / 2;
-    // And placed off the run rather than at a z typed in here. -1.45 is
-    // the rear quarter of the body this was developed against and the
-    // middle of the arch on the shortest one in the fleet. flankRun
-    // already knows where each silhouette's arches are; the mark goes
-    // just forward of the rear one, which is the same place on all six.
-    const [qRun, qCtr] = flankRun(QY);
-    const qBack = qCtr - qRun / 2;
-    // As big as the quarter will honestly carry, found by asking it.
+    // Hung from the chrome belt, in the flank's clear lane below it.
     //
-    // A number picked here is a number picked for one silhouette. The
-    // first one was 580 mm, which is what the run WIDTH allows and has
-    // nothing to do with the height: at that size the top edge is up in
-    // the glasshouse, the ribbon finds no bodywork to follow, and both
-    // flanks came out with no mark at all rather than with a bad one —
-    // which is the failure mode worth having, and is how this was
-    // caught. So the sizes are tried largest first and the first one
-    // the panel accepts is the one worn. Six bodies, no table.
-    for (const sign of [-1, 1] as const) {
-      for (const h of [0.46, 0.40, 0.34, 0.28, 0.22]) {
-        // Nothing wider than the run itself, whatever the panel height
-        // would allow.
-        if (h > qRun - 0.06) continue;
-        const zc = qBack + 0.03 + h / 2;
-        const geo = flankRibbon(bodyShell, sign, zc - h / 2, zc + h / 2, QY, h, 0.012, 48);
-        if (!geo) continue;
-        const m = new THREE.Mesh(geo, mark);
-        m.userData.decal = "demon-flank";
-        group.add(m);
-        break;
+    // It was centred between the character crease and d.beltY, on the
+    // reading that the lane is 0.23 m and a 0.28 m mark is as big as it
+    // takes. d.beltY is a number typed per style and the chrome is not
+    // there: on the gtr the strip is clamped to the paint and sits
+    // 30 mm lower, so the band's top edge ran through the chrome and the
+    // horns with it. The belt says where it is (userData.beltY); the mark
+    // stops 10 mm under its lower edge, 16 mm below its centre line, and
+    // takes its height from there downward. There is bodywork all the way
+    // to the sill, so the band is not centred on the crease: it stands
+    // lower, over the bead, which lies inside the authored flank and
+    // shows through the mark only on the extruded fallback.
+    const beltAt = (group.userData.beltY as number | undefined) ?? d.beltY;
+    const laneTop = beltAt - 0.016 - 0.01;
+    // The arch is a circle, so the lower the band the further forward its
+    // rear edge reaches: the limit is read at every row of the band (the
+    // furthest is at the bottom, or at the arch's own centre height if the
+    // band crosses it) and the mark starts 30 mm forward of it, the gap
+    // flankRun keeps. The circle is the FLARE's, not the lip's that
+    // flankRun uses: the over-fender's body-side feather runs 1.25 tubes
+    // out from the arch radius, 61 mm on the attack kit, and the mark
+    // ended 13 mm from the first flare it met.
+    const flareEdge = ARCH_R_R + rearGrow + wide.proud * FLARE_TUBE_FRAC * 1.25;
+    const rearLimit = (yTop: number, yBot: number): number => {
+      let back = -Infinity;
+      for (let i = 0; i <= 8; i++) {
+        const y = yBot + ((yTop - yBot) * i) / 8;
+        back = Math.max(back, wzR + archReach(flareEdge, y, ARCH_MESH_Y + rearGrow) + FLANK_GAP);
       }
+      return back;
+    };
+    // The flank marks, built against a shell and rebuilt against the
+    // next. flankRibbon asks the shell where its skin is, and the shell
+    // this is first built against is the extrusion — which tucks in under
+    // the shoulder, 118 mm at the sill line — whereas the one the car
+    // wears is the authored loft, whose flank is nearly vertical. A band
+    // laid on the extrusion is buried in the loft for its lower
+    // two-thirds (measured: 26% of the artwork showing, horns and brow
+    // only), so refitShell builds it again from the loft, the way the
+    // lamps and the face are.
+    //
+    // As big as the quarter will honestly carry, found by asking it, and
+    // largest first: the first height the panel accepts is the one worn.
+    // The tallest is 0.28 m. Taller was never worn — the ribbon found no
+    // bodywork above the shoulder and the mark failed whole — and a skull
+    // wants to be read at a glance, not to fill the lane.
+    const flankMarks: THREE.Mesh[] = [];
+    const buildFlankMarks = (geo: THREE.BufferGeometry) => {
+      for (const o of flankMarks.splice(0)) {
+        group.remove(o);
+        o.geometry.dispose();
+      }
+      // Cast against a copy of the shell at the identity. flankRibbon
+      // reads its hits through shell.matrixWorld, and by the time a refit
+      // runs the group has been fitted to its length and may be posed: a
+      // ribbon built through those hits floats 80 mm off the paint.
+      const proxy = new THREE.Mesh(geo, bodyShell.material);
+      proxy.updateMatrixWorld(true);
+      for (const sign of [-1, 1] as const) {
+        for (const h of [0.28, 0.24, 0.22, 0.20]) {
+          const yMid = laneTop - h / 2;
+          const back = rearLimit(laneTop, laneTop - h);
+          const [runLen, runCtr] = flankRun(yMid);
+          // Nothing longer than the run itself.
+          if (h > runCtr + runLen / 2 - back) continue;
+          const zc = back + h / 2;
+          const ribbon = flankRibbon(proxy, sign, zc - h / 2, zc + h / 2, yMid, h, 0.012, 48, false, 5);
+          if (!ribbon) continue;
+          const m = new THREE.Mesh(ribbon, mark);
+          m.userData.decal = "demon-flank";
+          group.add(m);
+          flankMarks.push(m);
+          break;
+        }
+      }
+    };
+    buildFlankMarks(bGeo);
+    {
+      const refitBefore = group.userData.refitShell as ((g: THREE.BufferGeometry) => void) | undefined;
+      group.userData.refitShell = (geo: THREE.BufferGeometry) => {
+        refitBefore?.(geo);
+        buildFlankMarks(geo);
+      };
     }
     // Bonnet and deck. Both are slopes, so both are levelled the way the
     // hood swoosh is: the skin is measured at the plane's front and back
@@ -9531,15 +9854,17 @@ export function createCar(colors: CarColors): THREE.Group {
       }
       return base;
     };
-    const lay = (z: number, size: number, faceRear: boolean, tag: string) => {
+    const lay = (z: number, size: number, tag: string) => {
       const half = size / 2;
       const yBack = topAt(z - half, d.hoodY);
       const yFront = topAt(z + half, d.hoodY);
       const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mark);
-      // Read from where it is looked at: the bonnet from the driver's
-      // seat, the deck from the car behind — which is the whole reason
-      // anybody puts a mark back there.
-      m.rotation.z = faceRear ? 0 : Math.PI;
+      // Horns toward the nose. Whoever reads it is looking forward along
+      // the car, and the far end of what they see is the top of the
+      // picture. (The mark that was on the lid was turned the other way
+      // "to be read from behind" and showed a following car a skull
+      // upside down; it is on the tail now, upright.)
+      m.rotation.z = Math.PI;
       m.rotation.x = -Math.PI / 2 + Math.asin(Math.min(0.6, (yBack - yFront) / (2 * half)));
       m.position.set(0, (yBack + yFront) / 2 + 0.022, z);
       m.userData.decal = tag;
@@ -9557,9 +9882,51 @@ export function createCar(colors: CarColors): THREE.Group {
     // off the paint"; the car's own pictures show a cream plate wider than
     // what it is stuck to).
     const hoodMark = style === "gtr" ? GTR_BULGE_W - 2 * GTR_BULGE_R - 0.02 : 0.8;
-    lay(bCabBack ? 1.15 : 1.45, hoodMark, false, "demon-hood");
-    // And on the deck, clear of a wing's feet at z -1.98.
-    lay(-1.62, 0.55, true, "demon-deck");
+    lay(bCabBack ? 1.15 : 1.45, hoodMark, "demon-hood");
+    // And on the tail, where the car behind is looking. It was on the boot
+    // lid, 0.18 m of bare paint between the wiper and the third brake
+    // light's bar, and the wing's plane 0.46 m up and its two uprights hid
+    // it from every low or rear-quarter camera: only a camera straight
+    // above could read it. The lid has no clear patch (the shut line, the
+    // wiper, the bar and the wing's feet leave none), and the roof's rear
+    // half has the shark fin down its middle and the sunroof in front, so
+    // it is stuck to the black panel the four lamps are set in, in the gap
+    // between the two pairs, where nothing stands over it from behind.
+    //
+    // Upright and facing aft: a plane's front is +z, so a half turn about
+    // the vertical puts it on the following car's side of the panel, with
+    // the horns up. The panel is found, not typed in — the lamps are built
+    // again against the authored body (see buildTail) and the panel moves
+    // with them — so the mark is made again after them in the refit chain.
+    let tailMark: THREE.Mesh | null = null;
+    const buildTailMark = () => {
+      if (tailMark) {
+        group.remove(tailMark);
+        tailMark.geometry.dispose();
+        tailMark = null;
+      }
+      const panel = tailGroup.children.find((o) => o.userData.tailPanel) as THREE.Mesh | undefined;
+      if (!panel) return;
+      panel.geometry.computeBoundingBox();
+      const pb = panel.geometry.boundingBox!;
+      // 0.26 m, or the panel's height less 40 mm: it is 0.34 m tall and the
+      // gap between the inner lamps' housings 0.44 m wide.
+      const size = Math.min(0.26, pb.max.y - pb.min.y - 0.04);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mark);
+      m.rotation.y = Math.PI;
+      m.position.set(panel.position.x, panel.position.y, panel.position.z + pb.min.z - 0.006);
+      m.userData.decal = "demon-tail";
+      group.add(m);
+      tailMark = m;
+    };
+    buildTailMark();
+    {
+      const refitBefore = group.userData.refitShell as ((g: THREE.BufferGeometry) => void) | undefined;
+      group.userData.refitShell = (geo: THREE.BufferGeometry) => {
+        refitBefore?.(geo);
+        buildTailMark();
+      };
+    }
   }
 
   // --- The patrol car.
@@ -9876,7 +10243,22 @@ export function createCar(colors: CarColors): THREE.Group {
     const FLAG_H = Math.min(0.2, bandTop - bandBot);
     const FLAG_L = FLAG_H * 2;
     const flagY = (bandBot + bandTop) / 2;
-    const flagZ = runFront - 0.04 - FLAG_L / 2;
+    // And clear of the flare. runFront is where the arch stops the
+    // beltline stripe, which is the highest line on the flank and so the
+    // one the arch reaches least; the flag hangs down 0.2 m from there,
+    // to where the arch reaches further back, and its hoist corner stood
+    // in the flare (the SUV's by 125 mm, the sedan's by 9). The edge
+    // that counts is the over-fender's, not the lip's flankRun measures:
+    // its feather runs 1.25 tubes out from the arch radius, centred on
+    // the flare mesh and not on the lip. So the front edge is held back
+    // from that circle, read at the flag's bottom edge, by the 20 mm the
+    // flag is allowed to be nearer a flare than a panel gap.
+    const flareEdgeF = ARCH_R_F + wide.proud * FLARE_TUBE_FRAC * 1.25;
+    const flagFront = Math.min(
+      runFront - 0.04,
+      wzF - archReach(flareEdgeF, bandBot, ARCH_MESH_Y) - 0.02
+    );
+    const flagZ = flagFront - FLAG_L / 2;
     const stripeFront = flagZ - FLAG_L / 2 - 0.06;
     const stripeLen = Math.max(0.3, stripeFront - runBack);
     const stripeZ = (stripeFront + runBack) / 2;
@@ -9904,6 +10286,7 @@ export function createCar(colors: CarColors): THREE.Group {
       const f = new THREE.Mesh(new THREE.PlaneGeometry(FLAG_L, FLAG_H), flag);
       f.position.set(x, flagY, flagZ);
       f.rotation.y = flipY;
+      f.userData.decal = "flag";
       group.add(f);
       // Door: racing number over the car's own name. Its z is held
       // behind whatever the stripe now ends at, so on the shortest flank
@@ -9936,31 +10319,69 @@ export function createCar(colors: CarColors): THREE.Group {
     // Falcon swoosh flat on the hood, nosed toward the windshield — and
     // not at all if the livery has already claimed the bonnet.
     if (!wearsDemon) {
+      // Twin stripes leave no bar to sit on, only the paint between them,
+      // so a twin-striped car wears the falcon alone, dark and small
+      // enough for that gap, instead of the 0.85 m sticker that lands
+      // white on white and straddles both stripes.
+      const twinHood = colors.accent !== undefined && colors.stripes === "twin";
+      // On a gtr the falcon is laid on the power bulge, not on the bare
+      // bonnet under it: the bulge is a level slab 0.72 m wide with its
+      // corners rounded, so the plane is cut to its flat top, the same
+      // 0.64 m the Black Demon's own mark is sized to. At 0.85 m the
+      // wings hung 65 mm off each side, and levelled to the shell the
+      // whole plane sat inside the slab, with only a sliver of text
+      // showing at its rear edge.
+      const onBulge = style === "gtr";
+      const SPAN = twinHood
+        ? TWIN_HOOD_SPAN
+        : onBulge
+          ? GTR_BULGE_W - 2 * GTR_BULGE_R - 0.02
+          : 0.85;
+      const HALF = SPAN / 2;
       const hood = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.85, 0.85),
-        decalMat(hoodDecalTexture())
+        new THREE.PlaneGeometry(SPAN, SPAN),
+        decalMat(hoodDecalTexture(twinHood))
       );
       // Laid ON the hood, which is a slope and not a table. A flat plane
       // set to the skin height at its centre has its back half inside the
       // bonnet and its front half floating: 0.85 m of decal spans 100 mm
       // of fall on the long-nosed bodies. Both ends are measured and the
       // plane is pitched to match.
-      const hoodDecalZ = bCabBack ? 1.15 : 1.45;
-      const HALF = 0.425;
-      const yBack = skinY(hoodDecalZ - HALF, d.hoodY);
-      const yFront = skinY(hoodDecalZ + HALF, d.hoodY);
+      //
+      // And behind the wipers: the type is in the plane's rear 90 mm, so
+      // its baseline sits 0.34 m behind the centre. At 1.45 that was
+      // 1.11, which cleared every wiper line until the hatch parked its
+      // blades at 1.12 and put them on the words. The stripe already
+      // starts at wiperZ + 0.06; the decal now starts there too.
+      const hoodDecalZ0 = bCabBack ? 1.15 : 1.45;
+      const hoodDecalZ = Math.max(hoodDecalZ0, d.wiperZ + 0.06 + HALF);
+      // A gtr's plane lies on the level slab, so it is neither pitched nor
+      // measured against the shell: it sits at least 22 mm over the
+      // slab's top, and the bar over the slab lifts it from there.
+      const yBack = onBulge ? gtrBulgeTop() : skinY(hoodDecalZ - HALF, d.hoodY);
+      const yFront = onBulge ? gtrBulgeTop() : skinY(hoodDecalZ + HALF, d.hoodY);
       hood.rotation.z = Math.PI; // read the right way up from the driver's seat
       hood.rotation.x = -Math.PI / 2 + Math.asin(Math.min(0.6, (yBack - yFront) / (2 * HALF)));
+      // How high the bar under the plane needs it to be. The small twin
+      // falcon sits in the gap, clear of both stripes, so it has nothing
+      // to be lifted over. Read at nine stations across the whole plane,
+      // with its own pitch allowed for, because the bar follows the
+      // bonnet and the plane is laid on a chord of it: the single reading
+      // at the centre misses a stripe that stands higher at the type's end.
+      const tilt = Math.tan(hood.rotation.x + Math.PI / 2);
+      const barLift = (): number => {
+        if (!hoodStripeTop || twinHood) return -Infinity;
+        let need = -Infinity;
+        for (let k = 0; k <= 8; k++) {
+          const zk = hoodDecalZ - HALF + (k / 8) * 2 * HALF;
+          need = Math.max(need, hoodStripeTop(zk) + 0.005 + (zk - hoodDecalZ) * tilt);
+        }
+        return need;
+      };
       // A little more than a decal's clearance, because the bonnet bows
       // between the two points this is levelled against.
-      hood.position.set(
-        0,
-        Math.max(
-          (yBack + yFront) / 2 + 0.022,
-          hoodStripeTop ? hoodStripeTop(hoodDecalZ) + 0.005 : -Infinity
-        ),
-        hoodDecalZ
-      );
+      hood.position.set(0, Math.max((yBack + yFront) / 2 + 0.022, barLift()), hoodDecalZ);
+      hood.userData.decal = "hood-falcon";
       group.add(hood);
     }
   }

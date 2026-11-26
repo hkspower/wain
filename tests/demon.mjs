@@ -170,7 +170,7 @@ await page.waitForTimeout(1200);
 // The record is read IN the page, out of the module the game itself
 // reads, so none of what follows can pass against a car that only
 // exists in this file.
-const look = await page.evaluate((id) => {
+const look = await page.evaluate(async (id) => {
   const THREE = window.__grnThree;
   const car = window.__grnShowroom.car(id);
   const g = window.__grnBuildCar({
@@ -190,6 +190,18 @@ const look = await page.evaluate((id) => {
     // grew a third wheel, and this call had never asked for it.
     trike: car.trike,
   });
+  // The car the game DRAWS, not the one createCar hands back. The authored
+  // body is fetched and swapped in underneath the decals a moment after
+  // the build, and it is not the shape the build measured: the extrusion
+  // tucks in under the shoulder and the loft does not, so a mark that
+  // clears the one is buried in the other. This measured the extrusion
+  // and called the Demon's flank mark 99% visible while the game showed
+  // 26% of it. Every slot's verdict is written in the same tick, so the
+  // last slot being there means the swap has been decided.
+  for (let i = 0; i < 600 && g.userData.shellSwap?.roof === undefined && g.userData.shellSwap?.all === undefined; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  const shellSwap = { ...(g.userData.shellSwap ?? {}) };
   g.updateMatrixWorld(true);
 
   const hex = (c) => "#" + c.getHexString();
@@ -278,8 +290,8 @@ const look = await page.evaluate((id) => {
       size,
       px: img?.width ?? 0,
       n: nv.toArray().map((v) => +v.toFixed(3)),
-      // And which way is up in the picture, so a mark on the deck is not
-      // upside down to the car behind it.
+      // And which way is up in the picture, so a mark is not upside down
+      // to whoever reads it.
       up: new THREE.Vector3(0, 1, 0).applyQuaternion(q).toArray().map((v) => +v.toFixed(3)),
     });
   });
@@ -323,7 +335,20 @@ const look = await page.evaluate((id) => {
   // tessellation-independent (the ribbon's row count does not move it)
   // and it is the question worth asking, because a decal is not a point.
   const solid = [];
-  g.traverse((o) => { if (o.isMesh && o.visible && !o.userData?.decal) solid.push(o); });
+  // Not the tail lamps' glow cards: additive light, no depth write, hung
+  // 0.12 m behind each lamp. They stand in front of the tail mark's outer
+  // edge and in front of nothing anyone can see through.
+  g.traverse((o) => { if (o.isMesh && o.visible && !o.userData?.decal && !o.userData?.noShadow) solid.push(o); });
+  // The outward rays are cast against double-sided copies. The paint and
+  // the glass are front-face-only, which a ray fired from INSIDE a closed
+  // shell passes straight through, so a sticker buried in the bodywork
+  // read as uncovered here: nothing it could see was in its way.
+  const solidBoth = solid.map((o) => {
+    const c = new THREE.Mesh(o.geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, name: o.material?.name ?? "" }));
+    c.matrixWorld.copy(o.matrixWorld);
+    c.userData = { shell: o.userData.shell };
+    return c;
+  });
   const REACH = 0.4;
   const standoff = {}, covered = {};
   const meshFor = {};
@@ -364,7 +389,7 @@ const look = await page.evaluate((id) => {
         const v = (((k * 7) % n) + 0.5) / n * (1 - u) * 0.9 + 0.05 * (1 - u);
         p.copy(a).addScaledVector(b.clone().sub(a), u).addScaledVector(c.clone().sub(a), v);
         p.addScaledVector(dir, 0.002);
-        const out = new THREE.Raycaster(p, dir, 0, REACH).intersectObjects(solid, false)[0];
+        const out = new THREE.Raycaster(p, dir, 0, REACH).intersectObjects(solidBoth, false)[0];
         if (out) {
           hidden++;
           const k2 = out.object.material?.name ?? out.object.userData?.shell ?? "something";
@@ -389,6 +414,7 @@ const look = await page.evaluate((id) => {
     marks: marks.sort((a, b) => a.tag.localeCompare(b.tag)),
     clearance,
     covered,
+    shellSwap,
   };
 }, DEMON);
 
@@ -407,10 +433,17 @@ console.log(`rims      ${look.spokes.join(", ") || "none"}  ` +
     `the wheels are ${look.spokes.join("/") || "unreadable"}, not the black forged set the car is sold on`));
 
 // ---- 4. Four marks, four sides, each lying on its panel --------------
+// On the body the game wears. If the loft was refused (a stale file) the
+// extrusion is what is drawn and what is measured, which is still right;
+// but it is said, because it is the other half of what this used to hide.
+console.log(`body      ${look.shellSwap.body ?? look.shellSwap.all ?? "undecided"}  ` +
+  check(look.shellSwap.body === "authored",
+    `the authored body was not what got measured (${look.shellSwap.body ?? look.shellSwap.all ?? "no verdict"}), ` +
+    "so the marks below were measured on the shell the game does not draw"));
 const tags = look.marks.map((m) => m.tag);
 console.log(`marks     ${tags.join(", ") || "none"}  ` +
   check(look.marks.length === 4 &&
-    ["demon-deck", "demon-flank", "demon-flank", "demon-hood"].join() === tags.join(),
+    ["demon-flank", "demon-flank", "demon-hood", "demon-tail"].join() === tags.join(),
     `the livery put ${look.marks.length} marks on the car, not one on each side`));
 
 for (const m of look.marks) {
@@ -459,13 +492,17 @@ console.log(`mirrored  ${check(
   `the two flank marks are not mirrored: x ${flanks.map((f) => f.wx.toFixed(3))}, ` +
     `normals ${flanks.map((f) => f.n[0])}`
 )}  ${flanks.map((f) => f.wx.toFixed(3)).join(" and ")} m out, both facing away from the car`);
-// And the deck mark reads from behind rather than from the driver's seat,
-// which is the only reason to put one back there.
-const deck = look.marks.find((m) => m.tag === "demon-deck");
-console.log(`deck up   ${check(
-  deck && deck.up[2] < -0.5,
-  "the mark on the boot is upside down to the car behind it"
-)}  its top points at the tail`);
+// And the rear mark faces the car behind it, horns up. It was on the boot
+// lid with its top at the nose, which read upright from straight above and
+// not at all from behind: the wing's plane and uprights stand over the lid.
+// It is on the tail panel now, a vertical face, so "the right way up" is
+// "faces aft, top up". The projection check from a camera behind and above
+// is in tests/demonmarks.mjs, which can place one.
+const tail = look.marks.find((m) => m.tag === "demon-tail");
+console.log(`tail up   ${check(
+  tail && tail.n[2] < -0.9 && tail.up[1] > 0.9,
+  "the tail mark does not face the car behind it with its horns up"
+)}  ${tail ? `faces ${tail.n[2] < 0 ? "aft" : "forward"} (${tail.n[2]}), its top points ${tail.up[1] > 0 ? "up" : "down"}` : "no tail mark"}`);
 
 // ---- 5. One mark per panel, and a bought wheel still wins ------------
 const both = await page.evaluate((id) => {
