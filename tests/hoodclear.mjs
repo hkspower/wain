@@ -17,9 +17,15 @@
 //
 // Every body, in every kit, wearing the pack. The twin-striped pony too,
 // since its falcon is a different plane in a different place.
+//
+// Twice: as createCar builds it, and with the authored loft put on it the
+// way the game does (tests/lib/loft.mjs). The bonnet bar is laid again on
+// the loft's skin, a few millimetres from where it stood on the extrusion,
+// and the falcon was laid over the bar as it stood on the extrusion.
 import * as THREE from "three";
 import "./lib/dom-stub.mjs";
 import { createCar } from "../src/game/cars.ts";
+import { wearLoft } from "./lib/loft.mjs";
 
 const STYLES = ["sedan", "zx", "gtr", "rx7", "hatch", "pony", "pickup", "super", "suv"];
 const KITS = ["street", "sport", "attack"];
@@ -66,34 +72,48 @@ function seen(car, hood) {
   return { share: self / n, by };
 }
 
-function run(label, opts) {
+async function run(label, opts, wear) {
   const car = createCar({ body: 0x3f66c4, accent: 0x007a3d, stickers: true, name: "Test", ...opts });
+  let tag = "";
+  if (wear === "loft") {
+    const worn = await wearLoft(car, opts.style);
+    // What the game draws when the loft is refused is the extrusion, which
+    // the other pass has measured.
+    if (worn.body !== "loft") { console.log(`  ${label.padEnd(16)} skip  the loft is not worn (${worn.body})`); return; }
+    tag = "  (loft)";
+    loftMeasured++;
+  }
   car.scale.set(1, 1, 1);
   car.updateMatrixWorld(true);
   let hood = null;
   car.traverse((o) => { if (o.userData.decal === "hood-falcon") hood = o; });
-  if (!hood) { fail.push(`${label}: no hood falcon`); return; }
+  if (!hood) { fail.push(`${label}${tag}: no hood falcon`); return; }
   const { share, by } = seen(car, hood);
   const ok = share >= WANT;
   if (!ok) {
-    fail.push(`${label}: only ${(share * 100).toFixed(0)}% of the inked falcon shows (${Object.entries(by).map(([k, v]) => `${k} ${v}`).join(", ")})`);
+    fail.push(`${label}${tag}: only ${(share * 100).toFixed(0)}% of the inked falcon shows (${Object.entries(by).map(([k, v]) => `${k} ${v}`).join(", ")})`);
   }
-  console.log(`  ${label.padEnd(16)} ${ok ? "ok  " : "FAIL"}  ${(share * 100).toFixed(0).padStart(3)}% of the ink is on top`);
+  console.log(`  ${label.padEnd(16)} ${ok ? "ok  " : "FAIL"}  ${(share * 100).toFixed(0).padStart(3)}% of the ink is on top${tag}`);
 }
 
+let loftMeasured = 0;
 console.log(`${GRID}x${GRID} rays down onto the inked part of the falcon, the first thing each one meets.\n`);
-for (const kit of KITS) {
-  console.log(`${kit}`);
-  for (const style of STYLES) {
-    run(`${style}`, { style, kit, raceKit: kit === "attack" });
+for (const wear of ["extruded", "loft"]) {
+  console.log(wear === "loft" ? "\nworn as the game wears it: the authored loft swapped in, refitted" : "as createCar builds it: the extrusion");
+  for (const kit of KITS) {
+    console.log(`${kit}`);
+    for (const style of STYLES) {
+      await run(`${style}`, { style, kit, raceKit: kit === "attack" }, wear);
+    }
   }
+  console.log("twin stripes");
+  await run("pony (twin)", { style: "pony", kit: "sport", stripes: "twin", accent: 0xf04b16, body: 0xf2f2ee }, wear);
 }
-console.log("twin stripes");
-run("pony (twin)", { style: "pony", kit: "sport", stripes: "twin", accent: 0xf04b16, body: 0xf2f2ee });
+if (!loftMeasured) fail.push("no car wore the authored loft, so the pass that matters measured nothing");
 
 if (fail.length) {
   console.log(`\n${fail.length} problem${fail.length === 1 ? "" : "s"}:`);
   for (const f of fail) console.log(`  - ${f}`);
   process.exit(1);
 }
-console.log("\nthe falcon is on top, on every body in every kit.");
+console.log("\nthe falcon is on top, on every body in every kit, on the extrusion and on the loft.");

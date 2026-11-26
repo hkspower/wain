@@ -3713,8 +3713,8 @@ const GTR_BULGE_LIFT = 0.02;
  *  and the radius is clamped to the slab's half-height. So 0.06 m
  *  stands 59 mm over its centre, not 30. */
 const GTR_BULGE_RISE = GTR_BULGE_H / 2 + Math.min(GTR_BULGE_R, GTR_BULGE_H / 2 - 1e-3);
-/** Where the gtr's third brake light stands along the lid: a 0.5 m bar,
- *  80 mm deep with its bevel, centred here. */
+/** Where the gtr's third brake light stands along the lid: z of the centre
+ *  of its 0.5 m bar, in the group's own frame. */
 const GTR_STOP_BAR_Z = -1.7;
 
 /**
@@ -3729,13 +3729,18 @@ const TWIN_STRIPE_GAP = 0.135;
 const TWIN_STRIPE_W = 0.2;
 const TWIN_HOOD_SPAN = 2 * TWIN_STRIPE_GAP - 0.01;
 /**
- * The sunroof's glass: a 0.72 x 0.62 m slab, 20 mm thick with a 15 mm
- * bevel, sunk 8 mm into the roof's skin — which leaves it standing 17 mm
- * proud of the paint. Named because the twin stripes run over it, and a
- * stripe laid on the roof's skin goes under it.
+ * The sunroof's glass: a 0.72 x 0.62 m slab, 20 mm thick, sunk 8 mm into
+ * the roof's skin. Named because the twin stripes run over it, and a stripe
+ * laid on the roof's skin goes under it.
+ *
+ * It stands 11 mm proud of the paint, not the 17 the 15 mm bevel would
+ * give: roundedBox clamps its radius to the slab's half-height less a
+ * millimetre, 9 mm here, and the bevel grows the solid outward by that
+ * radius, so the top is half the thickness plus 9 mm over the slab's centre
+ * (as GTR_BULGE_RISE is for the bulge), less the 8 mm it is sunk.
  */
 const SUNROOF_LEN = 0.62;
-const SUNROOF_STAND = 0.02 / 2 + 0.015 - 0.008;
+const SUNROOF_STAND = 0.02 / 2 + Math.min(0.015, 0.02 / 2 - 1e-3) - 0.008;
 
 /** One rivet head. Shared across every arch on every car. */
 const RIVET_R = 0.011;
@@ -4220,6 +4225,11 @@ function rimMatFor(finish: WheelFinish): THREE.MeshStandardMaterial {
         ? blackRimMat
         : rimMat;
 }
+/** How many quads a surfaceRibbon is cut into, unless it is told otherwise.
+ *  Named because a stripe that crosses a carbon panel has to know where the
+ *  panel's own vertices are: between them the panel is a straight line. */
+const SURFACE_RIBBON_STEPS = 24;
+
 // Dry carbon for the aero: near-black, a hint of weave sheen
 /**
  * A thin strip of surface that FOLLOWS a surface.
@@ -4246,7 +4256,7 @@ function surfaceRibbon(
   halfW: number,
   lift: number,
   topAt: (z: number) => number,
-  steps = 24
+  steps = SURFACE_RIBBON_STEPS
 ): THREE.BufferGeometry {
   const pos: number[] = [];
   const uv: number[] = [];
@@ -4261,7 +4271,11 @@ function surfaceRibbon(
     uv.push(0, v, halfW * 2, v);
     if (i < steps) {
       const a = i * 2;
-      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+      // (a, c, b) with c the next row on the left: the normal is +Y. These
+      // were wound the other way, (a, b, c), so every panel faced DOWN and
+      // carbonPanelMat, a front-face material, culled them all from above:
+      // the Carbon Package drew its mirror caps and nothing else.
+      idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
     }
   }
   const g = new THREE.BufferGeometry();
@@ -4273,10 +4287,19 @@ function surfaceRibbon(
 }
 
 /**
- * How far a painted stripe stands off the skin it lies on: the 6 mm the
- * carbon panels stand at, so a car with a carbon bonnet has the two in one
- * plane and the material's polygonOffset puts the stripe on top, instead
- * of one of them winning by chance.
+ * How far a painted stripe stands off the surface it lies on: 6 mm. The
+ * surface is the skin, or the carbon panel over it where the car wears one
+ * (carbonTopY): the panels stand 5-6 mm off the skin themselves, and a
+ * stripe level with one, or a millimetre under it, does not win on the
+ * strength of its polygonOffset. Seen from above on a 24-bit depth buffer
+ * (three r184, at 6 and 13.5 m, with the game's near plane and the scan's)
+ * a stripe 0.5 mm BELOW a coplanar surface loses to it; the offset only
+ * wins at a glancing view. And the two are not level: the panel is a
+ * straight line between its own vertices and the stripe is smoothed, a
+ * couple of millimetres apart either way on a curved bonnet, and on the
+ * authored loft (the panels are laid on the extrusion) a stripe laid on the
+ * skin stood from 2.1 mm under its panel to 5 mm over it, below it for a
+ * third of the stripe's length on six of the nine bodies.
  */
 const STRIPE_LIFT = 0.006;
 
@@ -4294,10 +4317,12 @@ const STRIPE_LIFT = 0.006;
  * line 24-36% down the bar; and the bar stood 20 mm off the paint, as
  * thick as a plank. Paint is not thick.
  *
- * The ribbon is sampled instead of approximated, as surfaceRibbon is, but
- * it is not surfaceRibbon: that one's triangles face DOWN, which a
- * front-face material culls from above, and a stripe is only ever seen
- * from above.
+ * The ribbon is sampled instead of approximated, as surfaceRibbon is, and
+ * wound the same way: up, which is the only way a front-face material is
+ * seen from above, and a stripe is only ever seen from above. (They are two
+ * functions because this one smooths and climbs; surfaceRibbon's panels lie
+ * on a measured top as it is. surfaceRibbon was wound DOWN until the carbon
+ * panels were found to draw nothing from above.)
  *
  *   smoothed  the heights are read every ~5 cm and averaged with their
  *             neighbours, so one ray landing on a facet does not ripple
@@ -6989,6 +7014,30 @@ export function createCar(colors: CarColors): THREE.Group {
 
   /** Top of the bonnet stripe at a point along it, when the car wears one. */
   let hoodStripeTop: ((z: number) => number) | null = null;
+  /** Raises the hood falcon clear of the bonnet stripe as it stands NOW.
+   *  Set where the falcon is laid, called when the stripe is laid again. */
+  let clearHoodBar: (() => void) | null = null;
+
+  /**
+   * A shell's upper surface at a point along the car, read off the
+   * geometry the car is WEARING: the extrusion it was built with, or the
+   * authored loft models.ts swaps in once its file lands (the cache is
+   * kept apart by tag, the way the tail lamps' is).
+   *
+   * Everything laid on the paint at a few millimetres has to be laid on
+   * the surface the player sees. The loft's bonnet is 3-5 mm above the
+   * extrusion's on the zx, and a stripe laid at +6 mm on the one stood 1 mm
+   * over the other.
+   */
+  const wornDeckY = (
+    mesh: THREE.Mesh,
+    built: THREE.BufferGeometry,
+    tag: string,
+    z: number
+  ): number | null => deckY(mesh.geometry, style, z, mesh.geometry === built ? tag : `${tag}:authored`);
+  /** The bonnet and boot skin: skinY, on the body as worn. */
+  const wornSkinY = (z: number, fallback: number): number =>
+    wornDeckY(bodyShell, bGeo, "body", z) ?? fallback;
 
   /**
    * The topmost painted surface at a point along the car — bonnet,
@@ -7002,11 +7051,90 @@ export function createCar(colors: CarColors): THREE.Group {
    * follows the car.
    */
   const topSkinY = (z: number): number => {
-    const b = deckY(bGeo, style, z) ?? -Infinity;
-    const c = deckY(cGeo, style, z, "canopy") ?? -Infinity;
-    const r = deckY(rGeo, style, z, "roof") ?? -Infinity;
+    const b = wornDeckY(bodyShell, bGeo, "body", z) ?? -Infinity;
+    const c = wornDeckY(canopyShell, cGeo, "canopy", z) ?? -Infinity;
+    const r = wornDeckY(roofShell, rGeo, "roof", z) ?? -Infinity;
     const top = Math.max(b, c, r);
     return Number.isFinite(top) ? top : d.hoodY;
+  };
+
+  // --- Carbon panels, planned: where each lies and how high. They are built
+  // further down (see "Carbon bodywork"); they are planned HERE because the
+  // stripes run over them, and a stripe has to know how high the panel it
+  // crosses stands, or it is hidden by it.
+  const carbon: CarbonLevel = colors.carbon ?? "none";
+  interface CarbonPanel {
+    zRear: number;
+    zFront: number;
+    halfW: number;
+    lift: number;
+    topAt: (z: number) => number;
+  }
+  const carbonPanels: CarbonPanel[] = [];
+  if (carbon !== "none" && !colors.simple) {
+    // The bonnet, on every car. Narrower than the body so the painted
+    // wings still show either side of it — a carbon bonnet that reached
+    // the arches would read as a black nose rather than as a panel.
+    carbonPanels.push({
+      zRear: d.wiperZ + 0.06, zFront: d.nose - 0.3, halfW: flankX * 0.66, lift: 0.006,
+      topAt: (z) => skinY(z, d.hoodY),
+    });
+    // The boot lid, where the profile has one. The run is the stripe's
+    // own, which stops short of the backlight: a panel that carried on
+    // up the rear glass is a black sheet over a window.
+    if (style === "sedan" || style === "gtr") {
+      carbonPanels.push({
+        zRear: d.tail + 0.24, zFront: d.roof[0] - 0.94, halfW: flankX * 0.62, lift: 0.006,
+        topAt: (z) => skinY(z, d.deckY),
+      });
+    }
+    if (carbon === "full") {
+      // The roof skin. Highest mass on the car and the one panel whose
+      // weight a driver can feel in a change of direction, which is why
+      // it is the step up rather than part of the base package.
+      // The roof's z span comes from the roof shell's own bounds.
+      //
+      // NOT from d.roof. That is [z, y] — the sunroof and antenna ANCHOR
+      // POINT, one z and one height — and reading it as a pair of z
+      // values asks for the roof surface at z = 1.3, which is out over
+      // the windscreen. deckY returns null there, the guard below
+      // skipped the panel, and Full Dry Carbon quietly delivered exactly
+      // the same four pieces as the cheaper package. It cost 3,200 KD
+      // and added nothing, and it took measuring the built car to find
+      // out, because nothing about it looked wrong.
+      rGeo.computeBoundingBox();
+      const roofBox = rGeo.boundingBox!;
+      const seatedRoof = (z: number): number | null => deckY(rGeo, style, z, "roof");
+      const a = roofBox.min.z + 0.18;
+      const b = roofBox.max.z - 0.18;
+      // Still guarded: a shell that cannot be measured gets no panel
+      // rather than a panel on a guessed height, which is a slab
+      // hovering over the glass.
+      if (b > a && seatedRoof(a) !== null && seatedRoof(b) !== null) {
+        carbonPanels.push({
+          zRear: a, zFront: b, halfW: flankX * 0.55, lift: 0.005,
+          topAt: (z) => seatedRoof(z) ?? seatedRoof(a)!,
+        });
+      }
+    }
+  }
+  /**
+   * The top of the highest carbon panel at a point along the car, or
+   * -Infinity where there is none. Read the way the panel is drawn: a
+   * straight line between its own vertices, not the skin under it.
+   */
+  const carbonTopY = (z: number): number => {
+    let top = -Infinity;
+    for (const p of carbonPanels) {
+      if (p.zFront <= p.zRear || z < p.zRear || z > p.zFront) continue;
+      const span = p.zFront - p.zRear;
+      const t = ((z - p.zRear) / span) * SURFACE_RIBBON_STEPS;
+      const i = Math.min(SURFACE_RIBBON_STEPS - 1, Math.floor(t));
+      const a = p.topAt(p.zRear + (span * i) / SURFACE_RIBBON_STEPS);
+      const b = p.topAt(p.zRear + (span * (i + 1)) / SURFACE_RIBBON_STEPS);
+      top = Math.max(top, a + (b - a) * (t - i) + p.lift);
+    }
+    return top;
   };
 
   // --- Twin over-the-top stripes.
@@ -7033,7 +7161,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // either side of the centreline rather than out on the panels.
     const GAP = TWIN_STRIPE_GAP;
     const WIDE = TWIN_STRIPE_W;
-    // The sunroof's glass stands 17 mm over the roof and the stripes pass
+    // The sunroof's glass stands 11 mm over the roof and the stripes pass
     // over it, as they did when they were plates 19 mm thick; laid on the
     // roof's skin they would go under the glass for 0.62 m of the run. It
     // is built wherever the crew's roof colours are not (see the roof
@@ -7045,7 +7173,8 @@ export function createCar(colors: CarColors): THREE.Group {
     const sunroofZ = d.roof[0] + (bCabBack ? 0.28 : 0.18);
     const hasSunroof = !colors.crew || colors.simple;
     const stripeTop = (z: number): number => {
-      const y = topSkinY(z);
+      // Over a carbon panel the stripe is on the panel.
+      const y = Math.max(topSkinY(z), carbonTopY(z));
       // One station past the slab's end, so the stripe has not started
       // down before the glass has.
       if (!hasSunroof || Math.abs(z - sunroofZ) > SUNROOF_LEN / 2 + 0.05) return y;
@@ -7055,17 +7184,44 @@ export function createCar(colors: CarColors): THREE.Group {
       // along it stood 0.15-0.25 m off the screen and rose from the cowl
       // like a tape. Past the roof's edge it is on the screen, under the
       // overhang, as it was when it was plates (the pane is glass).
-      if (deckY(rGeo, style, z, "roof") === null) return y;
-      // The same height the glass itself is seated at.
+      if (wornDeckY(roofShell, rGeo, "roof", z) === null) return y;
+      // The same height the glass itself is seated at: the pane is built
+      // once, on the extruded roof, and the loft does not move it.
       const roofY = deckY(rGeo, style, sunroofZ, "roof") ?? d.roof[1];
       return Math.max(y, roofY + SUNROOF_STAND);
     };
-    for (const sx of [-1, 1]) {
-      const [xA, xB] = sx > 0 ? [GAP, GAP + WIDE] : [-GAP - WIDE, -GAP];
-      group.add(new THREE.Mesh(
-        drapedRibbon(zRear, zFront, xA, xB, STRIPE_LIFT, stripeTop, 0.05),
-        stripeMat
-      ));
+    // Laid against the three shells as they are worn, and again when the
+    // authored loft replaces them. It is the cabin's refit, not the body's:
+    // models.ts swaps the body, calls refitShell, and only then swaps the
+    // glass and the roof, so the stripe over the top has all three shells
+    // to read once refitCabin runs.
+    const twinMeshes: THREE.Mesh[] = [];
+    const layTwin = () => {
+      for (const m of twinMeshes.splice(0)) {
+        group.remove(m);
+        m.geometry.dispose();
+      }
+      for (const sx of [-1, 1]) {
+        const [xA, xB] = sx > 0 ? [GAP, GAP + WIDE] : [-GAP - WIDE, -GAP];
+        const m = new THREE.Mesh(
+          drapedRibbon(zRear, zFront, xA, xB, STRIPE_LIFT, stripeTop, 0.05),
+          stripeMat
+        );
+        // As the end of createCar sets every mesh it built, for the ones
+        // made after it.
+        m.castShadow = true;
+        m.receiveShadow = true;
+        group.add(m);
+        twinMeshes.push(m);
+      }
+    };
+    layTwin();
+    {
+      const refitSeat = group.userData.refitCabin as ((g: THREE.BufferGeometry) => void) | undefined;
+      group.userData.refitCabin = (glass: THREE.BufferGeometry) => {
+        refitSeat?.(glass);
+        layTwin();
+      };
     }
   }
 
@@ -7121,24 +7277,44 @@ export function createCar(colors: CarColors): THREE.Group {
     const onBulge = style === "gtr" && !colors.simple && colors.livery !== "demon";
     const bulgeZ0 = GTR_BULGE_Z - GTR_BULGE_LEN / 2;
     const bulgeZ1 = GTR_BULGE_Z + GTR_BULGE_LEN / 2;
-    const onSkin = (z: number): number => skinY(z, d.hoodY);
+    // The skin the player sees: the body as worn, so the bar is laid
+    // again on the loft when it replaces the extrusion.
+    const onSkin = (z: number): number => Math.max(wornSkinY(z, d.hoodY), carbonTopY(z));
+    // The slab is built once, on the extrusion, and is not refitted: the bar
+    // over it stays on the slab.
     const onSlab = (): number => gtrBulgeTop();
     // The bonnet's segments, for the hood decal to clear.
     const bar: Array<[number, number, (z: number) => number]> = [];
-    for (const [zRear, zFront] of runs) {
-      // [from, to, how high the surface is]
-      const segs: Array<[number, number, (z: number) => number]> =
-        onBulge && zRear < bulgeZ0 && bulgeZ1 < zFront
-          ? [[zRear, bulgeZ0, onSkin], [bulgeZ0, bulgeZ1, onSlab], [bulgeZ1, zFront, onSkin]]
-          : [[zRear, zFront, onSkin]];
-      for (const [a, b, at] of segs) {
-        group.add(new THREE.Mesh(drapedRibbon(a, b, -0.23, 0.23, STRIPE_LIFT, at), accentMat));
-        if (zFront > 0) bar.push([a, b, at]);
+    const barMeshes: THREE.Mesh[] = [];
+    const layBar = () => {
+      for (const m of barMeshes.splice(0)) {
+        group.remove(m);
+        m.geometry.dispose();
       }
-    }
+      bar.length = 0;
+      for (const [zRear, zFront] of runs) {
+        // [from, to, how high the surface is]
+        const segs: Array<[number, number, (z: number) => number]> =
+          onBulge && zRear < bulgeZ0 && bulgeZ1 < zFront
+            ? [[zRear, bulgeZ0, onSkin], [bulgeZ0, bulgeZ1, onSlab], [bulgeZ1, zFront, onSkin]]
+            : [[zRear, zFront, onSkin]];
+        for (const [a, b, at] of segs) {
+          const m = new THREE.Mesh(drapedRibbon(a, b, -0.23, 0.23, STRIPE_LIFT, at), accentMat);
+          // As the end of createCar sets every mesh it built, for the ones
+          // made after it.
+          m.castShadow = true;
+          m.receiveShadow = true;
+          group.add(m);
+          barMeshes.push(m);
+          if (zFront > 0) bar.push([a, b, at]);
+        }
+      }
+    };
+    layBar();
     // The hood decal has to clear whichever piece it lands on, or the
     // stripe covers the falcon's middle: the stripe's top, at a point
-    // along the bonnet, and nothing where there is no stripe.
+    // along the bonnet, and nothing where there is no stripe. It reads the
+    // pieces as they are laid, so it follows them to the loft.
     if (bar.length) {
       hoodStripeTop = (z: number): number => {
         let top = -Infinity;
@@ -7148,52 +7324,45 @@ export function createCar(colors: CarColors): THREE.Group {
         return top;
       };
     }
+    // The loft arrives with the body, so the bar is the body's refit: laid
+    // again from the authored skin, and the falcon, which was laid over
+    // the bar as it stood on the extrusion, lifted if the bar now needs it.
+    {
+      const refitBefore = group.userData.refitShell as ((g: THREE.BufferGeometry) => void) | undefined;
+      group.userData.refitShell = (geo: THREE.BufferGeometry) => {
+        refitBefore?.(geo);
+        layBar();
+        clearHoodBar?.();
+      };
+    }
   }
 
   // --- Carbon bodywork.
   //
   // Panels laid over the shell rather than the shell re-materialised.
   // The body is one extruded skin from nose to tail — there is no bonnet
-  // object to swap — so carbon is a set of thin plates that follow the
-  // top surface, pitched piece by piece, the same technique the racing
-  // stripes use for exactly the same reason.
+  // object to swap — so carbon is a set of thin ribbons that follow the
+  // top surface. What each one covers, and how high it stands, is planned
+  // above (carbonPanels), where the stripes can read it.
   //
   // Only the panels a car actually has in carbon get one. A fastback has
   // no boot lid, so it gets no boot panel; putting one across its rear
   // glass would be a black rectangle stuck on a window, which is the
   // mistake the stripe code already learned not to make.
-  const carbon: CarbonLevel = colors.carbon ?? "none";
   if (carbon !== "none" && !colors.simple) {
     const cMat = carbonPanelMat();
-    /**
-     * Lay a panel along z, following whatever the top surface does.
-     *
-     * `topAt` is passed in rather than assumed, because "the top
-     * surface" is two different shells: under the bonnet and the boot it
-     * is the body, and over the greenhouse it is the roof. Sampling the
-     * body shell at a roof z returns the floor of the cabin, and a roof
-     * panel seated on that would be inside the car.
-     */
-    const panel = (
-      zRear: number, zFront: number, halfW: number, lift: number,
-      topAt: (z: number) => number
-    ): void => {
-      if (zFront <= zRear) return;
-      const m = new THREE.Mesh(surfaceRibbon(zRear, zFront, halfW, lift, topAt), cMat);
+    // Each panel is laid along z, following whatever the top surface does.
+    //
+    // `topAt` is carried by the panel rather than assumed, because "the top
+    // surface" is two different shells: under the bonnet and the boot it
+    // is the body, and over the greenhouse it is the roof. Sampling the
+    // body shell at a roof z returns the floor of the cabin, and a roof
+    // panel seated on that would be inside the car.
+    for (const p of carbonPanels) {
+      if (p.zFront <= p.zRear) continue;
+      const m = new THREE.Mesh(surfaceRibbon(p.zRear, p.zFront, p.halfW, p.lift, p.topAt), cMat);
       m.userData.trim = "carbon";
       group.add(m);
-    };
-    const bodyTop = (z: number): number => skinY(z, d.hoodY);
-    // The bonnet, on every car. Narrower than the body so the painted
-    // wings still show either side of it — a carbon bonnet that reached
-    // the arches would read as a black nose rather than as a panel.
-    panel(d.wiperZ + 0.06, d.nose - 0.3, flankX * 0.66, 0.006, bodyTop);
-    // The boot lid, where the profile has one. The run is the stripe's
-    // own, which stops short of the backlight: a panel that carried on
-    // up the rear glass is a black sheet over a window.
-    if (style === "sedan" || style === "gtr") {
-      panel(d.tail + 0.24, d.roof[0] - 0.94, flankX * 0.62, 0.006,
-        (z) => skinY(z, d.deckY));
     }
     // Mirror caps: the cheapest carbon anybody buys and the first thing
     // they buy, so it is in the base package.
@@ -7202,32 +7371,6 @@ export function createCar(colors: CarColors): THREE.Group {
       cap.position.set(sxSign * (flankX + d.mirror[0]), d.mirror[1] + 0.03, d.mirror[2]);
       cap.userData.trim = "carbon";
       group.add(cap);
-    }
-    if (carbon === "full") {
-      // The roof skin. Highest mass on the car and the one panel whose
-      // weight a driver can feel in a change of direction, which is why
-      // it is the step up rather than part of the base package.
-      // The roof's z span comes from the roof shell's own bounds.
-      //
-      // NOT from d.roof. That is [z, y] — the sunroof and antenna ANCHOR
-      // POINT, one z and one height — and reading it as a pair of z
-      // values asks for the roof surface at z = 1.3, which is out over
-      // the windscreen. deckY returns null there, the guard below
-      // skipped the panel, and Full Dry Carbon quietly delivered exactly
-      // the same four pieces as the cheaper package. It cost 3,200 KD
-      // and added nothing, and it took measuring the built car to find
-      // out, because nothing about it looked wrong.
-      rGeo.computeBoundingBox();
-      const roofBox = rGeo.boundingBox!;
-      const seatedRoof = (z: number): number | null => deckY(rGeo, style, z, "roof");
-      const a = roofBox.min.z + 0.18;
-      const b = roofBox.max.z - 0.18;
-      // Still guarded: a shell that cannot be measured gets no panel
-      // rather than a panel on a guessed height, which is a slab
-      // hovering over the glass.
-      if (b > a && seatedRoof(a) !== null && seatedRoof(b) !== null) {
-        panel(a, b, flankX * 0.55, 0.005, (z) => seatedRoof(z) ?? seatedRoof(a)!);
-      }
     }
   }
 
@@ -7968,14 +8111,20 @@ export function createCar(colors: CarColors): THREE.Group {
   }
   };
   buildTail(bGeo, "");
-  group.userData.refitShell = (geo: THREE.BufferGeometry) => {
-    for (const o of [...tailGroup.children]) {
-      tailGroup.remove(o);
-      (o as THREE.Mesh).geometry?.dispose();
-    }
-    tailGlowMats.length = 0;
-    buildTail(geo, ":authored");
-  };
+  {
+    // Chained onto whatever was registered before it (the stripes lie on
+    // the body, and are built before the lamps are).
+    const refitBefore = group.userData.refitShell as ((g: THREE.BufferGeometry) => void) | undefined;
+    group.userData.refitShell = (geo: THREE.BufferGeometry) => {
+      refitBefore?.(geo);
+      for (const o of [...tailGroup.children]) {
+        tailGroup.remove(o);
+        (o as THREE.Mesh).geometry?.dispose();
+      }
+      tailGlowMats.length = 0;
+      buildTail(geo, ":authored");
+    };
+  }
 
   // High-mount third brake light: on the fastbacks (zx, rx7) on the
   // bodywork itself, which arches 100-160 mm above the profile line it
@@ -10383,6 +10532,12 @@ export function createCar(colors: CarColors): THREE.Group {
       hood.position.set(0, Math.max((yBack + yFront) / 2 + 0.022, barLift()), hoodDecalZ);
       hood.userData.decal = "hood-falcon";
       group.add(hood);
+      // The bar is laid again on the authored loft, and may stand higher
+      // there than it did where this was measured. Raise-only: the plane's
+      // own fit to the bonnet is not redone, only its clearance of the bar.
+      clearHoodBar = () => {
+        hood.position.y = Math.max(hood.position.y, barLift());
+      };
     }
   }
 

@@ -29,6 +29,15 @@
 //                         centimetres above: an engine growing out
 //                         through a shut bonnet, invisible in every
 //                         render of a dark car.
+//   DOES IT FACE UP       The bonnet, boot and roof panels are ribbons
+//                         with their vertices on the surface, and they
+//                         were wound the wrong way: every triangle faced
+//                         DOWN, and the panel material is front-face, so
+//                         from above it drew nothing. The Carbon Package
+//                         showed its mirror caps and no panel at all, and
+//                         every count above was satisfied by meshes that
+//                         were in the scene and not on the screen.
+//                         So the panels' normals are measured.
 
 import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
@@ -95,13 +104,34 @@ const measure = (carId, equip) => page.evaluate(async ([carId, equip]) => {
   await new Promise((r) => setTimeout(r, 250));
   const car = e.carBody;
   car.updateMatrixWorld(true);
-  const out = { carbon: [], cover: [], vent: [], paintTopAt: {} };
+  const out = { carbon: [], cover: [], vent: [], paintTopAt: {}, panels: [] };
+  const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), n = new THREE.Vector3();
   const paintBoxes = [];
   car.traverse((o) => {
     if (!o.isMesh) return;
     const box = new THREE.Box3().setFromObject(o);
     const rec = { x: [box.min.x, box.max.x], y: [box.min.y, box.max.y], z: [box.min.z, box.max.z] };
-    if (o.userData.trim === "carbon") out.carbon.push(rec);
+    if (o.userData.trim === "carbon") {
+      out.carbon.push(rec);
+      // The panels, not the mirror caps (0.17 m across): which way their
+      // triangles face in the world, weighted by area, and how many face up.
+      const pa = o.geometry.getAttribute("position");
+      const ix = o.geometry.index;
+      if (box.max.x - box.min.x > 0.5 && pa && ix) {
+        let ny = 0, area = 0, up = 0;
+        const tris = ix.count / 3;
+        for (let t = 0; t < tris; t++) {
+          A.fromBufferAttribute(pa, ix.getX(t * 3)).applyMatrix4(o.matrixWorld);
+          B.fromBufferAttribute(pa, ix.getX(t * 3 + 1)).applyMatrix4(o.matrixWorld);
+          C.fromBufferAttribute(pa, ix.getX(t * 3 + 2)).applyMatrix4(o.matrixWorld);
+          n.subVectors(B, A).cross(C.sub(A));
+          const a = n.length();
+          ny += n.y; area += a;
+          if (n.y > 0) up++;
+        }
+        out.panels.push({ z: [box.min.z, box.max.z], meanNormalY: area ? ny / area : 0, upShare: tris ? up / tris : 0, tris });
+      }
+    }
     else if (o.userData.trim === "engine-cover") out.cover.push(rec);
     else if (o.userData.trim === "hood-vent") out.vent.push(rec);
     else if (o.material?.name === "paint") paintBoxes.push(box);
@@ -149,6 +179,24 @@ for (const carId of CARS) {
     `${carId}: Full Dry Carbon builds ${full.carbon.length} pieces and the cheaper package builds ` +
     `${panels.carbon.length} — the upgrade adds nothing and costs 1,400 KD more`
   );
+
+  // ...and what is built can be seen from above. Every panel's triangles
+  // face up (+Y on average, and nearly every one of them): a panel that
+  // faces down is culled by its own front-face material and the package
+  // draws nothing but its mirror caps.
+  const bodyPanels = full.panels.length;
+  console.log(
+    `               ${bodyPanels} panels, ` +
+    full.panels.map((p) => `z ${p.z[0].toFixed(2)}..${p.z[1].toFixed(2)} faces ${p.meanNormalY > 0 ? "up" : "DOWN"} (${p.meanNormalY.toFixed(2)})`).join(", ")
+  );
+  check(bodyPanels >= 2, `${carId}: full dry carbon built ${bodyPanels} bonnet/boot/roof panels, expected at least the bonnet and the roof`);
+  for (const p of full.panels) {
+    check(
+      p.meanNormalY > 0.5 && p.upShare > 0.9,
+      `${carId}: the carbon panel at z ${p.z[0].toFixed(2)}..${p.z[1].toFixed(2)} faces DOWN (mean normal.y ${p.meanNormalY.toFixed(2)}, ` +
+      `${(p.upShare * 100).toFixed(0)}% of its triangles up): its front-face material culls it from above and it draws nothing`
+    );
+  }
 
   // Nothing lives outside the car.
   check(full.cover.length === 2, `${carId}: ${full.cover.length} engine covers, expected 2`);
