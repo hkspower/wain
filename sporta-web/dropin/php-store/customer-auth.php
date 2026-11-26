@@ -350,11 +350,19 @@ function customer_sign_in(array $user): void {
         'customer_seen_at' => time(), 'customer_fingerprint' => hash('sha256', $user['password_hash'])];
 }
 
+/** True only when the session PHP has open is the CUSTOMER session. customer_session_start() returns early when any
+ *  session is already active (an admin session on the same request would be the one), and store_session_end() ends
+ *  whichever session is active, so the customer code must never end a session it did not open. */
+function customer_session_is_ours(): bool {
+    $name = store_is_https() ? '__Host-sporta_customer' : 'sporta_customer';
+    return session_status() === PHP_SESSION_ACTIVE && session_name() === $name;
+}
+
 function customer_clear_session_if_present(): bool {
     $cookie = store_is_https() ? '__Host-sporta_customer' : 'sporta_customer';
     if (session_status() !== PHP_SESSION_ACTIVE && !isset($_COOKIE[$cookie])) return false;
     customer_session_start();
-    store_session_end();
+    if (customer_session_is_ours()) store_session_end();
     return true;
 }
 
@@ -369,14 +377,14 @@ function customer_current_user(PDO $db): ?array {
         // so such a file is ended here (file deleted, cookie expired) instead of
         // being left for a week: 120 requests a minute from one address would
         // otherwise be ~170,000 inodes a day in the directory.
-        store_session_end();
+        if (customer_session_is_ours()) store_session_end();
         return null;
     }
     $query = $db->prepare('select id, name, email, phone, password_hash from customer_accounts where id = ?');
     $query->execute([(int)$_SESSION['customer_id']]);
     $user = $query->fetch(PDO::FETCH_ASSOC);
     if (!customer_session_valid($_SESSION, $user ?: null, time())) {
-        store_session_end();
+        if (customer_session_is_ours()) store_session_end();
         return null;
     }
     $_SESSION['customer_seen_at'] = time();

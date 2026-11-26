@@ -416,7 +416,7 @@ $activityActions = [
     'google_unlink', 'mfa_cancel', 'mfa_start', 'mfa_confirm', 'crm_save', 'crm_create', 'crm_note',
     'support_update', 'support_reply', 'return_status', 'clear_cache',
     'payment_config', 'fulfilment', 'cod_paid', 'card_settled',
-    'product_image_upload', 'product_save', 'product_active', 'brand_save',
+    'product_image_upload', 'product_save', 'product_active', 'product_delete', 'brand_save',
     // brand_delete was missing, so removing a brand for good — the one brand
     // write that cannot be undone — was the one that left no trace.
     'brand_active', 'brand_delete', 'brand_assign', 'product_fabric_save', 'customer', 'sync', 'inventory_adjust',
@@ -429,6 +429,8 @@ $activityActions = [
     // writes their row itself, and listing them too wrote every change twice (AUTH-06).
     'content_save', 'returns_policy_save', 'assistant_settings_save', 'shipping_save',
     'site_icon_save', 'site_icon_reset', 'catalogue_settings_save',
+    // A photograph renamed or removed from the shop's folder is an administrator change.
+    'photo_rename', 'photo_delete',
 ];
 if ($method === 'POST' && in_array($r, $activityActions, true)) {
     register_shutdown_function(static function () use ($db, $admin, $r): void {
@@ -1754,6 +1756,35 @@ if ($r === 'product_image_upload' && $method === 'POST') {
     ]);
 }
 
+// THE PHOTO LIBRARY (photo-library.php): the photographs on disk, read; renamed with every product that
+// shows them repointed; removed only when no product shows them. Uploads stay in product_image_upload.
+if ($r === 'photo_list' && $method === 'GET') {
+    require_once __DIR__ . '/photo-library.php';
+    store_out(['photos' => photo_list($db, dirname(__DIR__) . '/images/products')]);
+}
+if (($r === 'photo_rename' || $r === 'photo_delete') && $method === 'POST') {
+    require_once __DIR__ . '/photo-library.php';
+    $b = store_body();
+    $dir = dirname(__DIR__) . '/images/products';
+    try {
+        if ($r === 'photo_rename') {
+            store_out(photo_rename($db, $dir, $b['from'] ?? null, $b['to'] ?? null));
+        }
+        photo_delete($db, $dir, $b['name'] ?? null);
+        store_out(['deleted' => true, 'name' => (string)($b['name'] ?? '')]);
+    } catch (PhotoInUse $e) {
+        store_out(['error' => 'photo_in_use', 'products' => $e->slugs], 409);
+    } catch (RuntimeException $e) {
+        $code = $e->getMessage();
+        store_fail($code, match ($code) {
+            'photo_not_found' => 404,
+            'photo_name_taken' => 409,
+            'photo_rename_failed', 'photo_delete_failed' => 500,
+            default => 400,
+        });
+    }
+}
+
 if ($r === 'product_save' && $method === 'POST') {
     $b = store_body();
     $rawId = $b['id'] ?? 0;
@@ -1934,6 +1965,57 @@ if ($r === 'product_active' && $method === 'POST') {
     $row = $q->fetch();
     if (!$row) store_fail('product_not_found');
     store_out($row);
+}
+
+// Remove a product for good, and only when nothing depends on it. The database
+// already refuses the dangerous cases (order_items.product_id and the stock
+// movements' sku are RESTRICT foreign keys). These checks run first so the admin
+// is told WHICH rule applies, and the row lock on the sizes stops a stock change
+// made meanwhile from being deleted unseen. A refusal is 409 and the screen offers
+// "turn it off" (product_active), which hides the product and keeps its history.
+// The sizes go in the same transaction. Photos are files and stay where they are.
+if ($r === 'product_delete' && $method === 'POST') {
+    $b = store_body();
+    $rawId = $b['id'] ?? 0;
+    if (!is_int($rawId) && !(is_string($rawId) && preg_match('/^[0-9]{1,10}$/D', $rawId))) {
+        store_fail('invalid_product_id');
+    }
+    $id = (int)$rawId;
+    if ($id < 1 || $id > 4294967295) store_fail('invalid_product_id');
+    $refuse = static function (PDO $db, string $token): never {
+        if ($db->inTransaction()) $db->rollBack();
+        store_fail($token, 409);
+    };
+    try {
+        $db->beginTransaction();
+        $q = $db->prepare('select id, slug from products where id = ? for update');
+        $q->execute([$id]);
+        $row = $q->fetch();
+        if (!$row) {
+            $db->rollBack();
+            store_fail('product_not_found', 404);
+        }
+        $slug = (string)$row['slug'];
+        $sz = $db->prepare('select count(*) as n, coalesce(sum(stock), 0) as units from product_variants where slug = ? for update');
+        $sz->execute([$slug]);
+        $sizes = $sz->fetch();
+        if ((int)$sizes['units'] > 0) $refuse($db, 'product_has_stock');
+        $ord = $db->prepare('select count(*) from order_items where product_id = ?');
+        $ord->execute([$id]);
+        if ((int)$ord->fetchColumn() > 0) $refuse($db, 'product_in_orders');
+        $hist = $db->prepare('select count(*) from inventory_movements m
+                                join product_variants v on v.sku = m.sku where v.slug = ?');
+        $hist->execute([$slug]);
+        if ((int)$hist->fetchColumn() > 0) $refuse($db, 'product_has_stock_history');
+        $db->prepare('delete from product_variants where slug = ?')->execute([$slug]);
+        $db->prepare('delete from products where id = ?')->execute([$id]);
+        $db->commit();
+    } catch (PDOException $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        if ((string)$e->getCode() === '23000') store_fail('product_in_use', 409);
+        throw $e;
+    }
+    store_out(['id' => $id, 'slug' => $slug, 'deleted' => true, 'sizes_removed' => (int)$sizes['n']]);
 }
 
 // ------------------------------------------------------------------ brands
@@ -2794,7 +2876,16 @@ if ($r === 'variants_create') {
         if (!in_array($sz, STORE_SIZES, true)) store_fail('invalid_size');
         if (isset($wanted[$sz])) store_fail('duplicate_size');
         $wanted[$sz] = $inventoryInteger($one['stock'] ?? null, 'stock', 0, 999999);
+        // SKU-INPUT-1122: the admin may type this size's item code. Empty / absent = generated below (the old behaviour).
+        // A typed code is kept exactly as typed (trimmed, upper-cased), and must be the same shape a code is everywhere else
+        // (the inventory editor's inventorySku(): letters, digits, dot, dash, underscore; 30 at most) and free.
+        $typed = $one['sku'] ?? '';
+        if ($typed !== null && $typed !== '' && !is_string($typed)) store_fail('invalid_sku');
+        $typed = is_string($typed) ? strtoupper(trim($typed)) : '';
+        if ($typed !== '' && !preg_match('/^[A-Z0-9][A-Z0-9._-]{0,29}$/D', $typed)) store_fail('invalid_sku');
+        $typedSku[$sz] = $typed;
     }
+    $typedSku = $typedSku ?? [];
     $db->beginTransaction();
     try {
         $p = $db->prepare('select slug from products where slug = ? for update');
@@ -2818,7 +2909,16 @@ if ($r === 'variants_create') {
             }
             $stem = strtoupper(trim((string)preg_replace('/[^A-Za-z0-9]+/', '-', $realSlug), '-'));
             $sku = '';
-            for ($n = 1; $n <= 99; $n++) {
+            if (($typedSku[$sz] ?? '') !== '') {
+                // SKU-INPUT-1122: the code the admin typed is used as it is, or the whole request is refused (sku_taken).
+                $skuTaken->execute([$typedSku[$sz]]);
+                if ($skuTaken->fetchColumn()) {
+                    $db->rollBack();
+                    store_fail('sku_taken', 409);
+                }
+                $sku = $typedSku[$sz];
+            }
+            for ($n = 1; $sku === '' && $n <= 99; $n++) {
                 $suffix = $n === 1 ? '' : '-' . $n;
                 $room = 30 - 1 - strlen((string)$sz) - strlen($suffix);
                 $try = rtrim(substr($stem, 0, $room), '-') . $suffix . '-' . $sz;
