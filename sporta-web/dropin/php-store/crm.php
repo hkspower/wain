@@ -12,24 +12,6 @@ function crm_parse_key(string $key): ?array {
     if (preg_match('/^phone:(965[569][0-9]{7})$/D', $key, $m)) {
         return ['source' => 'phone', 'phone' => $m[1], 'key' => $key];
     }
-    if (preg_match('/^email:([^@\s]{1,64}@[^@\s]{1,190})$/D', $key, $m)) {
-        return ['source' => 'email', 'email' => $m[1], 'key' => $key];
-    }
-    return null;
-}
-
-/**
- * The contact a guest order belongs to: its valid phone; when it has none (an old order imported from OpenCart, or one typed without a
- * number), its e-mail address, lower-cased. Null when it has neither, so the order stays in Orders only.
- * @return array{key: string, source: string, phone: string, email: string}|null
- */
-function crm_guest_key(mixed $rawPhone, mixed $rawEmail): ?array {
-    $phone = store_phone((string)($rawPhone ?? ''));
-    if ($phone !== null) return ['key' => 'phone:' . $phone, 'source' => 'phone', 'phone' => $phone, 'email' => ''];
-    $email = strtolower(trim((string)($rawEmail ?? '')));
-    if ($email !== '' && strlen($email) <= 190 && filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {
-        return ['key' => 'email:' . $email, 'source' => 'email', 'phone' => '', 'email' => $email];
-    }
     return null;
 }
 
@@ -94,12 +76,12 @@ function crm_all_contacts(PDO $db): array {
             (string)($row['phone'] ?? ''), (string)$row['email']);
     }
 
-    $orders = $db->query("select g.customer_account_id, g.customer_phone, g.customer_email, g.order_count,
+    $orders = $db->query("select g.customer_account_id, g.customer_phone, g.order_count,
                                 g.order_total, g.paid_total, g.open_cod_count,
                                 g.open_cod_total, o.customer_name,
                                 o.customer_area, o.track_id, o.created_at, o.id as latest_order_id
                            from (
-                             select customer_account_id, customer_phone, customer_email,
+                             select customer_account_id, customer_phone,
                                     count(*) as order_count,
                                     sum(amount) as order_total,
                                     sum(case when payment_status = 'paid' then amount else 0 end) as paid_total,
@@ -108,14 +90,13 @@ function crm_all_contacts(PDO $db): array {
                                     sum(case when payment_method = 'cod' and payment_status = 'pending'
                                                    and fulfilment_status <> 'cancelled' then amount else 0 end) as open_cod_total,
                                     max(created_at) as latest_at
-                               from orders group by customer_account_id, customer_phone, customer_email
+                               from orders group by customer_account_id, customer_phone
                            ) g join orders o on o.id = (
                              select max(o2.id) from orders o2
                               where (o2.customer_account_id = g.customer_account_id
                                      or (o2.customer_account_id is null and g.customer_account_id is null))
                                 and (o2.customer_phone = g.customer_phone
                                      or (o2.customer_phone is null and g.customer_phone is null))
-                                and (o2.customer_email <=> g.customer_email)
                                 and o2.created_at = g.latest_at
                            )");
     while ($row = $orders->fetch(PDO::FETCH_ASSOC)) {
@@ -128,12 +109,11 @@ function crm_all_contacts(PDO $db): array {
                 $contacts[$key] = crm_empty_contact($key, 'account', (string)($row['customer_name'] ?? ''));
             }
         } else {
-            // A valid phone is the contact; an order with no usable phone is keyed by its e-mail. With neither it stays in Orders only.
-            $guest = crm_guest_key($row['customer_phone'] ?? null, $row['customer_email'] ?? null);
-            if ($guest === null) continue;
-            $key = $guest['key'];
+            $phone = store_phone((string)($row['customer_phone'] ?? ''));
+            if ($phone === null) continue; // Orders remains the source for malformed legacy phones.
+            $key = 'phone:' . $phone;
             if (!isset($contacts[$key])) {
-                $contacts[$key] = crm_empty_contact($key, $guest['source'], (string)($row['customer_name'] ?? ''), $guest['phone'], $guest['email']);
+                $contacts[$key] = crm_empty_contact($key, 'phone', (string)($row['customer_name'] ?? ''), $phone);
             }
         }
         $contact = &$contacts[$key];
@@ -163,7 +143,7 @@ function crm_all_contacts(PDO $db): array {
         $parsed = crm_parse_key($key);
         if ($parsed === null) continue;
         if (!isset($contacts[$key])) {
-            if ($parsed['source'] !== 'phone') continue; // An account was deleted; an e-mail contact exists only through its orders.
+            if ($parsed['source'] === 'account') continue; // An account was deleted.
             $contacts[$key] = crm_empty_contact($key, 'phone', '', $parsed['phone']);
         }
         $c = &$contacts[$key];
@@ -221,7 +201,7 @@ function crm_interest_category_ar(string $key): string { return CRM_INTEREST_AR[
 function crm_interests_map(PDO $db): array {
     $names = [];
     foreach ($db->query('select slug, name_en, name_ar from brands') as $b) $names[(string)$b['slug']] = ['en' => (string)$b['name_en'], 'ar' => (string)$b['name_ar']];
-    $rows = $db->query("select o.customer_account_id, o.customer_phone, o.customer_email, p.category, p.brand_slug, i.size,
+    $rows = $db->query("select o.customer_account_id, o.customer_phone, p.category, p.brand_slug, i.size,
                                sum(i.qty) as qty, sum(i.qty * i.unit_price) as spend,
                                min(i.unit_price) as price_min, max(i.unit_price) as price_max,
                                min(o.created_at) as first_at, max(o.created_at) as last_at
@@ -229,15 +209,15 @@ function crm_interests_map(PDO $db): array {
                           join order_items i on i.order_id = o.id
                           join products p on p.id = i.product_id
                          where o.fulfilment_status <> 'cancelled' and o.payment_status not in ('failed', 'voided')
-                         group by o.customer_account_id, o.customer_phone, o.customer_email, p.category, p.brand_slug, i.size");
+                         group by o.customer_account_id, o.customer_phone, p.category, p.brand_slug, i.size");
     $acc = [];
     while ($r = $rows->fetch(PDO::FETCH_ASSOC)) {
         $accountId = (int)($r['customer_account_id'] ?? 0);
         if ($accountId > 0) $key = 'account:' . $accountId;
         else {
-            $guest = crm_guest_key($r['customer_phone'] ?? null, $r['customer_email'] ?? null);
-            if ($guest === null) continue;
-            $key = $guest['key'];
+            $phone = store_phone((string)($r['customer_phone'] ?? ''));
+            if ($phone === null) continue;
+            $key = 'phone:' . $phone;
         }
         $a = &$acc[$key];
         $a ??= ['cat' => [], 'brand' => [], 'size' => [], 'items' => 0, 'spend' => 0, 'pmin' => null, 'pmax' => null, 'first' => null, 'last' => null];
@@ -411,15 +391,13 @@ function crm_detail(PDO $db, string $key, int $ordersPage, int $notesPage): ?arr
         // from the detail. Stream rows and stop after this bounded page.
         $orders = $db->query('select id, track_id, created_at, amount, payment_method,
                                     payment_status, fulfilment_status, customer_name,
-                                    customer_phone, customer_email, customer_area, customer_governorate
+                                    customer_phone, customer_area, customer_governorate
                                from orders where customer_account_id is null or customer_account_id = 0
                               order by created_at desc, id desc');
         $orderRows = [];
         $seen = 0;
         while ($row = $orders->fetch(PDO::FETCH_ASSOC)) {
-            // The same contact rule as crm_all_contacts: this order's phone, or its e-mail when it has no usable phone.
-            $guest = crm_guest_key($row['customer_phone'] ?? null, $row['customer_email'] ?? null);
-            if ($guest === null || $guest['key'] !== $key) continue;
+            if (store_phone((string)($row['customer_phone'] ?? '')) !== $parsed['phone']) continue;
             if ($seen++ < $ordersOffset) continue;
             $orderRows[] = $row;
             if (count($orderRows) === 21) break;
@@ -494,11 +472,6 @@ function crm_key_exists(PDO $db, string $key): bool {
         if ($q->fetchColumn()) return true;
         $q = $db->prepare('select 1 from orders where customer_account_id = ? limit 1');
         $q->execute([$parsed['id']]);
-        return (bool)$q->fetchColumn();
-    }
-    if ($parsed['source'] === 'email') {
-        $q = $db->prepare('select 1 from orders where lower(trim(customer_email)) = ? limit 1');
-        $q->execute([$parsed['email']]);
         return (bool)$q->fetchColumn();
     }
     return true; // A new manual phone contact is permitted.
