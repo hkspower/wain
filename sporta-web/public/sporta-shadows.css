@@ -1932,6 +1932,46 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
 }
 /* ==== end ADD OUTSIDE PHOTO 1124 */
 
+/* ==== ADD FULL WIDTH 1125 (owner, 2026-11-26: "make add to cart button at products grids full widths with prices inside and
+ *      remove wishlist icon from image") ==========================================================================
+ * [full-1] the wishlist heart is not drawn on a grid card's photo (the product page keeps its own). The heart stays in the
+ *          page, hidden, so nothing that reads it breaks.
+ * [full-2] the add button under the name is the full width of the card, 44 px or more tall, with the label on the start
+ *          side and the price on the end side, both on one line; it wraps only when the words are too long for the card.
+ * [full-3] a sold-out card keeps no button (the copy follows the shop's own button, which is hidden then). */
+:root .storefront-root .product-grid-card .catalog-card-save {
+  display: none !important;
+}
+:root .storefront-root .product-grid-card .sporta-add-out {
+  display: block;
+  padding-top: .5rem;
+}
+:root .storefront-root .product-grid-card .sporta-add-out__btn:not(.hidden) {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.75rem;
+  height: auto;
+  padding: .5rem .75rem;
+  border-radius: .75rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  font-size: .875rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: start;
+}
+:root .storefront-root .product-grid-card .sporta-add-out__label {
+  min-width: 0;
+}
+:root .storefront-root .product-grid-card .sporta-add-out__price {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* ==== end ADD FULL WIDTH 1125 */
+
 /* ==== CATEGORY FULL WIDTH 1124 (owner: "make full width catogory") ==========================================
  * The home page's category tiles sat inside the page's 1323 px reading column, so on a wide screen they stopped short of
  * the edges. The section that holds them takes the full width; its side padding stays as it was. */

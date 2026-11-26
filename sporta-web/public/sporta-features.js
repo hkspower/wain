@@ -3066,6 +3066,19 @@
     window.__sportaAddOut = 1
     var CARD = '.storefront-root .product-grid-card', ORIG = '.catalog-card-image > .catalog-card-add', MOVED = 'data-sporta-add-moved', ROW = 'sporta-add-out'
     var timer = 0
+    // The price the card shows now: the .price-card text without any struck-through (old) price. '' when there is none.
+    var priceOf = function (card) {
+      var pc = card.querySelector('.catalog-card-info .price-card')
+      if (!pc) return ''
+      var out = []
+      for (var k = 0; k < pc.childNodes.length; k++) {
+        var n = pc.childNodes[k]
+        if (n.nodeType === 3) { out.push(n.textContent); continue }
+        if (n.nodeType === 1 && !/line-through/.test(n.className || '')) out.push(n.textContent)
+      }
+      if (!out.length) out.push(pc.textContent)
+      return out.join(' ').replace(/\s+/g, ' ').trim()
+    }
     var sig = function (b) { return [b.className, b.getAttribute('aria-label') || '', b.disabled ? '1' : '0', b.innerHTML.length, b.innerHTML.slice(0, 60)].join('|') }
     var run = function () {
       timer = 0
@@ -3079,10 +3092,16 @@
         orig.setAttribute(MOVED, '1')
         if (!row) { row = document.createElement('div'); row.className = ROW; info.appendChild(row) }
         var copy = row.firstChild
-        if (copy && copy.getAttribute('data-sporta-add-sig') === sig(orig)) continue
+        var price = priceOf(card)
+        if (copy && copy.getAttribute('data-sporta-add-sig') === sig(orig) + '|' + price) continue
         var fresh = orig.cloneNode(true)
-        fresh.removeAttribute(MOVED); fresh.removeAttribute('id'); fresh.setAttribute('data-sporta-add-sig', sig(orig))
+        fresh.removeAttribute(MOVED); fresh.removeAttribute('id'); fresh.setAttribute('data-sporta-add-sig', sig(orig) + '|' + price)
         fresh.className = fresh.className.replace(/(^|\s)(absolute|bottom-2|end-2)(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim() + ' sporta-add-out__btn'
+        // A full-width button: the label, then the price inside it (the same words and the same figure the card shows).
+        var lab = document.createElement('span'); lab.className = 'sporta-add-out__label'; lab.textContent = (document.documentElement.getAttribute('lang') === 'ar') ? 'أضف إلى الحقيبة' : 'Add to bag'
+        fresh.textContent = ''
+        fresh.appendChild(lab)
+        if (price) { var pr = document.createElement('span'); pr.className = 'sporta-add-out__price'; pr.textContent = price; fresh.appendChild(pr) }
         fresh.setAttribute('tabindex', '0')
         // Look the card up at tap time: React can replace the card node on a re-render, and the one captured here would be stale.
         fresh.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); var art = e.currentTarget.closest(CARD), o = art && art.querySelector(ORIG); if (o && !o.disabled) o.click() })
@@ -3092,7 +3111,7 @@
     var later = function () { if (!timer) timer = requestAnimationFrame(run) }
     var start = function () {
       run()
-      if (window.MutationObserver) new MutationObserver(later).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'disabled', 'aria-label'] })
+      if (window.MutationObserver) new MutationObserver(later).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'disabled', 'aria-label'] })
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
   } catch (e) {}
