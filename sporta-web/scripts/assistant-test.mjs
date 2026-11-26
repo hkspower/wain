@@ -3135,11 +3135,12 @@ await unthrottle()
 head('scan 2026-11-18 F3: a card number is masked whatever sits between its digits, and in full')
 {
   const LRM = '‎'
-  const MASKED = [`4111${LRM} 1111${LRM} 1111${LRM} 1111`, '4111,1111,1111,1111', '4111a1111b1111c1111', '4111 1111 1111 1111 1111', '4111 1111 1111 1111 1111 1111',
+  const MASKED = ['SP order, card 4111 1111 1111 1111', `4111${LRM} 1111${LRM} 1111${LRM} 1111`, '4111,1111,1111,1111', '4111a1111b1111c1111', '4111 1111 1111 1111 1111', '4111 1111 1111 1111 1111 1111',
                   '٤١١١،١١١١،١١١١،١١١١', '4111-1111-1111-1111 charged twice', '4111​1111​1111​1111', '4111 1111 1111 1111 1111 1111 1111']
   const R = await php(`require ${JSON.stringify(AP)}; echo json_encode(array_map('assistant_redact', json_decode($argv[1], true)), JSON_UNESCAPED_UNICODE);`, MASKED)
   MASKED.forEach((m, i) => is(!/1111|١١١١/.test(R[i]) && /card number removed/.test(R[i]), `masked in full: ${JSON.stringify(m)}`, R[i]))
-  const KEEP = ['order SP1AU702NKHTKDV phone 99998888', 'my order total is 14.500 and the delivery 1.000', 'WhatsApp me 22091914', 'I paid 14 KD on 12/11/2026 for 3 of size 42']
+  // review 2026-11-26 finding 2: an all-digit order number written right before the phone on it is not a card
+  const KEEP = ['SP26112600011 55512345', 'sp26112600011 99998888', 'order SP1AU702NKHTKDV phone 99998888', 'my order total is 14.500 and the delivery 1.000', 'WhatsApp me 22091914', 'I paid 14 KD on 12/11/2026 for 3 of size 42']
   const K = await php(`require ${JSON.stringify(AP)}; echo json_encode(array_map('assistant_redact', json_decode($argv[1], true)), JSON_UNESCAPED_UNICODE);`, KEEP)
   KEEP.forEach((k, i) => is(K[i] === k, `still left alone: ${k}`, K[i]))
   const long = '9'.repeat(40) + ' x'.repeat(3000)

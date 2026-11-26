@@ -4877,9 +4877,11 @@ function assistant_effective_config(?PDO $db, array $cfg): array
         if (($s['handoff_phone'] === '' || $s['handoff_email'] === '') && function_exists('store_site_content')) {
             $contact = store_site_content($db)['contact'];
             $num = preg_replace('/\D+/', '', (string) ($contact['whatsapp'] !== '' ? $contact['whatsapp'] : $contact['phone'])) ?? '';
-            if ($s['handoff_phone'] === '' && $num !== '') {
-                if (strlen($num) === 8) $num = '965' . $num;
-                $cfg['shop_phone'] = str_starts_with($num, '965') && strlen($num) === 11 ? '+965 ' . substr($num, 3) : '+' . $num;
+            // Only a number that IS a Kuwaiti phone: 8 digits, or 965 and 8. A link with other digits in it
+            // ("https://wa.me/96522091914?text=1" reads 965220919141) would be quoted wrong, so it keeps the config's.
+            if (strlen($num) === 8) $num = '965' . $num;
+            if ($s['handoff_phone'] === '' && strlen($num) === 11 && str_starts_with($num, '965')) {
+                $cfg['shop_phone'] = '+965 ' . substr($num, 3);
             }
             $mail = (string) $contact['email'];
             if ($s['handoff_email'] === '' && $mail !== '' && filter_var($mail, FILTER_VALIDATE_EMAIL) !== false && strlen($mail) <= 120) {
@@ -5731,7 +5733,9 @@ function assistant_redact(string $s): string
     // REVIEW 2026-11-18 (Sporta AI scan F3): the separator is ANY one to three characters that are not digits, not only spaces, dashes,
     // dots and slashes - a left-to-right mark after each group, a comma, a letter, a stray symbol all let a number through - and the
     // run may be up to 31 digits, so a number written as five groups is masked whole and leaves no trailing group.
-    $s = preg_replace('/(?<![\p{Nd}])(?:\p{Nd}[^\p{Nd}\n]{0,3}?){12,30}\p{Nd}(?![\p{Nd}])/u', '[card number removed]', $s) ?? $s;
+    // An order number ("SP" then digits) is not the start of a card: "SP26112600011 55512345" (the order and the phone on it)
+    // read as one 21-digit run and was masked whole, so the order could not be looked up (review 2026-11-26, finding 2).
+    $s = preg_replace('/(?<![\p{Nd}])(?<![Ss][Pp])(?:\p{Nd}[^\p{Nd}\n]{0,3}?){12,30}\p{Nd}(?![\p{Nd}])/u', '[card number removed]', $s) ?? $s;
     // A security code, a PIN or a one-time code, with its digits.
     //
     // The keyword is matched on the customer's OWN spelling, so the Arabic is written for both: «كلمة السر» (ta marbuta) as well
