@@ -272,6 +272,7 @@ head('the page, rendered right-to-left')
   // instead of reading the page was quietly told less than the shop offers.
   {
     const { readFileSync } = await import('node:fs')
+    const { execFileSync } = await import('node:child_process')
     // Comments stripped, or the check reads a code comment as shipped copy —
     // and the English window must be matched as "14 days"/"14-day", never a
     // bare 14: the shop's own phone number ends 1914, which passed a looser
@@ -282,7 +283,9 @@ head('the page, rendered right-to-left')
       '/returns':   src('src/pages/Returns.jsx'),
       '/terms':     src('src/pages/Terms.jsx'),
       '/about':     src('src/pages/About.jsx'),
-      'assistant':  src('dropin/php-store/assistant.php'),
+      // The assistant's sentence is built from the owner's returns settings since 2026-11-26 (the window is no longer a
+      // literal in the source), so it is read as the engine says it with the default settings, in both languages.
+      'assistant':  execFileSync('php', ['-r', `require ${JSON.stringify(new URL('../dropin/php-store/store.php', import.meta.url).pathname)}; require ${JSON.stringify(new URL('../dropin/php-store/assistant.php', import.meta.url).pathname)}; echo assistant_canned([], "returns", true), "\n", assistant_canned([], "returns", false);`], { encoding: 'utf8' }),
     }
     for (const [name, text] of Object.entries(surfaces)) {
       // Arabic: the window, in Arabic-Indic digits, and the word "free".
