@@ -852,6 +852,22 @@ body:has(.action-bar) .sporta-u3-toast {
 }
 /* ==== end PRODUCT SHAPE 1119 */
 
+/* ==== CENTRE NAME AND PRICE 1126 (2026-11-26, owner: "make product page nama and prices centered") ====
+ * The name was centred by PRODUCT SHAPE 1119 [ps-4]; the price row still sat at the start edge. The price row and its
+ * block are centred in the column, both languages. Logical properties only (RTL and LTR). */
+:root .catalog-product-page .catalog-product-summary > div:has(> .catalog-product-price) {
+  text-align: center;
+}
+:root .catalog-product-page .catalog-product-price {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: .25rem .5rem;
+  text-align: center;
+}
+/* ==== end CENTRE NAME AND PRICE 1126 */
+
 /* ==== MAGIC ZOOM 1119 (2026-11-19, owner: "make magic zoom"; script: sporta-features.js MAGIC ZOOM-1119; proof: npm run test:magic-zoom) ===========
  * The layer the script draws inside the photo stage ([data-sporta-lens]): the photo's original file at 2.5x around the pointer. It covers the
  * stage (absolute, so nothing moves), takes no pointer event, fades over 160 ms (none with reduced motion), sits under the zoom badge and the
