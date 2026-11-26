@@ -20,6 +20,10 @@
 // in milliseconds on shared hosting, and it is right or it says it does not know.
 declare(strict_types=1);
 
+// The knowledge layer: what was actually asked, and the answer built from the owner's settings (assistant-faq.php).
+// A copy of this file loaded alone (the regression harness loads old revisions that way) simply has no second reading.
+if (is_file(__DIR__ . '/assistant-faq.php')) require_once __DIR__ . '/assistant-faq.php';
+
 // ---------------------------------------------------------------- normalising
 //
 // ARABIC IS WHY THIS FUNCTION EXISTS. The same question arrives spelled a
@@ -1727,7 +1731,7 @@ function assistant_after_thanks(string $t): string
 // — and the two kinds of `thanks` that are not a thank-you ('bye', 'ack'). They
 // are still `contact` and `thanks` to everything that reads the intent — the
 // widget, the handoff, the tests that were written before the topic existed.
-function assistant_route(string $text): array
+function assistant_route_base(string $text): array
 {
     $t = assistant_normalise($text);
 
@@ -2625,6 +2629,55 @@ function assistant_route(string $text): array
     return ['search', null];
 }
 
+// THE ROUTER, IN TWO READINGS (2026-11-26). assistant_route_base() above is the router as six review rounds left it:
+// it settles what a message is ABOUT, and everything it does not recognise becomes a product search. The second
+// reading (assistant-faq.php) then asks what was actually asked: "do you ship to Saudi?" is about delivery, and its
+// answer is not the Kuwait timetable. Measured on 588 shopper questions, the first reading alone answered 30 in 100.
+//
+// Arabic typed in Latin letters gets one more chance: when the first reading finds nothing ("search"), the message is
+// read again as the Arabic it spells («wain ma7alkom» is «وين محلكم»), and that reading is used when it says something.
+function assistant_route(string $text): array
+{
+    [$intent, $topic] = assistant_route_read($text);
+    return [$intent, $topic];
+}
+
+/**
+ * [intent, topic, the message as it was read]. The third is the typed message, or the same message with its Arabizi and
+ * dialect words respelt (assistant_faq_respell) when THAT reading is the one that was used: the search and the answers
+ * must read the spelling the router did.
+ */
+function assistant_route_read(string $text): array
+{
+    $base = assistant_route_base($text);
+    if (!function_exists('assistant_faq_route')) return [$base[0], $base[1], $text];
+    $read = $text;
+    $spelt = assistant_faq_respell($text);
+    if ($spelt !== null) {
+        // What the message says when its Arabizi is read as Arabic. It replaces a first reading that found nothing or
+        // only a general subject; a cancellation, a person's job with its own subject and an order number are kept as
+        // the typed message has them («alghee talabi» is a cancellation in the old router's own Latin spelling).
+        $again = assistant_route_base($spelt);
+        $soft = $base[1] === null && in_array($base[0], ['search', 'greeting', 'recommend', 'sizes', 'delivery', 'payment', 'location', 'order_status', 'thanks'], true)
+            && !($base[0] === 'order_status' && assistant_find_track($text) !== null);
+        if ($soft && ($again[0] !== 'search' || $base[0] === 'search')) { $base = $again; $read = $spelt; }
+        elseif ($soft) $read = $spelt;
+    }
+    // A HELLO IN FRONT OF A QUESTION («السلام عليكم، بضاعتكم اصليه؟», "hi, do you ship to Saudi?"): the question is read
+    // by itself. Only a specific answer of the second reading replaces the hello; everything else is left to the
+    // greeting's own rule in assistant_answer (which searches what the hello leaves).
+    if ($base[0] === 'greeting') {
+        $rest = trim(assistant_after_greeting(assistant_normalise($read)));
+        if (preg_match('/[\p{L}\p{N}]{2,}/u', $rest) === 1 && !assistant_is_presence($rest)) {
+            $restBase = assistant_route_base($rest);
+            $specific = assistant_faq_route($rest, $restBase);
+            if ($specific !== null) return [$specific[0], $specific[1], $read];
+        }
+    }
+    $faq = assistant_faq_route($read, $base) ?? $base;
+    return [$faq[0], $faq[1], $read];
+}
+
 function assistant_intent(string $text): string
 {
     return assistant_route($text)[0];
@@ -3153,9 +3206,12 @@ function assistant_order(PDO $db, array $cfg, ?string $track, bool $ar, bool $et
             // the line makes no promise and says where to write. The delivery stamp is fulfilled_at. An order delivered before the
             // stamp existed has none; it is judged by the date it was PLACED, with a week's grace for the delivery itself (the
             // window is surely over for an order placed three weeks ago, and not surely over for one placed 20 days ago).
+            // The window is the owner's (settings.returns_policy), read into $cfg['_returns'] by assistant_answer.
+            $winDays = (int) ($cfg['_returns']['window_days'] ?? 14);
+            if ($winDays < 1 || $winDays > 60) $winDays = 14;
             $windowOver = $o['delivered_hours'] !== null
-                ? (int) $o['delivered_hours'] >= 14 * 24
-                : (int) ($o['age_hours'] ?? 0) >= (14 + 7) * 24;
+                ? (int) $o['delivered_hours'] >= $winDays * 24
+                : (int) ($o['age_hours'] ?? 0) >= ($winDays + 7) * 24;
             $line = assistant_canned($cfg, $windowOver ? 'stage_delivered_old' : 'stage_delivered', $ar);
         }
     } elseif ($late) {
@@ -3728,6 +3784,26 @@ function assistant_checkout_facts(PDO $db): ?array
     }
 }
 
+// THE RETURNS POLICY AND THE SHIPPING SETTING, laid into $cfg for the fixed sentences (assistant_canned) and the
+// order card (assistant_order). A key already there is kept; a row or a table that cannot be read leaves the key
+// null, and the sentences then say what the code's defaults are (14 days, both actions, the flat fee, every area).
+function assistant_policy_facts(PDO $db, array $cfg): array
+{
+    if (!array_key_exists('_returns', $cfg)) {
+        $cfg['_returns'] = null;
+        try {
+            if (function_exists('store_returns_rules')) $cfg['_returns'] = store_returns_rules($db);
+        } catch (Throwable $e) {}
+    }
+    if (!array_key_exists('_shipping', $cfg)) {
+        $cfg['_shipping'] = null;
+        try {
+            if (function_exists('store_shipping_public')) $cfg['_shipping'] = store_shipping_public($db);
+        } catch (Throwable $e) {}
+    }
+    return $cfg;
+}
+
 // "How do I pay" answered with the methods actually on offer. It used to be
 // "shown at checkout … choose one of the options shown there", which answers
 // nothing, including "do you take Visa". No card brands and no QR are named:
@@ -3781,13 +3857,81 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
     $fee = $fils % 1000 === 0 ? (string) intdiv($fils, 1000) : number_format($fils / 1000, 3, '.', '');
     $feeAr = strtr($fee, ['0'=>'٠','1'=>'١','2'=>'٢','3'=>'٣','4'=>'٤','5'=>'٥','6'=>'٦','7'=>'٧','8'=>'٨','9'=>'٩','.'=>'٫']);
 
+    // THE RETURNS WINDOW AND THE TWO SWITCHES ARE THE OWNER'S (/backends -> returns policy, settings.returns_policy), and
+    // so are the governorates, their fees and the free-delivery threshold (/backends -> Shipping, settings.shipping).
+    // The sentences said "14 days", "return or exchange" and "X KWD to every area" whatever those rows held: on
+    // 2026-11-26 the live shop's window was 2 days and delivery was free from 20 KWD. Read by assistant_answer and by
+    // the warmer into $cfg['_returns'] / $cfg['_shipping']; with no row every sentence is byte for byte what it was.
+    $rp = is_array($cfg['_returns'] ?? null) ? $cfg['_returns'] : [];
+    $win = (int) ($rp['window_days'] ?? 14);
+    if ($win < 1 || $win > 60) $win = 14;
+    $canReturn = ($rp['allow_return'] ?? true) !== false;
+    $canExchange = ($rp['allow_exchange'] ?? true) !== false;
+    if (!$canReturn && !$canExchange) { $canReturn = true; $canExchange = true; }
+    $dEn = $win === 1 ? '1 day' : $win . ' days';
+    $dAr = $win === 1 ? 'يوم واحد' : ($win === 2 ? 'يومين' : strtr((string) $win, ['0'=>'٠','1'=>'١','2'=>'٢','3'=>'٣','4'=>'٤','5'=>'٥','6'=>'٦','7'=>'٧','8'=>'٨','9'=>'٩']) . ($win <= 10 ? ' أيام' : ' يومًا'));
+
+    $sh = is_array($cfg['_shipping'] ?? null) ? $cfg['_shipping'] : null;
+    $everyArea = true;
+    $closed = ['ar' => [], 'en' => []];
+    $minFils = $fils;
+    $maxFils = $fils;
+    $freeOver = 0;
+    if ($sh !== null && is_array($sh['zones'] ?? null) && $sh['zones']) {
+        $govNames = ['capital' => ['Capital', 'العاصمة'], 'hawalli' => ['Hawalli', 'حولي'], 'farwaniya' => ['Farwaniya', 'الفروانية'],
+                     'mubarak-al-kabeer' => ['Mubarak Al-Kabeer', 'مبارك الكبير'], 'ahmadi' => ['Ahmadi', 'الأحمدي'], 'jahra' => ['Jahra', 'الجهراء']];
+        $fees = [];
+        foreach ($sh['zones'] as $gov => $z) {
+            if (($z['enabled'] ?? true) === false) {
+                $everyArea = false;
+                $closed['en'][] = $govNames[$gov][0] ?? (string) $gov;
+                $closed['ar'][] = $govNames[$gov][1] ?? (string) $gov;
+            } else {
+                $fees[] = max(0, (int) ($z['fee_fils'] ?? $fils));
+            }
+        }
+        if ($fees) { $minFils = min($fees); $maxFils = max($fees); }
+        $freeOver = max(0, (int) ($sh['free_over_fils'] ?? 0));
+    }
+    $kwd = fn (int $f): string => $f % 1000 === 0 ? (string) intdiv($f, 1000) : number_format($f / 1000, 3, '.', '');
+    $arNum = fn (string $x): string => strtr($x, ['0'=>'٠','1'=>'١','2'=>'٢','3'=>'٣','4'=>'٤','5'=>'٥','6'=>'٦','7'=>'٧','8'=>'٨','9'=>'٩','.'=>'٫']);
+    if ($minFils === $maxFils) {
+        $costEn = $minFils > 0 ? 'it costs ' . $kwd($minFils) . ' KWD' : 'it is free';
+        $costAr = $minFils > 0 ? 'ورسوم التوصيل ' . $arNum($kwd($minFils)) . ' د.ك' : 'ومجاني';
+        $whereEn = $everyArea ? ' to every area' : ' to the governorates we deliver to';
+        $whereAr = $everyArea ? ' لجميع مناطق الكويت' : ' للمحافظات التي نوصّل لها';
+    } else {
+        $costEn = 'the fee is ' . $kwd($minFils) . ' to ' . $kwd($maxFils) . ' KWD depending on the governorate';
+        $costAr = 'ورسوم التوصيل من ' . $arNum($kwd($minFils)) . ' إلى ' . $arNum($kwd($maxFils)) . ' د.ك حسب المحافظة';
+        $whereEn = '';
+        $whereAr = '';
+    }
+    $extraEn = '';
+    $extraAr = '';
+    if ($freeOver > 0 && $maxFils > 0) {
+        $extraEn .= ' Delivery is free for orders of ' . $kwd($freeOver) . ' KWD or more.';
+        $extraAr .= ' والتوصيل مجاني للطلبات من ' . $arNum($kwd($freeOver)) . ' د.ك وأكثر.';
+    }
+    if (!$everyArea) {
+        $extraEn .= ' We are not delivering to ' . implode(' or ', $closed['en']) . ' at the moment.';
+        $extraAr .= ' لا نوصّل حاليًا إلى ' . implode(' ولا ', $closed['ar']) . '.';
+    }
+    // What can come back, by the two switches.
+    $backEn = $canReturn && $canExchange ? 'Returns and exchanges are free' : ($canReturn ? 'Returns are free' : 'Exchanges are free');
+    $backAr = $canReturn && $canExchange ? 'الإرجاع والاستبدال مجانيان' : ($canReturn ? 'الإرجاع مجاني' : 'الاستبدال مجاني');
+    $tailEn = $canReturn && $canExchange ? '; women\'s clothing can be returned but not exchanged.'
+        : ($canReturn ? '; exchanges are not offered at the moment.' : '; returns for a refund are not offered at the moment.');
+    $tailAr = $canReturn && $canExchange ? '، أما الملابس النسائية فإرجاع فقط.'
+        : ($canReturn ? '، والاستبدال غير متاح حاليًا.' : '، والإرجاع غير متاح حاليًا.');
+    // «لديك يومان», but «خلال يومين»: the dual changes with its place in the sentence, the other counts do not.
+    $dArNom = $win === 2 ? 'يومان' : $dAr;
+    $doEn = $canReturn ? 'return' : 'exchange';
+    $doAr = $canReturn ? 'ترجع' : 'تستبدل';
+
     $t = [
-        'delivery' => $fils > 0 ? [
-            'ar' => 'التوصيل داخل الكويت خلال ٢٤ ساعة للطلبات المؤكدة، ورسوم التوصيل ' . $feeAr . ' د.ك لجميع مناطق الكويت. يصلك اتصال من المندوب قبل الوصول.',
-            'en' => 'Delivery inside Kuwait is within 24 hours for confirmed orders, and it costs ' . $fee . ' KWD to every area. The courier calls before arriving.',
-        ] : [
-            'ar' => 'التوصيل داخل الكويت خلال ٢٤ ساعة للطلبات المؤكدة، ومجاني لجميع مناطق الكويت. يصلك اتصال من المندوب قبل الوصول.',
-            'en' => 'Delivery inside Kuwait is within 24 hours for confirmed orders, and it is free to every area. The courier calls before arriving.',
+        'delivery' => [
+            'ar' => 'التوصيل داخل الكويت خلال ٢٤ ساعة للطلبات المؤكدة، ' . $costAr . $whereAr . '.' . $extraAr . ' يصلك اتصال من المندوب قبل الوصول.',
+            'en' => 'Delivery inside Kuwait is within 24 hours for confirmed orders, and ' . $costEn . $whereEn . '.' . $extraEn . ' The courier calls before arriving.',
         ],
         'returns' => [
             // 14 days must match /returns and the Product structured data.
@@ -3803,10 +3947,10 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
             // own sentence: Arabic-Indic ١٤ and the Western-digit number never
             // share one (the rule test:arabic holds translations.js to, and
             // assistant-test holds these lines to).
-            'ar' => 'الإرجاع والاستبدال مجانيان خلال ١٤ يومًا من الاستلام إذا كانت القطعة غير ملبوسة وبطاقاتها عليها، أما الملابس النسائية فإرجاع فقط. ابدأ من صفحة الإرجاع برقم طلبك ورقم الهاتف المسجّل فيه، أو راسلنا على واتساب ' . $phoneRtl . '.',
+            'ar' => $backAr . ' خلال ' . $dAr . ' من الاستلام إذا كانت القطعة غير ملبوسة وبطاقاتها عليها' . $tailAr . ' ابدأ من صفحة الإرجاع برقم طلبك ورقم الهاتف المسجّل فيه، أو راسلنا على واتساب ' . $phoneRtl . '.',
             // "the phone NUMBER on the order": "the phone" alone reads as the
             // handset. And the exception says what IS allowed, in full words.
-            'en' => 'Returns and exchanges are free within 14 days of delivery if the item is unworn with its tags; women\'s clothing can be returned but not exchanged. Start on our Returns page with your order number and the phone number on the order, or WhatsApp us on ' . $phone . '.',
+            'en' => $backEn . ' within ' . $dEn . ' of delivery if the item is unworn with its tags' . $tailEn . ' Start on our Returns page with your order number and the phone number on the order, or WhatsApp us on ' . $phone . '.',
         ],
         'payment' => [
             'ar' => assistant_payment_line($cfg['_checkout'] ?? null, true, $phone),
@@ -3910,9 +4054,9 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
             // واتساب» ("contact us by call or WhatsApp").
             // The return it points to carries its condition, as returns does.
             'ar' => 'نقدر نلغي الطلب قبل ما يطلع مع المندوب. كلّمنا أو راسلنا واتساب على ' . $phoneRtl
-                  . ' فورًا ومعك رقم الطلب. وإذا كان طلع للتوصيل، تقدر ترجع القطع غير الملبوسة وبطاقاتها عليها خلال ١٤ يومًا من الاستلام.',
+                  . ' فورًا ومعك رقم الطلب. وإذا كان طلع للتوصيل، تقدر ' . $doAr . ' القطع غير الملبوسة وبطاقاتها عليها خلال ' . $dAr . ' من الاستلام.',
             'en' => 'We can cancel an order before it leaves with the courier. Call or WhatsApp us right away on ' . $phone
-                  . ' with your order number. If it has already gone out for delivery, you can return it within 14 days of delivery as long as it is unworn with its tags.',
+                  . ' with your order number. If it has already gone out for delivery, you can ' . $doEn . ' it within ' . $dEn . ' of delivery as long as it is unworn with its tags.',
         ],
         // The invoice is a page, not a file the shop sends: /invoice/<order number>, linked from the tracking page. The
         // order number is what opens it, so it is asked for, and a person is the way out for a copy. Since 2026-11-12 the order
@@ -3927,9 +4071,9 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         'location' => [
             // ٢٤ and the phone number in separate sentences, as in returns.
             // "For confirmed orders", as delivery and ask_track_eta say it.
-            'ar' => 'سبورتا متجر إلكتروني، ما عندنا فرع تزوره. نوصّل لجميع مناطق الكويت خلال ٢٤ ساعة للطلبات المؤكدة. وتقدر تتواصل معنا على '
+            'ar' => 'سبورتا متجر إلكتروني، ما عندنا فرع تزوره. نوصّل ' . ($everyArea ? 'لجميع مناطق الكويت' : 'داخل الكويت') . ' خلال ٢٤ ساعة للطلبات المؤكدة. وتقدر تتواصل معنا على '
                   . $phoneRtl . ' أو ' . $email,
-            'en' => 'Sporta is an online shop — there is no branch to visit. We deliver to every area in Kuwait within 24 hours for confirmed orders, and you can reach us on '
+            'en' => 'Sporta is an online shop — there is no branch to visit. We deliver ' . ($everyArea ? 'to every area in Kuwait' : 'inside Kuwait') . ' within 24 hours for confirmed orders, and you can reach us on '
                   . $phone . ' or ' . $email,
         ],
         // One voice per reply: it used to open in Gulf first person and close
@@ -4005,15 +4149,19 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         // «ما عدا … فإرجاع فقط», the shape returns has: «الاستبدال متاح إلا
         // للملابس النسائية» excepted from nothing, and gave the exchange no
         // window or condition.
-        'stage_delivered' => [
-            'ar' => 'تم تسليم هذا الطلب. لديك ١٤ يومًا من الاستلام لإرجاع أو استبدال أي قطعة غير ملبوسة وبطاقاتها عليها، ما عدا الملابس النسائية فإرجاع فقط. ابدأ من صفحة الإرجاع.',
-            'en' => 'This order has been delivered. You have 14 days from delivery to return an unworn item with its tags, or to exchange it — women\'s clothing can be returned but not exchanged. Start on our Returns page.',
+        'stage_delivered' => $canReturn && $canExchange ? [
+            'ar' => 'تم تسليم هذا الطلب. لديك ' . $dArNom . ' من الاستلام لإرجاع أو استبدال أي قطعة غير ملبوسة وبطاقاتها عليها، ما عدا الملابس النسائية فإرجاع فقط. ابدأ من صفحة الإرجاع.',
+            'en' => 'This order has been delivered. You have ' . $dEn . ' from delivery to return an unworn item with its tags, or to exchange it — women\'s clothing can be returned but not exchanged. Start on our Returns page.',
+        ] : [
+            // One of the two is switched off in /backends: only the other is offered.
+            'ar' => 'تم تسليم هذا الطلب. لديك ' . $dArNom . ' من الاستلام ' . ($canReturn ? 'لإرجاع' : 'لاستبدال') . ' أي قطعة غير ملبوسة وبطاقاتها عليها. ابدأ من صفحة الإرجاع.',
+            'en' => 'This order has been delivered. You have ' . $dEn . ' from delivery to ' . $doEn . ' an unworn item with its tags. Start on our Returns page.',
         ],
         // The same order once the window has closed: no promise, and where to write. A person can still look (returns.php sends an
         // old or undated delivery to manual review rather than refusing it).
         'stage_delivered_old' => [
-            'ar' => 'تم تسليم هذا الطلب قبل أكثر من ١٤ يومًا، وبذلك انتهت مدة الإرجاع والاستبدال. إذا كان فيه مشكلة في القطعة، راسلنا على واتساب ' . $phoneRtl . ' مع رقم الطلب ونشوف حالتك.',
-            'en' => 'This order was delivered more than 14 days ago, so the return and exchange window has closed. If something is wrong with the item, message us on WhatsApp ' . $phone . ' with the order number and we will look at it.',
+            'ar' => 'تم تسليم هذا الطلب قبل أكثر من ' . $dAr . '، وبذلك انتهت مدة الإرجاع والاستبدال. إذا كان فيه مشكلة في القطعة، راسلنا على واتساب ' . $phoneRtl . ' مع رقم الطلب ونشوف حالتك.',
+            'en' => 'This order was delivered more than ' . $dEn . ' ago, so the return and exchange window has closed. If something is wrong with the item, message us on WhatsApp ' . $phone . ' with the order number and we will look at it.',
         ],
         // TRUE FOR pending, failed AND review. It used to say "try again from
         // the order tracking page", but the gateways only start a new attempt
@@ -4197,9 +4345,10 @@ function assistant_db_or_null(array $cfg): ?PDO
 // fee, the "shown at checkout" payment sentence) and the rest warm as usual.
 function assistant_canned_lines(array $cfg, ?PDO $db = null): array
 {
-    if (!array_key_exists('_checkout', $cfg)) {
+    if (!array_key_exists('_checkout', $cfg) || !array_key_exists('_returns', $cfg) || !array_key_exists('_shipping', $cfg)) {
         $db ??= assistant_db_or_null($cfg);
-        $cfg['_checkout'] = $db !== null ? assistant_checkout_facts($db) : null;
+        if (!array_key_exists('_checkout', $cfg)) $cfg['_checkout'] = $db !== null ? assistant_checkout_facts($db) : null;
+        if ($db !== null) $cfg = assistant_policy_facts($db, $cfg);
     }
     $keys = assistant_canned_keys();
     $out = ['ar' => [], 'en' => []];
@@ -4679,6 +4828,25 @@ function assistant_effective_config(?PDO $db, array $cfg): array
     if ($s['late_hours'] > 0) $cfg['assistant_late_hours'] = $s['late_hours'];
     if ($s['handoff_phone'] !== '') $cfg['shop_phone'] = $s['handoff_phone'];
     if ($s['handoff_email'] !== '') $cfg['shop_email'] = $s['handoff_email'];
+    // ONE CONTACT, NOT TWO. /backends -> Site content holds the phone, WhatsApp number and e-mail every page shows;
+    // the assistant had its own pair and never read that one, so an owner who changed the shop's number there kept an
+    // assistant that gave out the old one. The assistant's own saved value still wins; without one, the shop's does.
+    try {
+        if (($s['handoff_phone'] === '' || $s['handoff_email'] === '') && function_exists('store_site_content')) {
+            $contact = store_site_content($db)['contact'];
+            $num = preg_replace('/\D+/', '', (string) ($contact['whatsapp'] !== '' ? $contact['whatsapp'] : $contact['phone'])) ?? '';
+            if ($s['handoff_phone'] === '' && $num !== '') {
+                if (strlen($num) === 8) $num = '965' . $num;
+                $cfg['shop_phone'] = str_starts_with($num, '965') && strlen($num) === 11 ? '+965 ' . substr($num, 3) : '+' . $num;
+            }
+            $mail = (string) $contact['email'];
+            if ($s['handoff_email'] === '' && $mail !== '' && filter_var($mail, FILTER_VALIDATE_EMAIL) !== false && strlen($mail) <= 120) {
+                $cfg['shop_email'] = $mail;
+            }
+        }
+    } catch (Throwable $e) {
+        // No row, no table: the config's own contact stands.
+    }
     if ($key !== '') {
         $cfg['ai_key'] = $key;
         // A config without an address (ai_url absent or '') would otherwise make
@@ -4926,7 +5094,10 @@ function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
     }
     // Nothing that looks like a card number, a CVV or an expiry is carried past this line (assistant_redact).
     $message = assistant_redact($message);
-    [$intent, $topic] = assistant_route($message);
+    // What the customer typed, for the hand-off. Everything else reads the respelt message (Arabizi as Arabic, a few
+    // dialect words as the search vocabulary spells them), so the router, the search and the answers agree on it.
+    $typed = $message;
+    [$intent, $topic, $message] = assistant_route_read($message);
     $reply = null;
     $data = null;
     $missed = false;
@@ -4934,9 +5105,12 @@ function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
     // (assistant_order): the widget keeps intent order_status and the card.
     $escalate = null;
 
-    // The two answers built from settings read them now, and only those two:
-    // the rest of the shop's questions should not pay for the lookup.
+    if (function_exists('assistant_faq_last')) assistant_faq_last(null, true);
+    // The answers built from settings read them now: the checkout row for the two that name the fee and the methods,
+    // the returns policy and the shipping row for every answer that can quote a window, a fee or an area. A hello and
+    // a thank-you quote none and do not pay for the lookup.
     if ($intent === 'payment' || $intent === 'delivery') $cfg['_checkout'] = assistant_checkout_facts($db);
+    if ($intent !== 'greeting' && $intent !== 'thanks') $cfg = assistant_policy_facts($db, $cfg);
 
     // A GREETING THAT ALSO ASKS FOR SOMETHING. «السلام عليكم، عندكم شورت؟» is how
     // a Gulf customer opens a chat, and it got the welcome line and nothing
@@ -4951,7 +5125,19 @@ function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
     // and "hi there, quick question" stay the welcome they were before round
     // two. With the address words gone first, «هلا شباب» has nothing left and
     // stays a hello, while «عندكم شي للبنات؟» is the women's shelf.
-    if ($intent === 'greeting') {
+    // A TOPIC OF THE KNOWLEDGE LAYER is answered there, from the owner's settings, whatever the intent it kept
+    // (assistant-faq.php). [reply, data, missed]: `missed` keeps the shop told about a brand it does not carry.
+    if (function_exists('assistant_faq_answer')) {
+        $known = $topic !== null ? assistant_faq_answer($db, $cfg, $topic, $ar, $message) : null;
+        // …and two of the old subjects are said better when the message asks about the RULE (assistant_faq_reword).
+        $known ??= assistant_faq_reword($db, $cfg, $intent, $topic, $ar, $message);
+        if ($known !== null) {
+            $reply = $known[0];
+            $data = $known[1];
+            $missed = (bool) ($known[2] ?? false);
+        }
+    }
+    if ($reply === null && $intent === 'greeting') {
         $rest = assistant_after_greeting(assistant_normalise($message));
         if (preg_match('/[\p{L}\p{N}]{2,}/u', $rest) && (assistant_greeting_asks($db, $rest) || assistant_greeting_question($rest))) {
             [$reply, $data, $missed] = assistant_search($db, $cfg, $rest, $ar);
@@ -4972,6 +5158,14 @@ function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
                 break;
             case 'search':
                 [$reply, $data, $missed] = assistant_search($db, $cfg, $message, $ar);
+                // NOTHING FOUND, and the question never named a product: it is not told "try another word for the
+                // item", it is told what the assistant can help with and how to reach a person. It is still a gap
+                // (the hand-off below tells the shop what was asked).
+                if (!$data && function_exists('assistant_faq_is_question')
+                    && $reply === assistant_canned($cfg, 'no_idea', $ar) && assistant_faq_is_question($message)) {
+                    $u = assistant_faq_answer($db, $cfg, 'unsure', $ar, $message);
+                    if ($u !== null) $reply = $u[0];
+                }
                 break;
             case 'recommend':
                 [$reply, $data] = assistant_recommend($db, $cfg, $message, $ar);
@@ -5027,7 +5221,7 @@ function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
         && (!function_exists('store_rate_limit_hit')
             || store_rate_limit_hit($db, $person ? 'assistant_handoff_person' : 'assistant_handoff_gap',
                                     store_client_identity(), $person ? 6 : 10, 600)['allowed'])) {
-        assistant_handoff($cfg, $message, $final, $handoffIntent, $lang, $handoffTopic);
+        assistant_handoff($cfg, $typed, $final, $handoffIntent, $lang, $handoffTopic);
     }
 
     $out = ['intent' => $intent, 'reply' => $final, 'data' => $data,
@@ -5046,6 +5240,8 @@ function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
     // compared as built for THIS answer; the rest do not depend on them.
     if (assistant_speech_available($cfg) && $better === null) {
         if (!array_key_exists('_checkout', $cfg)) $cfg['_checkout'] = null;
+        if (!array_key_exists('_returns', $cfg)) $cfg['_returns'] = null;
+        if (!array_key_exists('_shipping', $cfg)) $cfg['_shipping'] = null;
         if (in_array($final, assistant_canned_lines($cfg)[$ar ? 'ar' : 'en'], true)) {
             $out['speak'] = assistant_speech_sig($cfg, $final, $lang);
         }

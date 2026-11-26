@@ -1120,7 +1120,7 @@ head('a greeting with a question gets the question answered')
 {
   const Y = [['مرحبا، عندكم احذية؟', 'ar', /^للأسف ما عندنا/], ['hi, do you have shoes?', 'en', /^Sorry, we do not carry/],
              ['hello do you sell socks', 'en', /^Sorry, we do not carry/], ['السلام عليكم عندكم بروتين', 'ar', /^للأسف ما عندنا/],
-             ['هلا، عندكم نايكي؟', 'ar', /^ما لقيت شي/], ['hi do you have anything for my wife', 'en', /found/],
+             ['هلا، عندكم نايكي؟', 'ar', /^لا، هذي الماركة مو موجودة عندنا/], ['hi do you have anything for my wife', 'en', /found/],
              ['السلام عليكم، عندكم شي للبنات؟', 'ar', /^لقيت لك/]]
   const YA = await answersIn([], Y.map(([q, l]) => [q, l]))
   Y.forEach(([q, , re], i) => is(YA[i].intent === 'search' && re.test(YA[i].reply), `"${q}" -> search, answered`, `${YA[i].intent} ${YA[i].reply.slice(0, 30)}`))
@@ -1226,9 +1226,9 @@ head('round three: a hello is a hello unless it asks for something')
              ['السلام عليكم موجودين؟', 'ar'], ['مسا الخير', 'ar'], ['حياكم الله', 'ar'], ['salamu alaikum', 'en'],
              ['hi, I have an inquiry', 'en'], ['hey, is anyone available', 'en'], ['hellooo', 'en'], ['I have a question', 'en']]
   const HA = await answersIn([], H)
-  H.forEach(([q], i) => is(HA[i].intent === 'greeting' && !HA[i].data && /^(Welcome|أهلًا)/.test(HA[i].reply), `"${q}" is the welcome`, `${HA[i].intent} ${HA[i].reply.slice(0, 30)}`))
+  H.forEach(([q], i) => is(HA[i].intent === 'greeting' && !HA[i].data && /^(?:بخير الحمد لله، تسلم\. |I am well, thank you\. )?(Welcome|أهلًا)/.test(HA[i].reply), `"${q}" is the welcome`, `${HA[i].intent} ${HA[i].reply.slice(0, 30)}`))
   // ...while one that names something is still searched, exactly as without the hello.
-  const S = [['مرحبا، عندكم احذية؟', 'ar', /^للأسف ما عندنا/], ['هلا، عندكم نايكي؟', 'ar', /^ما لقيت شي/],
+  const S = [['مرحبا، عندكم احذية؟', 'ar', /^للأسف ما عندنا/], ['هلا، عندكم نايكي؟', 'ar', /^لا، هذي الماركة مو موجودة عندنا/],
              ['hi, do you have leggings?', 'en', /^Here is what I found/], ['السلام عليكم، عندكم شي للبنات؟', 'ar', /^لقيت لك/],
              ['hello, anything under 5 kd?', 'en', /^Here is what I found/], ['هلا، عندكم ملابس رياضية؟', 'ar', /مختارات/]]
   const SA = await answersIn([], S.map(([q, l]) => [q, l]))
@@ -1740,7 +1740,7 @@ await R5('a changed address or phone, said as a predicate, is a change to an ord
 
 await R5('shopping for someone is not asking for a person (finding 5)', [
   ['I want a gift for someone', '!contact'], ['I need a gift for my manager', '!contact'], ['I want a jacket for my manager', '!contact'],
-  ['I need a jacket for someone tall', '!contact'], ['need a uniform for my staff', '!contact'], ['we want a team kit for our staff', '!contact'],
+  ['I need a jacket for someone tall', '!contact'], ['need a uniform for my staff', 'contact/wholesale'], ['we want a team kit for our staff', '!contact'],
   ['I want a tracksuit for an employee', '!contact'], ['want a hoodie for anyone', '!contact'], ['ابي جاكيت لموظفي', '!contact'],
   ['I need a manager jacket', '!contact'], ['I want a manager for my team', '!contact'],
   ['I need a human', 'contact'], ['I want an agent', 'contact'], ['I need a manager', 'contact'], ['I want a real person', 'contact'],
@@ -1776,7 +1776,7 @@ await R5('opting out, unsubscribing and asking for one\'s data reach a person (f
   ['please stop emailing me', 'contact/privacy_request'], ['remove my number from your list', 'contact/privacy_request'],
   ['delete my account', 'contact/privacy_request'], ['delete my data', 'contact/privacy_request'],
   ['please delete my personal data', 'contact/privacy_request'], ['what data do you keep about me', 'contact/privacy_request'],
-  ['do you share my information', 'contact/privacy_request'], ['what is your privacy policy', 'contact/privacy_request'],
+  ['do you share my information', 'info/privacy_use'], ['what is your privacy policy', 'contact/privacy_request'],
   ['وقفوا الرسايل', 'contact/privacy_request'], ['احذفوا رقمي', 'contact/privacy_request'], ['احذف حسابي', 'contact/privacy_request'],
   ['ما ابي رسايل', 'contact/privacy_request'], ['الغاء الاشتراك في النشرة', 'contact/privacy_request'],
   ['delete my order', 'cancel'], ['remove an item from my order', '!contact/privacy_request'], ['stop my order', 'cancel'],
@@ -1954,7 +1954,8 @@ head('delivery and payment answers follow the checkout settings')
   const pay = await ask('how do I pay')
   is(pay.body?.intent === 'payment' && pay.body?.reply === want, 'the payment answer names exactly the methods checkout offers', pay.body?.reply)
   const visa = await ask('do you take visa')
-  is(visa.body?.reply === want, '"do you take visa" gets the same true list, not "shown at checkout"')
+  is(visa.body?.intent === 'payment' && visa.body?.reply.endsWith(want) && /^(?:Card payment on the site is by KNET|No, paying by Visa)/.test(visa.body?.reply ?? ''),
+     '"do you take visa" gets a yes or a no, then the same true list', visa.body?.reply)
   const del = await ask('when will it arrive')
   is(del.body?.reply.includes(`costs ${cc.delivery_fee} KWD`), 'the delivery answer quotes the fee checkout charges', del.body?.reply)
 
@@ -2126,7 +2127,7 @@ head('the answer keeps the shape the live widget reads')
     ['I want to return my order', 'en', 'returns', /14 days/],
     ['phone strap', 'en', 'search', /found/],
     ['صباح الخير، عندكم ليقنز؟', 'ar', 'search', /لقيت لك/],
-    ['عندكم مقاسات أطفال ولا بس للبالغين؟', 'ar', 'sizes', /المقاسات/],
+    ['عندكم مقاسات أطفال ولا بس للبالغين؟', 'ar', 'sizes', /ما عندنا ملابس أطفال ولا مقاسات أطفال/],
     ['when will my order arrive', 'en', 'order_status', /24 hours/],
   ]) {
     const r = await ask(q, lang)
@@ -2774,7 +2775,7 @@ head('and with no voice configured, no signature is offered')
   head('r2 #9: a named item the shop does not sell, with a size, is "we do not carry that"')
   await R([
     ['do you have running shoes in size 43', 'search'], ['ابي حذاء رياضي مقاس 43', 'search'], ['nike shoes size 42', 'search'],
-    ['hi, do you have size 42?', 'search'],
+    ['hi, do you have size 42?', 'sizes', 'size_convert'],
     ['what size should I get', 'sizes'], ['do you have size M', 'sizes'],
   ])
   {
@@ -2818,7 +2819,8 @@ head('and with no voice configured, no signature is offered')
     const Q = [['هلا، عندكم خدمة طباعة؟', 'ar'], ['hi do you have wholesale prices', 'en'], ['hi do you have anything for kids', 'en'],
                ['hello do you have school uniform', 'en']]
     const A = await answersIn([], Q)
-    A.forEach((a, i) => is(a.intent === 'search', `greeting + «${Q[i][0]}» is searched (and logged as a gap), not Welcome`, a.intent))
+    const WANT = ['contact', 'contact', 'sizes', 'contact']
+    A.forEach((a, i) => is(a.intent === WANT[i] && !/^(Welcome|أهلًا)/.test(a.reply), `greeting + «${Q[i][0]}» is answered (${WANT[i]}), not Welcome`, a.intent))
   }
 
   head('r2 #15: a pasted card number never leaves the server')
@@ -2875,7 +2877,7 @@ head('and with no voice configured, no signature is offered')
 
   head('r2: the guards - ordinary messages the new rules must leave alone')
   await R([
-    ['hold on, where is my order', 'order_status'], ['can I order without an account', 'search'], ['stop sending me offers', 'contact', 'privacy_request'],
+    ['hold on, where is my order', 'order_status'], ['can I order without an account', 'info', 'order_account'], ['stop sending me offers', 'contact', 'privacy_request'],
     ['I want to cancel my order, if I cancel will I get a refund', 'cancel'], ['SP9PACKED001 cancel it, what is your cancellation policy', 'cancel'],
     ['do you have a water bottle', 'search'], ['ماء بارد', 'search'], ['ابي بلوزة بلاك', 'search'], ['how do I pay', 'payment'],
     ['can the courier call me before delivery', 'delivery'], ['ممكن المندوب يتصل علي قبل؟', 'delivery'],
