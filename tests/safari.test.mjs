@@ -341,8 +341,11 @@ if (existsSync(join(OUT, "index.html"))) {
       const nav = document.querySelector("nav.app-chrome");
       return nav ? getComputedStyle(nav).display : "no bar";
     });
-    ok(`${label}: the tab bar is ${installed ? "there" : "not there"} before our JavaScript has run (${bar})`,
-      installed ? bar !== "none" && bar !== "no bar" : bar === "none");
+    // Both cases are a phone (390px). The tab bar is drawn in a Safari tab on a
+    // phone too since 25 November, so it must be there before our JavaScript
+    // runs in either case, not hidden until the page asks for it.
+    ok(`${label}: the tab bar is there before our JavaScript has run (${bar})`,
+      bar !== "none" && bar !== "no bar");
     await ctx.close();
   }
   /* /find ends dark all the way down. The body's bottom padding is the home-
@@ -359,9 +362,14 @@ if (existsSync(join(OUT, "index.html"))) {
     await page.waitForTimeout(300);
     const end = await page.evaluate(() => {
       const pad = parseFloat(getComputedStyle(document.body).paddingBottom);
-      // The colour a person sees at the very bottom: the first opaque
-      // background under the last row of pixels.
-      let el = document.elementFromPoint(innerWidth / 2, innerHeight - 4);
+      // The colour a person sees where the page meets the bottom: the first
+      // opaque background just above the tab bar when it is drawn (25 November:
+      // it is drawn on a phone in a browser too, and it is white), otherwise
+      // the very bottom row.
+      const nav = document.querySelector("nav.app-chrome");
+      const navShown = !!nav && getComputedStyle(nav).display !== "none";
+      const y = navShown ? nav.getBoundingClientRect().top - 4 : innerHeight - 4;
+      let el = document.elementFromPoint(innerWidth / 2, y);
       let bg = "";
       for (; el; el = el.parentElement) {
         bg = getComputedStyle(el).backgroundColor;

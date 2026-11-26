@@ -118,6 +118,16 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* On a phone the tab bar shows in the browser too (25 November): the page
+   keeps the same space under it that the installed app gives, so the last
+   line of a page is never hidden behind the bar. Below the sm breakpoint only,
+   which is where the bar is drawn. */
+@media (max-width: 639.98px) {
+  body {
+    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+  }
+}
+
 /* The call sheet used to be a floating card and `bottom` for it lived HERE —
    a `.wain-ai-panel { bottom: calc(6rem + env(safe-area-inset-bottom)) }`
    rule, clearing شوق's launcher and then, in standalone mode, the tab bar
@@ -197,10 +207,11 @@ html[data-call-bar] [data-salem-frame] {
   }
 }
 
-/* سالم's page has no tab bar (AppTabBar returns null there), so installed, the
+/* سالم's page has no tab bar (AppTabBar returns null there), in a browser as
+   well as installed (25 November: the bar is drawn on phones elsewhere), so the
    call bar drops to the bottom edge and keeps the home-indicator room the tab
    bar's offset used to provide. Only on that page. */
-html[data-standalone="true"]:has([data-salem-frame]) #wain-ai-bar {
+html:has([data-salem-frame]) #wain-ai-bar {
   bottom: 0;
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
 }
