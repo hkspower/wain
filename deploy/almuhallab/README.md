@@ -14,3 +14,13 @@ After B is live, delete `manifest.webmanifest` from the site folder. No page lin
 the old service worker's list named it.
 
 Nothing here changes the wain site. No file under `src/` or `public/` is touched.
+
+## Espresso Ink theme (black, white, grey, brown)
+
+| file | contents | sha256 |
+|---|---|---|
+| `almuhallab-espresso-3d01f390.zip` | the eight recoloured stylesheets, `index.html`, the four service pages (at their Arabic folder names), `sw.js` (cache `almuhallab-v122-espresso1`) | `3d01f39034c703ace3d7be34c06734c2c59ab47846444e753804953c8d752cdf` |
+
+One zip, one drop: it carries `sw.js` too, so no second apply is needed. Its files replace the
+repair zips above. The deployer snapshots the site folder first, so a rollback is available.
+
