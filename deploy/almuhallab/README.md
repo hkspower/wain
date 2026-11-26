@@ -48,3 +48,36 @@ on the site carries a version in its name and the pages add a `?v=` token, so a 
 under a new name or token. Checked on Apache 2.4.58 beside the live file: only `Cache-Control`
 on the 32 public stylesheets and scripts changed; every status code and every other header
 stayed the same.
+
+## The JavaScript fixes from the 26 November scan
+
+| file | contents | sha256 |
+|---|---|---|
+| `almuhallab-js-fixes-8320d33a.zip` | `index.html`, the four service pages, `404.html`, `site-v200.js`, `service-shared-v2.js`, `sw-update-v201.js` (new name), `sw.js` (cache `almuhallab-v201-js1`), `.htaccess` | `8320d33a0fc92e2bf2e8c0dba9479e98fb55b40a278c327db74d0dc57c217523` |
+
+- **No reload on a first visit.** `sw-update-v201.js` replaces `sw-update-v87.js` on the five pages.
+  A page the worker did not control when it loaded is already current, so it is not reloaded. A page
+  with anything typed or chosen in a form is never reloaded. The new name matters: the previous
+  worker served its cached copy of any listed script whatever its `?v=`, and it passes an unknown name
+  to the network, so the last page it serves already carries the new code. `sw-update-v87.js` stays on
+  the server, unused.
+- **The quote form unlocks after a send.** Editing any field re-enables the button and removes the
+  WhatsApp link that still held the old message. The message box stops at 2,000 characters.
+- **`sw.js` answers a script or stylesheet only from the same version.** It used to match its cache
+  while ignoring the query, so a change shipped with only a new `?v=` reached a worker-controlled
+  visitor as the old file, and with the week-long cache from the previous entry, an open tab kept it.
+  Correction to that entry: a new `?v=` alone was not enough for those visitors until this fix. Each
+  file now has one cache entry; Apache's lowercase and the links' uppercase escapes count as one
+  address. Offline, an address the worker does not hold gets the browser's offline error instead of
+  the home page.
+- **`404.html`** showed a logo that is not on the server (`logo-main-clean-v94.svg`); it now shows the
+  rebuilt pages' text wordmark, in the 404 page's own colours.
+- **`.htaccess`** answers 410 for six scripts no public page loads (`home-v7.js`, `main-menu-v98.js`,
+  `nizam-v4.js`, `nizam-route-init-v87.js`, `nokhatha-app-v6.js`, `redirect-v87.js`). The files stay
+  on disk, as the retired apps' pages do.
+- `service-shared-v2.js` loses a reveal-on-scroll observer that had nothing left to reveal.
+
+Checked before deploying, on Apache 2.4.58 with this `.htaccess` over HTTPS: 65 checks of the fixes
+(first visits, deploys with and without typed text, offline, redirects, a `?v=`-only change, the
+form, language, the 404 page, the 410s), the 146 checks from the rebuild, and the hand-over from the
+current worker.
