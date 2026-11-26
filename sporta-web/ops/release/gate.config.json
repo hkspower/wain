@@ -187,6 +187,7 @@
       "arabic",
       "seo",
       "assistant",
+      "assistant-faq",
       "assistant-admin",
       "review",
       "install-sql",
@@ -2501,6 +2502,21 @@
       "minOk": 2301,
       "parse": "auto",
       "measuredSec": 40,
+      "quick": false,
+      "triggers": [
+        "@php-all",
+        "@rig",
+        "@storefront-js"
+      ]
+    },
+    {
+      "name": "assistant-faq",
+      "needs": "rig",
+      "parallelSafe": false,
+      "timeoutSec": 600,
+      "minOk": 366,
+      "parse": "auto",
+      "measuredSec": 49,
       "quick": false,
       "triggers": [
         "@php-all",

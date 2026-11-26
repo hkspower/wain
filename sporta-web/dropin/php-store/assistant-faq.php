@@ -733,6 +733,7 @@ function assistant_faq_route(string $text, array $base): ?array
     }
     if ($b === 'order_status' && assistant_find_track($text) !== null) return null;
     if ($b === 'invoice') {
+        if ($has(['احول', 'تحويل', 'حواله', 'bank transfer', 'wire transfer', 'transfer the money', 'transfer you'])) return ['payment', 'pay_transfer'];
         return $has(['company', 'companies', 'business name', 'tax invoice', 'vat invoice', 'stamped', 'official invoice', 'شركه', 'الشركه',
                      'باسم', 'ضريبيه', 'مختومه', 'رسميه']) ? ['invoice', 'invoice_company'] : null;
     }
@@ -853,11 +854,15 @@ function assistant_faq_route(string $text, array $base): ?array
 
     // ================= delivery
     $place = null;
-    $deliveryTalk = $b === 'delivery' || $has(['deliver*', 'shipping', 'ship', 'send it', 'send to', 'order from', 'توصل', 'توصيل',
+    $deliveryTalk = $b === 'delivery' || $has(['deliver*', 'shipping', 'ship', 'send it', 'send to', 'order from', 'do you come', 'you come to', 'come there', 'تجون', 'توصل', 'توصيل',
                                                'تشحن', 'شحن', 'ترسلون', 'ترسل', 'اطلب من', 'يوصل']);
     if ($deliveryTalk && in_array($b, ['delivery', 'search', 'recommend', 'greeting', 'location', 'payment'], true)) {
         $place = assistant_faq_place($t);
         if ($place !== null && $place['kind'] === 'abroad') return ['delivery', 'ship_abroad'];
+    }
+    // "I live in Wafra, do you come there": a place of Kuwait beside a word for delivering, with no piece named.
+    if ($deliveryTalk && in_array($b, ['search', 'recommend', 'greeting'], true) && !$named && $place !== null && ($place['gov'] ?? null) !== null) {
+        return ['delivery', 'ship_area'];
     }
     // ---- questions the old router reads as "where is my order" or as a request for a person, by the word «الطلب» / "order"
     if (in_array($b, ['order_status', 'contact', 'recommend', 'search', 'delivery'], true) && $bt === null) {
@@ -872,6 +877,10 @@ function assistant_faq_route(string $text, array $base): ?array
                      "to my friend's", 'to a friend', 'to my friend', 'to another address', 'to a different address'])
             && !$has(['by mistake', 'was delivered', 'wrong', 'بالغلط', 'غلط', 'how long', 'when', 'كم ياخذ', 'متي', 'كم يوم'])) {
             return ['delivery', 'ship_other_person'];
+        }
+        if ($has(['سعر جمله', 'سعر الجمله', 'طلبيه جمله', 'طلب جمله', 'جمله حق', 'بالجمله', 'wholesale', 'bulk order', 'in bulk'])) return ['contact', 'wholesale'];
+        if ($has(['اضيف قطعه', 'اضيف علي طلبي', 'اضيف للطلب', 'اضيف علي الطلب', 'add to my order', 'add an item', 'add another item', 'add one more'])) {
+            return ['contact', 'order_change'];
         }
         if ($has(['طلبين', 'two orders', '2 orders', 'second order', 'طلب ثاني']) && $has(['توصيل', 'delivery', 'shipping', 'رسوم'])) {
             return ['delivery', 'ship_fee_rules'];
@@ -901,6 +910,9 @@ function assistant_faq_route(string $text, array $base): ?array
     if ($loose && $has(['ما تنرد', 'ما تنرجع', 'ما تتبدل', 'ما ترد ولا', 'لا ترد ولا تستبدل', 'non-returnable', 'non returnable', 'not returnable',
                          'cannot be returned', "can't be returned", 'cannot return', "can't return"])) {
         return ['returns', 'return_excluded'];
+    }
+    if ($loose && $has(['الترجيع', 'ترجيع', 'الترجاع'])) {
+        return ['returns', $has(['رسوم', 'ببلاش', 'مجاني', 'مجانا', 'فلوس', 'يكلف', 'تكلفه']) ? 'return_cost' : null];
     }
     // «تقبلون دولار», "can I pay in euros": asked with no word the old router files under payment.
     if ($loose && !$named
@@ -961,6 +973,10 @@ function assistant_faq_route(string $text, array $base): ?array
             return ['thanks', null];
         }
         if ($has(['complain', 'complaint', 'complaining', 'شكوي', 'اشتكي', 'stolen', 'انسرق', 'انسرقت', 'سرقوه'])) return ['contact', 'complaint'];
+        if ($has(['change size', 'change the size', 'change my size', 'change colour', 'change the colour', 'change color', 'change the color', 'اغير المقاس', 'اغير اللون'])
+            && $has(['before it ships', 'before shipping', 'before it is shipped', 'before delivery', 'before it arrives', 'قبل الشحن', 'قبل التوصيل', 'قبل ما يوصل', 'قبل ما ينشحن'])) {
+            return ['contact', 'order_change'];
+        }
         if ($has(['my late order', 'late order', 'order is late', 'order is so late', 'days late', 'طلبي متاخر', 'الطلب متاخر', 'ايام متاخر'])) return ['order_status', null];
         if ($has(['vat', 'tax', 'taxes', 'customs', 'ضريبه', 'الضريبه', 'ضرايب', 'ضرائب', 'جمارك', 'جمرك'])) return ['payment', 'pay_tax'];
         // Paying the driver: change, a card machine, looking before paying. Asked with "the driver", so filed under delivery.
@@ -1062,7 +1078,7 @@ function assistant_faq_route(string $text, array $base): ?array
                   'delivery days', 'working days', 'الجمعه', 'السبت', 'العطله', 'العطل', 'عطله', 'الويكند', 'ويكند', 'رمضان', 'العيد',
                   'بالليل', '^الليل$', '^المسا$', '^المساء$', '^الصبح$', '^الصباح$', '^العصر$', '^الظهر$', 'اي ساعه', 'الساعه كم', 'الساعه چم', 'كم الساعه',
                   'لين الساعه', 'لين متي', 'ايام التوصيل', 'ايام العمل', 'ايام الدوام', 'اوقات التوصيل', 'ساعات التوصيل', 'كل يوم', 'قبل الفطور', 'بعد الفطور'])
-            && !$has(['collection', 'كولكشن', 'تشكيله'])) {
+            && !$has(['collection', 'كولكشن', 'تشكيله', 'today', 'tonight', 'اليوم', 'الليله'])) {
             return ['delivery', 'ship_days'];
         }
         if ($has(['today', 'tonight', 'same day', 'same-day', 'sameday', 'express', 'urgent', 'urgently', 'asap', 'within an hour', 'in an hour',
@@ -1201,7 +1217,7 @@ function assistant_faq_route(string $text, array $base): ?array
                 return ['payment', 'cod_areas'];
             }
             // "does the delivery guy take knet": the courier's card machine, not a method of checkout.
-            if ($has(['knet', 'k-net', 'card', 'كي نت', 'كينت', 'بطاقه']) && $has(['the driver', 'the courier', 'delivery guy', 'delivery man', 'delivery person', 'للمندوب', 'المندوب', 'السايق'])
+            if ($has(['knet', 'k-net', 'card', 'كي نت', 'كينت', 'بطاقه']) && $has(['driver', 'courier', 'delivery guy', 'delivery man', 'delivery person', 'للمندوب', 'المندوب', 'السايق'])
                 && !$has(['cash or', 'or cash', 'كاش ولا', 'ولا كاش'])) {
                 return ['payment', 'cod_machine'];
             }
@@ -1218,6 +1234,7 @@ function assistant_faq_route(string $text, array $base): ?array
                   'امريكان اكسبريس', 'اميكس', 'كريدت', 'كردت', 'بطاقه اجنبيه', 'بطاقه دوليه'])) {
             return ['payment', 'pay_card'];
         }
+        if ($has(['driver', 'courier', 'المندوب', 'السايق']) && $has(['knet', 'k-net', 'card', 'machine', 'كي نت', 'كينت', 'بطاقه', 'جهاز'])) return ['payment', 'cod_machine'];
         if ($question && $bt === null && $has(['knet', 'k-net', 'k net', 'كي نت', 'كينت', 'كي-نت']) && !$has(['how', 'شلون', 'كيف', 'why', 'ليش'])) {
             return ['payment', 'pay_method'];
         }
@@ -1496,6 +1513,7 @@ function assistant_faq_route(string $text, array $base): ?array
                   'for both men and women', 'للرجال ولا', 'للنساء ولا', 'ولادي ولا بناتي'])) {
             return ['sizes', 'size_gender'];
         }
+        if ($has(['احول', 'تحويل بنكي', 'حواله', 'bank transfer', 'wire transfer']) && !$has(['الموقع', 'اللغه', 'انجليزي', 'عربي', 'الصفحه'])) return ['payment', 'pay_transfer'];
         if ($has(['receipt', 'receipts', 'ايصال', 'الايصال', 'ايصال الدفع', 'وصل الدفع'])) return ['invoice', null];
         if ($has(['code', 'codes', 'coupon*', 'voucher*', 'promo*', 'كود', 'الكود', 'كوبون', 'قسيمه'])
             && $has(['مو راضي', 'مب راضي', 'ما يرضي', 'ما رضي', 'ما يقبل', 'ما قبل', 'ما يدخل', 'ما دخل', 'refuses', 'refused', 'rejects',
@@ -1511,7 +1529,7 @@ function assistant_faq_route(string $text, array $base): ?array
                   'اطلب حق احد', 'اطلب لصديقي', 'اطلب لرفيجي'])) {
             return ['delivery', 'ship_other_person'];
         }
-        if ($has(["won't be home", 'will not be home', 'not be home', 'not at home', 'nobody home', 'no one home', 'nobody is home',
+        if ($has(["won't be home", 'will not be home', 'not be home', 'nobody will be home', 'no one will be home', 'will be home', 'not at home', 'nobody home', 'no one home', 'nobody is home',
                   'no one is home', 'مو بالبيت', 'مب بالبيت', 'ما اكون بالبيت', 'ما راح اكون بالبيت', 'محد بالبيت', 'ما احد بالبيت'])) {
             return ['delivery', 'ship_absent'];
         }
@@ -1552,7 +1570,7 @@ function assistant_faq_route(string $text, array $base): ?array
         }
         // A guest order and the account: it is followed by its number, and never shows in an account.
         if ($has(['guest', 'كزائر', 'زائر', 'بدون حساب', 'without an account'])
-            && $has(['track', 'follow', 'see it', 'see my order', 'not showing', "can't see", 'cannot see', 'where is', 'تتبع', 'اتابع', 'ما اشوف', 'ما يطلع',
+            && $has(['track', 'follow', 'see it', 'see my order', 'not showing', 'show in', 'show up', 'appear', 'تطلع بحسابي', 'يطلع بحسابي', "can't see", 'cannot see', 'where is', 'تتبع', 'اتابع', 'ما اشوف', 'ما يطلع',
                      'مو موجود', 'وين', 'ليش'])
             && $has(['order', 'ordered', 'طلب', 'الطلب', 'طلبت', 'طلبي'])) {
             return ['info', 'guest_order'];
@@ -1618,7 +1636,7 @@ function assistant_faq_route(string $text, array $base): ?array
         }
         if ($has(['ticket', 'tickets', 'support page', 'support center', 'support centre', 'help center', 'help centre', 'تذكره', 'تذاكر',
                   'مركز الدعم', 'صفحه الدعم', 'مركز المساعده'])
-            && !$has(['match', 'game', 'concert', 'stadium', 'مباراه', 'المباراه', 'حفله', 'ملعب'])) {
+            && !$has(['match', 'game', 'football', 'concert', 'stadium', 'مباراه', 'المباراه', 'حفله', 'ملعب'])) {
             return ['info', 'support_ticket'];
         }
     }
@@ -1657,7 +1675,7 @@ function assistant_faq_route(string $text, array $base): ?array
     // Praise is thanked, an insult is somebody unhappy, and "can you help me" is a hello.
     if ($b === 'search') {
         if ($has(['good service', 'great service', 'excellent service', 'amazing service', 'love your', 'love sporta', 'love this shop',
-                  'you are the best', 'best shop', 'amazing shop', 'nice shop', 'great shop', 'great job', 'well done', 'خدمتكم حلوه',
+                  'you are the best', 'best shop', 'favourite shop', 'favorite shop', 'good job', 'amazing shop', 'nice shop', 'great shop', 'great job', 'well done', 'خدمتكم حلوه',
                   'خدمتكم ممتازه', 'خدمتكم زينه', 'خدمه ممتازه', 'خدمه حلوه', 'يعطيكم العافيه', 'احبكم', 'افضل متجر', 'احسن متجر', 'شغلكم حلو',
                   'شغل نظيف', '^كفو$', '^كفووو', 'عاشوا', '^ابداع$', 'مبدعين'])
             && !$has(['but', 'however', 'not', "n't", '^بس$', '^لكن$', '^مو$', '^ما$', 'do you have', 'best shop for', 'best shop to', 'عندكم'])
@@ -1863,7 +1881,7 @@ function assistant_faq_route(string $text, array $base): ?array
                   '^ولاء$', 'الولاء', 'برنامج ولاء', 'مكافات'])) {
             return ['info', 'loyalty'];
         }
-        if ($has(['price match', 'price matching', 'match the price', 'cheaper elsewhere', 'found it cheaper', 'another site', 'another shop',
+        if ($has(['price match', 'price matching', 'match the price', 'cheaper elsewhere', 'found it cheaper', 'another site', 'another shop', 'give us a discount', 'discount for us', 'percent off', 'give us 10', 'give me 10',
                   'lower the price', 'reduce the price', 'last price', 'best price', 'negotiate', 'ارخص بموقع', 'موقع ثاني', 'محل ثاني',
                   'تنزلون السعر', 'تنزل السعر', 'اخر سعر', 'تخفض', 'تخفضون', 'تراعوني', 'راعوني'])
             && !$has(['show me', 'items', 'products', 'do you have', 'ورني', 'عندكم'])) {
