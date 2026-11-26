@@ -1937,8 +1937,12 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
               edge, where the floating card used to sit clear of it. */}
           <header className="flex shrink-0 items-center gap-3 bg-gradient-to-l from-coral-800 to-coral-600 p-4 pt-[calc(1rem+env(safe-area-inset-top))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] text-white">
             <span className="min-w-0 flex-1">
+              {/* Her call is the centre's call, not hers by name: a call can
+                  be handed to سالم mid-line, and a header that still said شوق
+                  would name the wrong person (25 November). His call keeps
+                  his name. */}
               <span className="block font-display text-lg font-semibold leading-tight">
-                {copy.name}
+                {persona === "shouq" ? WAIN_AI_COPY.centre : copy.name}
               </span>
               {/* The status is the one thing that changes without the visitor
                   touching anything, so it is the thing that gets announced —
@@ -1998,10 +2002,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
               say it was the thing to press, and the red hang-up sat right
               under it at the same size. The middle zone takes the spare
               height now and the buttons are pinned to the foot, where a
-              thumb already is; `max-w-md` stops all of it stretching across
+              thumb already is; `max-w-xl` (576px) stops all of it stretching across
               a desktop window. */}
           <div className="flex flex-1 flex-col p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
-           <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
+           <div className="mx-auto flex w-full max-w-xl flex-1 flex-col">
             {(phase === "ringing" || phase === "live" || phase === "answering") && (
               <div className="flex flex-1 flex-col text-center">
                 {/* Her photo, as on /find, with the drawn face as a small
@@ -2203,7 +2207,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 </p>
                 {/* When the browser cannot listen at all, another call fails the
                     same way. Typing to سالم answers the same question. */}
-                {(errorText === WAIN_AI_COPY.speechOff || errorText === SPEECH_OFF_APPLE) && (
+                {(errorText === WAIN_AI_COPY.speechOff || errorText === SPEECH_OFF_APPLE || errorText === copy.callFailed) && (
                   <Link
                     href="/salem"
                     onClick={closeSheet}

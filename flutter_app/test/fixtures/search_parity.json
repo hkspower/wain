@@ -1028,14 +1028,37 @@
    "hits": [
     {
      "id": "place:marina-beach",
-     "score": 11.418760106164846,
+     "score": 20.59831034330955,
      "matched": [
       "شاطي",
+      "شواطي",
       "مارينا"
      ],
      "tokens": [
       "شاطي",
       "مارينا"
+     ]
+    },
+    {
+     "id": "place:messilah-beach",
+     "score": 10.200109367623973,
+     "matched": [
+      "شاطي",
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:al-shaab-beach",
+     "score": 9.771656271141666,
+     "matched": [
+      "شاطي",
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
      ]
     },
     {
@@ -1059,26 +1082,6 @@
      ]
     },
     {
-     "id": "place:messilah-beach",
-     "score": 4.660245417553681,
-     "matched": [
-      "شاطي"
-     ],
-     "tokens": [
-      "شاطي"
-     ]
-    },
-    {
-     "id": "place:al-shaab-beach",
-     "score": 4.619686322230844,
-     "matched": [
-      "شاطي"
-     ],
-     "tokens": [
-      "شاطي"
-     ]
-    },
-    {
      "id": "place:marina-crescent",
      "score": 4.131680189346645,
      "matched": [
@@ -1086,6 +1089,66 @@
      ],
      "tokens": [
       "مارينا"
+     ]
+    },
+    {
+     "id": "place:failaka-island",
+     "score": 3.138283319947766,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "category:outdoors",
+     "score": 2.9028464286957587,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:khiran",
+     "score": 2.862890401851386,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:wafra-farms",
+     "score": 2.8503959862427877,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:al-shaheed-park",
+     "score": 2.8339054296080928,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:sabah-al-ahmad-sea-city",
+     "score": 2.7935019191578463,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
      ]
     },
     {
@@ -3137,9 +3200,10 @@
    "hits": [
     {
      "id": "place:messilah-beach",
-     "score": 12.710152766046777,
+     "score": 22.955824593062225,
      "matched": [
       "شاطي",
+      "شواطي",
       "مسيله"
      ],
      "tokens": [
@@ -3149,9 +3213,10 @@
     },
     {
      "id": "place:marina-beach",
-     "score": 4.653436183168235,
+     "score": 9.84304467660374,
      "matched": [
-      "شاطي"
+      "شاطي",
+      "شواطي"
      ],
      "tokens": [
       "شاطي"
@@ -3159,9 +3224,70 @@
     },
     {
      "id": "place:al-shaab-beach",
-     "score": 4.619686322230844,
+     "score": 9.771656271141666,
      "matched": [
+      "شاطي",
+      "شواطي"
+     ],
+     "tokens": [
       "شاطي"
+     ]
+    },
+    {
+     "id": "place:failaka-island",
+     "score": 3.138283319947766,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "category:outdoors",
+     "score": 2.9028464286957587,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:khiran",
+     "score": 2.862890401851386,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:wafra-farms",
+     "score": 2.8503959862427877,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:al-shaheed-park",
+     "score": 2.8339054296080928,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:sabah-al-ahmad-sea-city",
+     "score": 2.7935019191578463,
+     "matched": [
+      "شواطي"
      ],
      "tokens": [
       "شاطي"
@@ -4833,9 +4959,10 @@
    "hits": [
     {
      "id": "place:al-shaab-beach",
-     "score": 12.607579293200775,
+     "score": 22.35637110682589,
      "matched": [
       "شاطي",
+      "شواطي",
       "شعب"
      ],
      "tokens": [
@@ -4845,9 +4972,10 @@
     },
     {
      "id": "place:messilah-beach",
-     "score": 4.660245417553681,
+     "score": 10.200109367623973,
      "matched": [
-      "شاطي"
+      "شاطي",
+      "شواطي"
      ],
      "tokens": [
       "شاطي"
@@ -4855,9 +4983,70 @@
     },
     {
      "id": "place:marina-beach",
-     "score": 4.653436183168235,
+     "score": 9.84304467660374,
      "matched": [
+      "شاطي",
+      "شواطي"
+     ],
+     "tokens": [
       "شاطي"
+     ]
+    },
+    {
+     "id": "place:failaka-island",
+     "score": 3.138283319947766,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "category:outdoors",
+     "score": 2.9028464286957587,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:khiran",
+     "score": 2.862890401851386,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:wafra-farms",
+     "score": 2.8503959862427877,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:al-shaheed-park",
+     "score": 2.8339054296080928,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:sabah-al-ahmad-sea-city",
+     "score": 2.7935019191578463,
+     "matched": [
+      "شواطي"
      ],
      "tokens": [
       "شاطي"
@@ -9209,9 +9398,10 @@
    "hits": [
     {
      "id": "place:messilah-beach",
-     "score": 4.660245417553681,
+     "score": 10.200109367623973,
      "matched": [
-      "شاطي"
+      "شاطي",
+      "شواطي"
      ],
      "tokens": [
       "شاطي"
@@ -9219,9 +9409,10 @@
     },
     {
      "id": "place:marina-beach",
-     "score": 4.653436183168235,
+     "score": 9.84304467660374,
      "matched": [
-      "شاطي"
+      "شاطي",
+      "شواطي"
      ],
      "tokens": [
       "شاطي"
@@ -9229,9 +9420,70 @@
     },
     {
      "id": "place:al-shaab-beach",
-     "score": 4.619686322230844,
+     "score": 9.771656271141666,
      "matched": [
+      "شاطي",
+      "شواطي"
+     ],
+     "tokens": [
       "شاطي"
+     ]
+    },
+    {
+     "id": "place:failaka-island",
+     "score": 3.138283319947766,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "category:outdoors",
+     "score": 2.9028464286957587,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:khiran",
+     "score": 2.862890401851386,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:wafra-farms",
+     "score": 2.8503959862427877,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:al-shaheed-park",
+     "score": 2.8339054296080928,
+     "matched": [
+      "شواطي"
+     ],
+     "tokens": [
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:sabah-al-ahmad-sea-city",
+     "score": 2.7935019191578463,
+     "matched": [
+      "شواطي"
      ],
      "tokens": [
       "شاطي"
@@ -32397,6 +32649,11 @@
     "messilah-beach",
     "marina-beach",
     "al-shaab-beach",
+    "failaka-island",
+    "khiran",
+    "wafra-farms",
+    "al-shaheed-park",
+    "sabah-al-ahmad-sea-city",
     "kuwait-science-centre",
     "al-kout-mall"
    ],
@@ -32433,6 +32690,11 @@
     "messilah-beach",
     "marina-beach",
     "al-shaab-beach",
+    "failaka-island",
+    "khiran",
+    "wafra-farms",
+    "al-shaheed-park",
+    "sabah-al-ahmad-sea-city",
     "kuwait-science-centre",
     "al-kout-mall"
    ],
@@ -32469,6 +32731,11 @@
     "messilah-beach",
     "marina-beach",
     "al-shaab-beach",
+    "failaka-island",
+    "khiran",
+    "al-shaheed-park",
+    "sabah-al-ahmad-sea-city",
+    "wafra-farms",
     "kuwait-science-centre",
     "al-kout-mall"
    ],
@@ -32500,6 +32767,11 @@
     "messilah-beach",
     "marina-beach",
     "al-shaab-beach",
+    "failaka-island",
+    "khiran",
+    "wafra-farms",
+    "al-shaheed-park",
+    "sabah-al-ahmad-sea-city",
     "kuwait-science-centre",
     "al-kout-mall"
    ],

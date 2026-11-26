@@ -46,23 +46,31 @@ export default function HomeHero() {
       <h1 className="sr-only">وين</h1>
       <p className="sr-only">وين الطلعة اليوم؟</p>
 
-      <div className="home-hero relative aspect-[9/16] w-full">
-        {/* AVIF first, and the WebP when the AVIF cannot be drawn — Safari's
-            Lockdown Mode picks the AVIF and then refuses to decode it. */}
-        <HeroPicture avif={H.avif} webp={H.webp} src={H.src} width={H.width} height={H.height} sizes={sizes} />
+      {/* On a phone the bottom of the picture — the sea — is cut away so the
+          place cards come up under the sun (2 October's full-height picture put
+          them below the first screen). The picture itself is not redrawn: this
+          box clips it, and the sun and label keep their positions in the
+          picture's own coordinates. The cut fades out over its last sixteenth (below the sun) so
+          the sea does not stop in a hard line. Kept to 72% of the picture's
+          height; from `sm` the whole picture shows, as before. */}
+      <div className="relative w-full overflow-hidden max-sm:aspect-[1080/1382] max-sm:[mask-image:linear-gradient(to_bottom,#000_94%,transparent)]">
+        <div className="home-hero relative aspect-[9/16] w-full">
+          {/* AVIF first, and the WebP when the AVIF cannot be drawn — Safari's
+              Lockdown Mode picks the AVIF and then refuses to decode it. */}
+          <HeroPicture avif={H.avif} webp={H.webp} src={H.src} width={H.width} height={H.height} sizes={sizes} />
 
-        {/* The sun. Same name as the dial it replaces, so what it leads to is
-            said once, in the link, for the visitor who hears it. A button you
-            can feel since 3 October — HeroSun.tsx. */}
-        <HeroSun
-          style={{
-            left: `${H.sun.x - H.sun.r}%`,
-            width: `${2 * H.sun.r}%`,
-            top: `calc(${H.sun.y}% - ${H.sun.r}cqw)`,
-          }}
-          labelStyle={{ left: pct(labelCx), top: pct(labelCy), width: pct(labelW) }}
-        />
-
+          {/* The sun. Same name as the dial it replaces, so what it leads to is
+              said once, in the link, for the visitor who hears it. A button you
+              can feel since 3 October — HeroSun.tsx. */}
+          <HeroSun
+            style={{
+              left: `${H.sun.x - H.sun.r}%`,
+              width: `${2 * H.sun.r}%`,
+              top: `calc(${H.sun.y}% - ${H.sun.r}cqw)`,
+            }}
+            labelStyle={{ left: pct(labelCx), top: pct(labelCy), width: pct(labelW) }}
+          />
+        </div>
       </div>
     </section>
   );

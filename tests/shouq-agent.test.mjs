@@ -186,7 +186,9 @@ await section('with an agent configured, the call goes to her, not the recognise
   ok('it stays put rather than searching', !p.url().includes('q='), p.url());
 
   panel = await p.locator('#wain-ai-panel').textContent();
-  ok('she introduces herself as شوق', panel.includes('شوق'));
+  // The sheet's header names the centre, not her (25 November): a call can be
+  // handed to سالم mid-line, so the header cannot promise who is on the line.
+  ok('the sheet names the centre, not her', panel.includes('مركز اتصال وين'));
   // Which of the two appears depends on whether the stubbed widget has finished
   // loading yet — the greeting carries the ringing seconds, the examples take
   // over once she is on the line. Either is her telling you what to say; which
