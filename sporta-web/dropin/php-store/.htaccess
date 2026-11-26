@@ -16,7 +16,7 @@
 # answered 200 with an empty body (measured 2026-11-19 by including each file with a GET and counting the output).
 # Nothing routes to them: api.php, seo-page.php, the sitemaps and the cron jobs reach them with require, and no client
 # file fetches them (the names in public/ are comments). db-pool.php answered 404 by its own guard; it is listed here too.
-<FilesMatch "^(apple-lib|assistant|assistant-faq|dbcenter|dbcenter-manifest|db-pool|fabric|payment-records|photo-library|photo-limits|profiles|support|xbrl)\.php$">
+<FilesMatch "^(apple-lib|assistant|assistant-faq|dbcenter|dbcenter-manifest|db-pool|fabric|payment-records|photo-limits|profiles|support|xbrl)\.php$">
   Require all denied
 </FilesMatch>
 
@@ -88,20 +88,3 @@ Options -Indexes
 <FilesMatch "(?i)(~|\.(bak|orig|old|save|swp))$">
   Require all denied
 </FilesMatch>
-
-# PHP limits for product photo uploads (admin.php product_image_upload). The route takes a photograph of up to
-# 10 MiB, sent as base64 inside a JSON body of about 13.4 MB, and refuses above 14 MiB of body text. The server's
-# own defaults cut that off before the route ran, so a normal camera photo could not be uploaded. (The live values
-# were not read when this was written; PHP's stock defaults are 2 MB per file and 8 MB per request.) post_max_size must cover the whole body; memory_limit covers the decode and the size check.
-# Set here, per directory, because PHP reads these at request time (PHP_INI_PERDIR): the VPS has no php.ini.
-# The IfModule guard keeps the folder working on a server whose PHP is not the Apache module.
-<IfModule mod_php.c>
-  php_value upload_max_filesize 16M
-  php_value post_max_size 24M
-  php_value memory_limit 256M
-</IfModule>
-<IfModule mod_php8.c>
-  php_value upload_max_filesize 16M
-  php_value post_max_size 24M
-  php_value memory_limit 256M
-</IfModule>

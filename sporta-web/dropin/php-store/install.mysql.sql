@@ -856,10 +856,6 @@ create table if not exists payment_alerts (
   constraint payment_alerts_resolution_ck check (resolution is null or resolution in ('refunded','voided','dismissed'))
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
--- The e-mail a guest order was placed with. Orders imported from OpenCart carry it, and the CRM uses it to
--- find a contact when an order has no usable phone (crm_guest_key). Added with no AFTER clause, like every column here.
-alter table orders add column if not exists customer_email varchar(120) null;
-
 
 -- ========================================================================
 -- customers.mysql.sql — optional customer accounts

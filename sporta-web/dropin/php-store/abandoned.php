@@ -92,9 +92,9 @@ const ABANDONED_ITEM_LINES    = 5;    // item lines returned per order; the rest
 function abandoned_settings(): array {
     $cfg  = store_config();
     $hold = store_config_int($cfg['stock_hold_minutes'] ?? null, 120, 15, PHP_INT_MAX);   // the one reader: store_stock_hold_minutes()
-    // A junk value ('abc', an array, '12abc') is the DEFAULT, never the minimum (review 2026-11-19; store_config_int is the one reader).
-    $after = store_config_int($cfg['abandoned_after_minutes'] ?? null, ABANDONED_AFTER_DEFAULT, ABANDONED_AFTER_MIN, PHP_INT_MAX);
-    $after = min($after, $hold);
+    $raw  = $cfg['abandoned_after_minutes'] ?? null;
+    $after = ($raw === null || $raw === '') ? ABANDONED_AFTER_DEFAULT : (int)$raw;
+    $after = max(ABANDONED_AFTER_MIN, min($after, $hold));
     return ['after_minutes' => $after, 'hold_minutes' => $hold, 'cod_hold_hours' => store_cod_hold_hours()];
 }
 
