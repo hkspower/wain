@@ -24,3 +24,12 @@ Nothing here changes the wain site. No file under `src/` or `public/` is touched
 One zip, one drop: it carries `sw.js` too, so no second apply is needed. Its files replace the
 repair zips above. The deployer snapshots the site folder first, so a rollback is available.
 
+## The rebuilt site (home and the four service pages)
+
+| file | contents | sha256 |
+|---|---|---|
+| `almuhallab-rebuild-b3b113c6.zip` | `index.html`, the four service pages at their Arabic folder names, `site-v200.css` (one stylesheet for all five pages), `site-v200.js` (the home form and header), `sw.js` (cache `almuhallab-v200-rebuild1`) | `b3b113c69088aa0fab89bf3dbbb98ce6f61b66a244c7a7fa3de37037237fbad4` |
+
+New structure and copy, approved by the owner from a preview. The old stylesheets stay on the server,
+so restoring the deployer's snapshot taken before this zip brings the previous site back whole.
+
