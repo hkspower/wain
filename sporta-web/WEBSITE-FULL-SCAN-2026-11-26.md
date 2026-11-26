@@ -90,3 +90,16 @@ submitted or signed in). Run from the working machine on 2026-11-26. Raw outputs
 - JavaScript runtime: `node scripts/js-scan.mjs`
 - Images (home page): `node scripts/live-images-scan.mjs`
 - Performance (phone and desktop): `node scripts/live-perf-probe.mjs`
+
+## Follow-up (same day): what was checked after the scan
+
+- **Item 1, shop layout shift.** Measured again on the live shop at 390 px: one shift of 0.65 at about 5.2 s, when the
+  product grid fills in. The grid is at the same position before and after; the cards in the first positions are swapped
+  for other products, and cards of different heights change the rows below them. The cause is the order of the product list
+  after load, not a block above the grid collapsing. Fixing it needs one owner decision: a stable order for the first
+  products on `/shop` (for example the same sort the server returns), or a fixed card height. Not changed.
+- **Item 3, API 404s.** `api.php?r=content`, `api.php?r=text_style` and `customer.php?r=me` answer 200 when requested
+  directly now. The 404s in the scan came from requests made while the page was closing. Not a live fault; no change.
+- **Items 2, 4-12.** Not changed in this pass: they need owner decisions or data (product photos, sitemap and utility
+  pages, brand logo upload, the foreign build's static files) or a larger change (splitting the 95 KB storefront script
+  for phone speed).
