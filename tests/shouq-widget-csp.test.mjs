@@ -951,7 +951,7 @@ async function runUnpressed({ config }) {
     r.nudged = fold(await s.page.locator("#wain-ai-panel").textContent({ timeout: 1000 }).catch(() => "")).includes("للحين ما بدأت المكالمة");
     r.widgets = await s.page.locator("#wain-ai-panel elevenlabs-convai").count();
     r.again = await s.page.locator("#wain-ai-panel").getByRole("button", { name: "اتصل مرة ثانية" }).count();
-    r.typed = await s.page.locator('#wain-ai-panel a[href="/salem"]').count();
+    r.typed = await s.page.locator('#wain-ai-panel a[href^="/salem"]').count();
   } catch (e) {
     console.log(`  · the unpressed call did not get as far as it meant to: ${String(e.message).split("\n")[0]}`);
   }
