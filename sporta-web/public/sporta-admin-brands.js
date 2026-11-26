@@ -408,6 +408,18 @@
     ui.manList.setAttribute('data-sporta-tag-products', '')
     man.appendChild(ui.manList)
     var manRow = el('div', '', null, ROW)
+    // Quick filter: only the products that have no brand yet (the usual job here). Works with the text filter.
+    var onlyLab = el('label', '', null, 'display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;font-weight:600;color:#334155;cursor:pointer')
+    ui.onlyNo = el('input', c.checkbox, null, 'width:16px;height:16px;flex:none;accent-color:var(--admin-action, #9a452c);margin:0')
+    ui.onlyNo.type = 'checkbox'
+    ui.onlyNo.setAttribute('data-sporta-tag-onlyno', '')
+    onlyLab.appendChild(ui.onlyNo)
+    onlyLab.appendChild(document.createTextNode(tr('Only products with no brand', 'المنتجات بلا علامة فقط')))
+    manRow.appendChild(onlyLab)
+    ui.clear = el('button', c.link, tr('Clear selection', 'مسح التحديد'), 'min-height:44px;padding:0 4px;background:none;border:0;cursor:pointer')
+    ui.clear.type = 'button'
+    ui.clear.setAttribute('data-sporta-tag-clear', '')
+    manRow.appendChild(ui.clear)
     ui.all = el('button', c.link, tr('Tick all in this list', 'تحديد كل ما في هذه القائمة'), 'min-height:44px;padding:0 4px;background:none;border:0;cursor:pointer')
     ui.all.type = 'button'
     ui.all.setAttribute('data-sporta-tag-all', '')
@@ -454,10 +466,13 @@
     }
     function applyFilter() {
       var q = ui.filter.value.trim().toLowerCase()
+      var onlyNo = !!(ui.onlyNo && ui.onlyNo.checked)
       var rows = ui.manList.children
       for (var i = 0; i < rows.length; i++) {
         var hay = rows[i].getAttribute('data-hay') || ''
-        rows[i].style.display = !q || hay.indexOf(q) >= 0 ? 'flex' : 'none'    // 'flex': the row's own layout, not '' (which drops it)
+        var textOk = !q || hay.indexOf(q) >= 0
+        var brandOk = !onlyNo || rows[i].getAttribute('data-untag') === '1'
+        rows[i].style.display = textOk && brandOk ? 'flex' : 'none'    // 'flex': the row's own layout, not '' (which drops it)
       }
     }
 
@@ -530,6 +545,7 @@
         var r = row(box, meta, tagged(p) ? 'color:#475569;font-weight:600' : 'color:#94a3b8')
         r.name.textContent = String(p.name_en || p.slug)
         r.label.setAttribute('data-hay', [p.name_en, p.name_ar, p.slug, p.category, tagged(p) ? brandName(String(p.brand_slug)) : 'no brand'].join(' ').toLowerCase())
+        r.label.setAttribute('data-untag', tagged(p) ? '0' : '1')
         ui.manList.appendChild(r.label)
       })
       Object.keys(picked).forEach(function (s) { if (!known[s]) delete picked[s] })
@@ -602,6 +618,15 @@
       updatePicked()
     })
     ui.filter.addEventListener('input', applyFilter)
+    ui.onlyNo.addEventListener('change', applyFilter)
+    // Clear: un-ticks every product in the list and forgets the selection (the count goes back to 0).
+    ui.clear.addEventListener('click', function () {
+      if (busy) return
+      var boxes = ui.manList.querySelectorAll('input[type=checkbox]')
+      for (var i = 0; i < boxes.length; i++) boxes[i].checked = false
+      Object.keys(picked).forEach(function (k) { delete picked[k] })
+      updatePicked()
+    })
     // Enter on ANY input in the panel — the filter, and every checkbox, which
     // Chromium also treats as implicit submission — must never submit a form
     // the admin may have wrapped around this screen (that form would save
