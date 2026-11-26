@@ -33,3 +33,18 @@ repair zips above. The deployer snapshots the site folder first, so a rollback i
 New structure and copy, approved by the owner from a preview. The old stylesheets stay on the server,
 so restoring the deployer's snapshot taken before this zip brings the previous site back whole.
 
+
+## A week's browser cache for stylesheets and scripts (26 November)
+
+| file | contents | sha256 |
+|---|---|---|
+| `almuhallab-css-js-cache-24f1d36a.zip` | `.htaccess` (sha256 `f52e147d…c03b`, 232 lines) | `24f1d36a4b7656a67be12d55a84ca242967640a3f696b0f3ca7be2a3e40a4c60` |
+
+The live `.htaccess` (sha256 `b3c8452c…4585`) with one rule added to its Caching block: every
+`.css` and `.js` file gets `Cache-Control: public, max-age=604800`, the week fonts and images
+already have. The admin scripts (`admin-*`, `mcp-admin-*`) are left out, and `sw.js` keeps
+`no-cache`, because its own rule comes later in the file and wins. Every stylesheet and script
+on the site carries a version in its name and the pages add a `?v=` token, so a change ships
+under a new name or token. Checked on Apache 2.4.58 beside the live file: only `Cache-Control`
+on the 32 public stylesheets and scripts changed; every status code and every other header
+stayed the same.
