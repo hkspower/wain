@@ -1,16 +1,42 @@
 {
   "schema": 1,
   "comment": "What is LIVE on the VPS, read from the \"Deployed ...\" records in CLAUDE.md on 2026-11-19. DATA THE PERSON UPDATES AFTER EACH DEPLOY (edit it in the commit that records the deploy). The gate reads \"ref\" for --changed (the oldest live ref, so it errs on running more) and the per-area refs for the readiness diff (git diff --name-status <ref> HEAD for each file). Files not named below fall back to the area default. A wrong entry only mis-lists what a release contains: the plan's \"live bytes -> release bytes\" line is the real check.",
-  "updated": "2026-11-20",
+  "updated": "2026-11-26",
   "ref": "e7db91439fa991f27f551783efeb7d56c7994390",
   "refNote": "the 2026-11-18 13:05 full backend release; every live add-on and the API are at or after it except the few files listed below with older refs",
   "api": {
-    "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
-    "deploy": "deploy-20261119T173728Z-e5224be",
-    "date": "2026-11-19",
-    "note": "api/, knet/ and pay/ were all copied from e5224bea (the 2026-11-19 17:37 UTC full release: --only .htaccess,api,knet,pay plus 15 add-ons); nothing in them changed after it",
+    "ref": "955233549e1c1530da695cef7a40c497c5517559",
+    "deploy": "deploy-20261126T165631Z-cfd4668",
+    "date": "2026-11-26",
+    "note": "Measured by the read-only plan of 2026-11-26, not taken from the records: live api/ equals 95523354's dropin/php-store except the files listed here; it had been shipped by another session after e5224bea and not recorded. The Sporta AI release (snapshot cfd46689) then replaced assistant.php and .htaccess and added assistant-faq.php.",
     "knetPayRef": "e5224bead829ffca8472764ada7917f0cf7a93de",
-    "files": {}
+    "files": {
+      "dropin/php-store/admin.php": {
+        "ref": "488c39bb97295cdfca2aad59a78ff52c1cd1d8c5",
+        "note": "live size 198787 = 488c39bb"
+      },
+      "dropin/php-store/crm.php": {
+        "ref": "e5224bead829ffca8472764ada7917f0cf7a93de"
+      },
+      "dropin/php-store/install.mysql.sql": {
+        "ref": "e5224bead829ffca8472764ada7917f0cf7a93de"
+      },
+      "dropin/php-store/schema.mysql.sql": {
+        "ref": "e5224bead829ffca8472764ada7917f0cf7a93de"
+      },
+      "dropin/php-store/assistant.php": {
+        "ref": "7107b603",
+        "deploy": "deploy-20261126T165631Z-cfd4668"
+      },
+      "dropin/php-store/assistant-faq.php": {
+        "ref": "7107b603",
+        "deploy": "deploy-20261126T165631Z-cfd4668"
+      },
+      "dropin/php-store/.htaccess": {
+        "ref": "7107b603",
+        "deploy": "deploy-20261126T165631Z-cfd4668"
+      }
+    }
   },
   "addons": {
     "default": {
@@ -41,9 +67,10 @@
         "date": "2026-11-20"
       },
       "public/sporta-ui-colours.css": {
-        "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
-        "deploy": "deploy-20261119T173728Z-e5224be",
-        "date": "2026-11-19"
+        "ref": "955233549e1c1530da695cef7a40c497c5517559",
+        "deploy": "deploy-20261126T023718Z-9552335",
+        "date": "2026-11-26",
+        "note": "shipped by another session at 02:37 UTC, read back from the deploy job log"
       },
       "public/sporta-home-trim.css": {
         "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
@@ -51,14 +78,16 @@
         "date": "2026-11-19"
       },
       "public/sporta-admin-brands.js": {
-        "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
-        "deploy": "deploy-20261119T173728Z-e5224be",
-        "date": "2026-11-19"
+        "ref": "955233549e1c1530da695cef7a40c497c5517559",
+        "deploy": "deploy-20261126T023718Z-9552335",
+        "date": "2026-11-26",
+        "note": "shipped by another session at 02:37 UTC, read back from the deploy job log"
       },
       "public/sporta-admin-brands.full.js": {
-        "ref": "95d8de3df4c79b2a04a70d21f0e1f5e68d77aaf9",
-        "deploy": "deploy-20261120T013130Z-95d8de3",
-        "date": "2026-11-20"
+        "ref": "955233549e1c1530da695cef7a40c497c5517559",
+        "deploy": "deploy-20261126T023718Z-9552335",
+        "date": "2026-11-26",
+        "note": "shipped by another session at 02:37 UTC, read back from the deploy job log"
       },
       "public/sporta-catalogue.js": {
         "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
@@ -124,6 +153,12 @@
         "ref": "e5224bead829ffca8472764ada7917f0cf7a93de",
         "deploy": "deploy-20261119T173728Z-e5224be",
         "date": "2026-11-19"
+      },
+      "public/sporta-admin-knet.css": {
+        "ref": "955233549e1c1530da695cef7a40c497c5517559",
+        "deploy": "deploy-20261126T023718Z-9552335",
+        "date": "2026-11-26",
+        "note": "shipped by another session at 02:37 UTC, read back from the deploy job log"
       }
     }
   },

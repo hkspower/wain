@@ -1459,7 +1459,25 @@ Rules learned this session (apply):
 - Proof: `npm run test:admin-remove-product` (55, fixture + four mutants), `npm run test:product-delete` (24, private rig), `test:admin-js-audit` (50), `test:js-guard` (46), `test:release-gate` (204), neighbours green; `test:native` 682/0 on rerun (one rate-limit flake on the first run, the sign-in window).
 - **Inventory photos** (owner: "add product image preview for invetory"): the Inventory table and its phone list show a 44 px photo before each product name; a tap opens it larger with the name. Block ADMIN INVENTORY PHOTOS in `sporta-admin-brands.js` (both names): add-on only, no API, no migration, no write. The photo is the shop's own file: `products.image`, else `images[0]`, else `<slug>.jpg|jpeg|png|webp`; the `-320.webp` copy where `responsive/variants.txt` lists one. One MutationObserver draws the photos again when React draws the rows again (the audit's observer bound went 15 -> 16 with a reason). Proof: `npm run test:admin-inventory-photos` (28: fixture, five mutants, whole-file control).
 
-## Session record (2026-11-26: Sporta AI answers far more questions) — built, NOT deployed
+## Session record (2026-11-26: Sporta AI answers far more questions) — DEPLOYED 2026-11-26 16:56 UTC
+
+**DEPLOYED (owner: "deploy"): `deploy-20261126T165631Z-cfd4668`, DEPLOY_OK** (undo `compose --rollback deploy-20261126T165631Z-cfd4668`;
+`--only api`, 2 replaced + 1 added: `api/assistant.php` 431,632 -> 449,701, `api/.htaccess` 6,568 -> 6,582 (the one deny-list name),
+`api/assistant-faq.php` new; 73 api files the same; health identical before and after, products API 32). Gate: independent review SHIP (no
+blocker; proved no 500 on crafted or near-cap messages, malformed settings rows survived, order lookup unchanged, payment answers follow
+the live cash-only checkout); suites on the release tree: assistant 2,302, assistant-faq 366, assistant-admin 98, native 682, ai-panel 36,
+install-sql 11, corpus 1,786/1,787, 0 FAIL. No migration. Read-only check afterwards: `api/assistant-faq.php` and `api/assistant.php` 403,
+`/`, products 200. Not sent: a POST to the live assistant (live checks stay read-only), so a real answer on the live server is NOT yet seen;
+shoppers cannot open the assistant anyway until `[tacc-1]` of `sporta-shadows.css` is deleted.
+**THE LIVE API IS NOT WHAT THE RECORDS SAID.** The first plan showed live `api/` is newer than `e5224bea`: it equals `95523354`'s
+`dropin/php-store` with `admin.php` of `488c39bb` (photo library WIP, product delete, sizes SKU, accounts) and `crm.php` + the two schema
+files still at `e5224bea`. Another session shipped it and did not record it; `ops/release/live-baseline.json` now holds the measured refs.
+Also unrecorded and found in the deploy job's log: `deploy-20261126T023718Z-9552335` (02:37 UTC) shipped `sporta-admin-brands.full.js`,
+`sporta-admin-knet.css`, `sporta-ui-colours.css` from `95523354`. **Live `admin.php` therefore carries `product_delete`, which needs the
+DELETE grant (see 2026-11-22 record) before it works, and the unreviewed photo-library route.** The release was cut as a snapshot commit on
+that measured live tree (`cfd46689`, reverted on the branch by the next commit); the first snapshot (`811b7236`, cut from `e5224bea`) would
+have rolled seven live files back and was never applied: READ the plan's live -> release line every time.
+
 
 Owner: "make full improve sporta ai to answar all question". Still a rule engine, no model. Pushed to `claude/sporta-integration-tveo8b`. **Nothing here is live**, and on the live shop the assistant cannot be opened at all until `[tacc-1]` of `sporta-shadows.css` is deleted (owner's own 2026-11-20 choice).
 
