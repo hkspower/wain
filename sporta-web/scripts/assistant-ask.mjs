@@ -7,6 +7,9 @@
 //   options:  --lang ar|en    the page language for questions given as arguments (default: Arabic when the question
 //                             has an Arabic letter, else English)
 //             --cfg '{"ai_key":"..."}'   config keys laid over the rig's config for this run
+//             --sql "update settings ..."   a statement run first, INSIDE the transaction that is rolled back (repeatable):
+//                             how to ask the same questions of a shop with another returns window, a closed governorate,
+//                             free delivery from an amount, or cash only
 //
 // The file is a JSON array; an entry is a string, or [question, lang], or { "q": question, "lang": "ar" | "en", ... }
 // (any other keys of an object are copied to the output, so a bank can carry its own ids and expectations).
@@ -23,15 +26,15 @@ const run = promisify(execFile)
 const AP = new URL('../dropin/php-store/assistant.php', import.meta.url).pathname
 const SP = new URL('../dropin/php-store/store.php', import.meta.url).pathname
 
-export const askAll = async (rows, cfg = {}) => {
+export const askAll = async (rows, cfg = {}, sql = []) => {
   const msgs = rows.map((r) => [r.q, r.lang])
   const code = `require ${JSON.stringify(SP)}; require ${JSON.stringify(AP)};
     $in = json_decode($argv[1], true); $db = store_db(); $cfg = assistant_effective_config($db, array_merge(store_config(), $in['cfg']));
     $db->beginTransaction();
-    try { $out = []; foreach ($in['msgs'] as [$m, $l]) { $a = assistant_answer($db, $cfg, $m, $l); $a['route'] = assistant_route(assistant_redact($m)); $out[] = $a; } }
+    try { foreach ($in['sql'] as $q) $db->exec($q); $out = []; foreach ($in['msgs'] as [$m, $l]) { $a = assistant_answer($db, $cfg, $m, $l); $a['route'] = assistant_route(assistant_redact($m)); $out[] = $a; } }
     finally { $db->rollBack(); }
     echo json_encode($out, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);`
-  const { stdout } = await run('php', ['-r', code, '--', JSON.stringify({ msgs, cfg })], { maxBuffer: 64 << 20 })
+  const { stdout } = await run('php', ['-r', code, '--', JSON.stringify({ msgs, cfg, sql })], { maxBuffer: 64 << 20 })
   const out = JSON.parse(stdout)
   return rows.map((r, i) => ({
     ...r,
@@ -50,6 +53,8 @@ if (isMain) {
   const take = (name) => { const i = argv.indexOf(name); if (i < 0) return null; const v = argv[i + 1]; argv.splice(i, 2); return v }
   const flag = (name) => { const i = argv.indexOf(name); if (i < 0) return false; argv.splice(i, 1); return true }
   const file = take('--file'), lang = take('--lang'), cfg = JSON.parse(take('--cfg') || '{}'), asJson = flag('--json')
+  const sql = []
+  for (let q = take('--sql'); q !== null; q = take('--sql')) sql.push(q)
   const auto = (q) => lang || (/[؀-ۿ]/.test(q) ? 'ar' : 'en')
   let rows = argv.map((q) => ({ q, lang: auto(q) }))
   if (file) {
@@ -57,7 +62,7 @@ if (isMain) {
       typeof e === 'string' ? { q: e, lang: auto(e) } : Array.isArray(e) ? { q: e[0], lang: e[1] || auto(e[0]) } : { ...e, lang: e.lang || auto(e.q) }))
   }
   if (!rows.length) { console.error('usage: node scripts/assistant-ask.mjs "question" ... | --file questions.json [--json] [--lang ar|en]'); process.exit(1) }
-  const out = await askAll(rows, cfg)
+  const out = await askAll(rows, cfg, sql)
   for (const r of out) {
     if (asJson) { console.log(JSON.stringify(r)); continue }
     console.log(`[${r.lang}] ${r.q}\n   -> ${r.intent}${r.topic ? ' / ' + r.topic : ''}${r.items.length ? ' (' + r.items.length + ' items)' : ''}: ${r.reply}\n`)

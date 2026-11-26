@@ -490,7 +490,7 @@ const DENY_INCLUDES = []
 // support, assistant, and the rest of the include-only files) answered 200 with an empty body before the FilesMatch block.
 const DENY_INCLUDES_FIXED = ['api/catalogue.php', 'api/site-icon.php', 'api/product-listable.php',
   'api/profiles.php', 'api/support.php', 'api/assistant.php', 'api/apple-lib.php', 'api/fabric.php', 'api/payment-records.php',
-  'api/seo-runtime.php', 'api/xbrl.php', 'api/dbcenter.php', 'api/photo-limits.php']
+  'api/seo-runtime.php', 'api/xbrl.php', 'api/dbcenter.php', 'api/photo-limits.php', 'api/assistant-faq.php']
 // A file named config*.php is never an endpoint. Outside api/ knet/ pay/ no rule names it.
 const DENY_CONFIG_ANYWHERE = ['/config.php', '/sub/config.php', '/config.inc.php']
 

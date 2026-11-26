@@ -410,14 +410,9 @@ how do I pay
 
 # suite sizes/sizes
 what size should I get
-is this available in medium
-do you have this in XL
 القطعة صغيرة علي
 الجاكيت كبير علي
 XL?
-عندكم XL؟
-XXL available?
-M متوفر؟
 what size should I take
 what size do you recommend
 does this fit
@@ -619,10 +614,7 @@ ok bro
 
 # suite recommend/recommend
 ابي اطلب هدية لغيري
-شنو الجديد عندكم
 ابي هدية لزوجي
-what’s new
-new arrivals
 gift for my husband
 recommend something for women
 اقترح لي شي نسائي
@@ -1277,8 +1269,6 @@ do you have a size chart
 what size am I
 which size for 180cm
 M?
-عندكم سمول؟
-is medium available
 hello, what size should I get?
 which size should I order
 sizing?
@@ -1383,10 +1373,6 @@ I don't want it anymore, cancel
 وش تنصحني
 شنو الأكثر مبيعا
 any recommendations
-best sellers?
-what is new
-new arrivals?
-شنو الجديد
 gift ideas
 ابي هدية
 recommend something for gym
@@ -1465,8 +1451,6 @@ does the jacket have pockets?
 do the leggings have a hole for the phone?
 is there a phone pocket in the leggings
 do you have the jacket in a different colour
-what colours does the sculpt jacket come in
-do you have more colours of the cloudsoft leggings
 is the define jacket good for winter
 which jacket is warmer
 is the sculpt top good for yoga
@@ -1653,15 +1637,11 @@ how do I buy the jacket? // names the garment: a search with its Add button is r
 # common recommend/recommend
 what do you suggest for the gym
 show me your best items
-any new items?
-عندكم شي جديد؟
-وش الجديد؟
 
 # common contact/money
 I paid twice by mistake
 the payment went through but I didn't get any message
 دفعت مرتين بالغلط
-انخصم مني المبلغ وما وصلني شي
 
 # common payment/payment delivery/delivery
 what if I'm not home when the courier comes and I chose cash // cash, the courier and an absence: payment or delivery are both right
@@ -1952,7 +1932,6 @@ shorts like the ones in Denver
 فيه موديلات جديدة
 وش نزل جديد
 ابي اشوف الجديد
-latest collection
 any new models
 what's trending
 top sellers
@@ -2009,6 +1988,45 @@ const SETUP = [
 // (assistant_faq_keys()), reported by assistant_faq_last() because those answers are built from the owner's settings
 // and are in no table to map back through. None of the older versions can match them, which is the point.
 const KNOWLEDGE = String.raw`
+# common contact/money_check
+انخصم مني المبلغ وما وصلني شي
+
+# common info/colours_which
+what colours does the sculpt jacket come in
+do you have more colours of the cloudsoft leggings
+
+# common recommend/best_seller
+best sellers?
+
+# common recommend/new_arrivals
+new arrivals?
+شنو الجديد
+عندكم شي جديد؟
+وش الجديد؟
+what is new
+any new items?
+
+# rev recommend/new_arrivals
+latest collection
+
+# suite recommend/new_arrivals
+شنو الجديد عندكم
+what’s new
+new arrivals
+
+# common sizes/size_range
+عندكم سمول؟
+is medium available
+
+# suite sizes/size_range
+عندكم XL؟
+XXL available?
+M متوفر؟
+
+# suite sizes/size_which
+is this available in medium
+do you have this in XL
+
 # suite recommend/no_offers
 الجمعة البيضاء
 black friday sale

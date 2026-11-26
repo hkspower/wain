@@ -798,17 +798,18 @@ head('the copy: one register for search, digits that never mix, the full returns
      'found_other says "the same kind", not "the closest"', other)
   // Returns: the exception beside the promise, saying what is still allowed.
   const [ret, retAr] = [await c('returns', false), await c('returns', true)]
-  is(/^Returns and exchanges are free within 14 days of delivery if the item is unworn with its tags; women's clothing can be returned but not exchanged\./.test(ret),
-     'returns (en): free, 14 days, the condition and the exception in one sentence, in full words', ret)
+  is(/^Returns and exchanges are free within 14 days of delivery if the item is unworn with its tags; some items need our review before an exchange\./.test(ret),
+     'returns (en): free, 14 days, the condition and the exception in one sentence, as the live product pages word it', ret)
+  is(!/women/i.test(ret) && !/النسائية/.test(retAr), 'and no flat "women\'s clothing cannot be exchanged": the rule is a per-product flag whose page says "ask us to review"', ret)
   is(/the phone number on the order/.test(ret) && !/the phone on the order/.test(ret), 'and "the phone NUMBER on the order", not the handset', ret)
   // THE SIBLING THAT FORGOT THEM: stage_delivered promised an exchange for
   // every delivered order, women's leggings included, with no condition.
   const [del, delAr] = [await c('stage_delivered', false), await c('stage_delivered', true)]
-  is(/unworn item with its tags/.test(del) && /women's clothing can be returned but not exchanged/.test(del) && /14 days from delivery/.test(del),
-     'stage_delivered (en) carries the condition and the women\'s-clothing exception', del)
-  is(/غير ملبوسة وبطاقاتها عليها/.test(delAr) && /ما عدا الملابس النسائية فإرجاع فقط/.test(delAr) && /١٤ يومًا/.test(delAr)
+  is(/unworn item with its tags/.test(del) && /some items need our review before an exchange/.test(del) && /14 days from delivery/.test(del),
+     'stage_delivered (en) carries the condition and the review exception', del)
+  is(/غير ملبوسة وبطاقاتها عليها/.test(delAr) && /وبعض القطع يحتاج استبدالها مراجعتنا أولًا/.test(delAr) && /١٤ يومًا/.test(delAr)
      && /لإرجاع أو استبدال/.test(delAr) && !/إلا للملابس/.test(delAr),
-     'stage_delivered (ar) too — the exchange inside the same 14 days and condition, «ما عدا … فإرجاع فقط»', delAr)
+     'stage_delivered (ar) too — the exchange inside the same 14 days and condition, with the review exception', delAr)
   // The other two siblings: cancel's return carries its condition, location
   // its "for confirmed orders".
   const [can, canAr, loc, locAr] = [await c('cancel', false), await c('cancel', true), await c('location', false), await c('location', true)]
@@ -817,7 +818,7 @@ head('the copy: one register for search, digits that never mix, the full returns
   // Checkout is «إتمام الطلب» everywhere, including the no-settings payment line.
   const payNull = await php(`require ${JSON.stringify(AP)}; echo json_encode(assistant_payment_line(null, true, '+965 1'), JSON_UNESCAPED_UNICODE);`)
   is(/عند إتمام الطلب/.test(payNull) && !/إتمام الشراء/.test(payNull), 'the payment fallback calls checkout «إتمام الطلب», like every other line', payNull)
-  is(/^الإرجاع والاستبدال مجانيان خلال ١٤ يومًا/.test(retAr) && /غير ملبوسة وبطاقاتها عليها/.test(retAr) && /الملابس النسائية فإرجاع فقط/.test(retAr),
+  is(/^الإرجاع والاستبدال مجانيان خلال ١٤ يومًا/.test(retAr) && /غير ملبوسة وبطاقاتها عليها/.test(retAr) && /وبعض القطع يحتاج استبدالها مراجعتنا أولًا/.test(retAr),
      'returns (ar): the dual, the condition and the exception', retAr)
   is(!/ومعها البطاقات/.test(retAr), 'and not the stiff «ومعها البطاقات»')
   const cancelAr = await c('cancel', true)
@@ -1299,15 +1300,15 @@ head('round three: a model may not turn a promise round')
     $c = fn ($k, $ar) => assistant_canned([], $k, $ar);
     $p = '+965 22091914';
     echo json_encode([
-      assistant_llm_accept($t('تم تسليم هذا الطلب. تقدر ترجع القطعة الملبوسة خلال ١٤ يومًا من الاستلام، والاستبدال للملابس النسائية فقط. ابدأ من صفحة الإرجاع.'), $c('stage_delivered', true), null, true),
-      assistant_llm_accept($t("Returns and exchanges are free within 14 days of delivery if the item is unworn with its tags; women's clothing can be exchanged but not returned. Start on our Returns page with your order number and the phone number on the order, or WhatsApp us on $p."), $c('returns', false), null, false),
-      assistant_llm_accept($t("Returns are not free. Within 14 days of delivery, if the item is unworn with its tags, women's clothing can be returned but not exchanged. Start on our Returns page with your order number and the phone number on the order, or WhatsApp us on $p."), $c('returns', false), null, false),
+      assistant_llm_accept($t('تم تسليم هذا الطلب. تقدر ترجع القطعة الملبوسة خلال ١٤ يومًا من الاستلام، والاستبدال بدون أي مراجعة. ابدأ من صفحة الإرجاع.'), $c('stage_delivered', true), null, true),
+      assistant_llm_accept($t("Returns and exchanges are free within 14 days of delivery if the item is unworn with its tags; no item needs our review before an exchange. Start on our Returns page with your order number and the phone number on the order, or WhatsApp us on $p."), $c('returns', false), null, false),
+      assistant_llm_accept($t("Returns are not free. Within 14 days of delivery, if the item is unworn with its tags, some items need our review before an exchange. Start on our Returns page with your order number and the phone number on the order, or WhatsApp us on $p."), $c('returns', false), null, false),
       assistant_llm_accept($t('يسعدنا خدمتك عبر واتساب أو الاتصال على 965 22091914، أو عبر البريد cs@sporta.com.kw'), $c('contact', true), null, true),
       assistant_llm_accept($t('Your order has shipped and arrives today.'), $c('ask_track', false), null, false),
       assistant_llm_accept($t('Everything is free today!'), $c('found', false), null, false),
       assistant_llm_accept($t('everything is half price at checkout'), $c('no_offers', false), null, false),
-      assistant_llm_accept($t('الإرجاع والاستبدال مجانيان خلال ١٤ يومًا من الاستلام إذا كانت القطعة غير ملبوسة وبطاقاتها عليها، والملابس النسائية تستبدل فقط بدون إرجاع. ابدأ من صفحة الإرجاع برقم طلبك ورقم الهاتف المسجّل فيه، أو راسلنا على واتساب ‎' . $p . '.'), $c('returns', true), null, true),
-      assistant_llm_accept($t("Returns and exchanges are free within 14 days of delivery, unworn or worn, tags optional; women's clothing can be returned but not exchanged. Start on our Returns page with your order number and the phone number on the order, or WhatsApp us on $p."), $c('returns', false), null, false),
+      assistant_llm_accept($t('الإرجاع والاستبدال مجانيان خلال ١٤ يومًا من الاستلام إذا كانت القطعة غير ملبوسة وبطاقاتها عليها، وكل القطع تستبدل بدون مراجعتنا. ابدأ من صفحة الإرجاع برقم طلبك ورقم الهاتف المسجّل فيه، أو راسلنا على واتساب ‎' . $p . '.'), $c('returns', true), null, true),
+      assistant_llm_accept($t("Returns and exchanges are free within 14 days of delivery, unworn or worn, tags optional; some items need our review before an exchange. Start on our Returns page with your order number and the phone number on the order, or WhatsApp us on $p."), $c('returns', false), null, false),
       assistant_llm_accept($t('Delivery inside Kuwait is within 24 hours for confirmed orders, usually the same day, and it costs 1 KWD to every area. The courier calls before arriving.'), $c('delivery', false), null, false),
       assistant_llm_accept($t('Delivery inside Kuwait is within 24 hours for confirmed orders and costs 1 KWD — free to every area. The courier calls before arriving.'), $c('delivery', false), null, false),
       // Faithful rewordings of policy-free lines still pass.
@@ -1318,10 +1319,10 @@ head('round three: a model may not turn a promise round')
       array_map(fn ($k) => assistant_llm_rewordable([], $c($k, true), true), ['returns', 'cancel', 'delivery', 'payment', 'stage_delivered', 'stage_unpaid', 'money',
                                                                              'complaint', 'checkout_problem', 'coupon', 'coupon_problem', 'no_offers', 'offers_auto', 'ask_track', 'contact']),
     ], JSON_UNESCAPED_UNICODE);`)
-  const names = ['stage_delivered (ar) saying WORN items return and ONLY women\'s exchange', 'returns (en) with the exception reversed',
+  const names = ['stage_delivered (ar) saying WORN items return and an exchange needs NO review', 'returns (en) with the exception reversed ("no item needs our review")',
                  '"Returns are not free"', 'the Arabic contact line with the phone written «965 22091914» (no +, no mark)',
                  'ask_track reworded as "has shipped and arrives today"', '"Everything is free today!" for found',
-                 '"everything is half price at checkout" for no_offers', 'returns (ar) with women\'s clothing "exchange only, no return"',
+                 '"everything is half price at checkout" for no_offers', 'returns (ar) with "every piece is exchanged without our review"',
                  '"unworn or worn, tags optional"', '"usually the same day" added to delivery', '"free to every area" added beside the fee']
   names.forEach((n, i) => is(acc[i] === null, `refused: ${n}`, acc[i] === null ? 'refused' : String(acc[i]).slice(0, 50)))
   is(typeof acc[11] === 'string' && typeof acc[12] === 'string', 'while a faithful rewording of a found or greeting line still passes', `${acc[11]} / ${String(acc[12]).slice(0, 20)}`)

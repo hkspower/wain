@@ -2854,9 +2854,12 @@ function assistant_concept_words(): array
         'gender' => [
             // Compared with the product's category by EQUALITY, never LIKE:
             // '%men%' is inside 'women'.
-            'men'   => ['men', 'man', 'male', 'gents', 'رجالي', 'رجال', 'شباب', 'شبابي', 'husband', 'زوجي', 'rjali', 'rijali'],
+            // A gift "for my sister" is a gift for a woman: the family words say who it is for, as «زوجتي» always did.
+            'men'   => ['men', 'man', 'male', 'gents', 'رجالي', 'رجال', 'شباب', 'شبابي', 'husband', 'زوجي', 'rjali', 'rijali',
+                        'brother', 'father', 'dad', 'boyfriend', 'اخوي', 'ابوي', 'خطيبي'],
             'women' => ['women', 'woman', 'ladies', 'lady', 'female', 'girls', 'نسائي', 'نساء', 'حريمي', 'حريم',
-                        'بنات', 'بناتي', 'wife', 'زوجتي', 'nisai', 'nisa2i', 'harimi'],
+                        'بنات', 'بناتي', 'wife', 'زوجتي', 'nisai', 'nisa2i', 'harimi',
+                        'sister', 'mother', 'mom', 'mum', 'girlfriend', 'اختي', 'امي', 'خطيبتي'],
         ],
     ];
 }
@@ -2958,7 +2961,8 @@ function assistant_vocab(): array
             // MSA «هل لديكم», and Arabizi "3indkum leggings?".
             'اشتري', 'نشتري', 'اطلب', 'نطلب', 'عطوني', 'اعطني', 'تعرضون', 'تعرض', 'محتاج', 'محتاجه', 'لديكم', 'لديك',
             'تكفون', 'تكفى', 'سمحتو', 'سمحتي', 'ضروري', 'شفت', 'شفتها', 'حصلت', 'بنفس', 'ابغي', 'اريده', 'ابيها',
-            'guys', 'asap', 'order', 'sister', 'daughter', 'son', 'mum', 'mom', 'friend', 'like', 'buy', 'purchase',
+            // ("sister", "mum" and "mom" were here: they now say who a gift is for, with «اختي» and «امي».)
+            'guys', 'asap', 'order', 'daughter', 'son', 'friend', 'like', 'buy', 'purchase',
             'abi', 'abgha', '3indkum', '3indkom', '3ndkm', '3ndkom', '3ndkum', 'endkom', 'fi', 'fe', 'wain', 'wen', 'el',
             'shno', 'shnu',
             // A courtesy is not a product (assistant_route reads the thanks first).
@@ -3874,6 +3878,8 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
     $sh = is_array($cfg['_shipping'] ?? null) ? $cfg['_shipping'] : null;
     $everyArea = true;
     $closed = ['ar' => [], 'en' => []];
+    $ownTime = ['ar' => [], 'en' => []];
+    $open = 0;
     $minFils = $fils;
     $maxFils = $fils;
     $freeOver = 0;
@@ -3888,6 +3894,15 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
                 $closed['ar'][] = $govNames[$gov][1] ?? (string) $gov;
             } else {
                 $fees[] = max(0, (int) ($z['fee_fils'] ?? $fils));
+                $open++;
+                // A governorate with its own delivery-time text (/backends -> Shipping) is not promised the standard one.
+                $te = rtrim(trim((string) ($z['time_en'] ?? '')), " .،");
+                $ta = rtrim(trim((string) ($z['time_ar'] ?? '')), " .،");
+                // A time written in one language only is still that governorate's time.
+                if ($te === '') $te = $ta;
+                if ($ta === '') $ta = $te;
+                if ($te !== '') $ownTime['en'][$govNames[$gov][0] ?? (string) $gov] = $te;
+                if ($ta !== '') $ownTime['ar'][$govNames[$gov][1] ?? (string) $gov] = $ta;
             }
         }
         if ($fees) { $minFils = min($fees); $maxFils = max($fees); }
@@ -3916,12 +3931,32 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         $extraEn .= ' We are not delivering to ' . implode(' or ', $closed['en']) . ' at the moment.';
         $extraAr .= ' لا نوصّل حاليًا إلى ' . implode(' ولا ', $closed['ar']) . '.';
     }
+    // THE DELIVERY TIME. "Within 24 hours" is the shop's published promise and what every governorate gets with no text
+    // of its own. One text for every open governorate replaces it; a text for some is said after it, by name.
+    $whenEn = 'within 24 hours';
+    $whenAr = 'خلال ٢٤ ساعة';
+    foreach (['en', 'ar'] as $lng) {
+        $own = $ownTime[$lng];
+        if (!$own) continue;
+        if (count($own) === $open && count(array_unique($own)) === 1) {
+            if ($lng === 'en') $whenEn = (string) reset($own); else $whenAr = (string) reset($own);
+            continue;
+        }
+        foreach ($own as $name => $text) {
+            if ($lng === 'en') $extraEn .= ' Delivery time for ' . $name . ': ' . $text . '.';
+            else $extraAr .= ' مدة التوصيل إلى ' . $name . ': ' . $text . '.';
+        }
+    }
     // What can come back, by the two switches.
     $backEn = $canReturn && $canExchange ? 'Returns and exchanges are free' : ($canReturn ? 'Returns are free' : 'Exchanges are free');
     $backAr = $canReturn && $canExchange ? 'الإرجاع والاستبدال مجانيان' : ($canReturn ? 'الإرجاع مجاني' : 'الاستبدال مجاني');
-    $tailEn = $canReturn && $canExchange ? '; women\'s clothing can be returned but not exchanged.'
+    // THE EXCEPTION, AS THE LIVE SHOP WRITES IT. This said "women's clothing can be returned but not exchanged". The rule
+    // is a per-product flag (products.no_exchange, the owner's to set in /backends), the Returns page accepts the request
+    // either way, and a flagged product's page says "Ask us to review exchange options for this item": a flat "no"
+    // for every women's piece was stricter than anything the shop publishes (scan 2026-11-26).
+    $tailEn = $canReturn && $canExchange ? '; some items need our review before an exchange.'
         : ($canReturn ? '; exchanges are not offered at the moment.' : '; returns for a refund are not offered at the moment.');
-    $tailAr = $canReturn && $canExchange ? '، أما الملابس النسائية فإرجاع فقط.'
+    $tailAr = $canReturn && $canExchange ? '، وبعض القطع يحتاج استبدالها مراجعتنا أولًا.'
         : ($canReturn ? '، والاستبدال غير متاح حاليًا.' : '، والإرجاع غير متاح حاليًا.');
     // «لديك يومان», but «خلال يومين»: the dual changes with its place in the sentence, the other counts do not.
     $dArNom = $win === 2 ? 'يومان' : $dAr;
@@ -3930,8 +3965,8 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
 
     $t = [
         'delivery' => [
-            'ar' => 'التوصيل داخل الكويت خلال ٢٤ ساعة للطلبات المؤكدة، ' . $costAr . $whereAr . '.' . $extraAr . ' يصلك اتصال من المندوب قبل الوصول.',
-            'en' => 'Delivery inside Kuwait is within 24 hours for confirmed orders, and ' . $costEn . $whereEn . '.' . $extraEn . ' The courier calls before arriving.',
+            'ar' => 'التوصيل داخل الكويت ' . $whenAr . ' للطلبات المؤكدة، ' . $costAr . $whereAr . '.' . $extraAr . ' يصلك اتصال من المندوب قبل الوصول.',
+            'en' => 'Delivery inside Kuwait is ' . $whenEn . ' for confirmed orders, and ' . $costEn . $whereEn . '.' . $extraEn . ' The courier calls before arriving.',
         ],
         'returns' => [
             // 14 days must match /returns and the Product structured data.
@@ -4150,8 +4185,8 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         // للملابس النسائية» excepted from nothing, and gave the exchange no
         // window or condition.
         'stage_delivered' => $canReturn && $canExchange ? [
-            'ar' => 'تم تسليم هذا الطلب. لديك ' . $dArNom . ' من الاستلام لإرجاع أو استبدال أي قطعة غير ملبوسة وبطاقاتها عليها، ما عدا الملابس النسائية فإرجاع فقط. ابدأ من صفحة الإرجاع.',
-            'en' => 'This order has been delivered. You have ' . $dEn . ' from delivery to return an unworn item with its tags, or to exchange it — women\'s clothing can be returned but not exchanged. Start on our Returns page.',
+            'ar' => 'تم تسليم هذا الطلب. لديك ' . $dArNom . ' من الاستلام لإرجاع أو استبدال أي قطعة غير ملبوسة وبطاقاتها عليها، وبعض القطع يحتاج استبدالها مراجعتنا أولًا. ابدأ من صفحة الإرجاع.',
+            'en' => 'This order has been delivered. You have ' . $dEn . ' from delivery to return an unworn item with its tags, or to exchange it — some items need our review before an exchange. Start on our Returns page.',
         ] : [
             // One of the two is switched off in /backends: only the other is offered.
             'ar' => 'تم تسليم هذا الطلب. لديك ' . $dArNom . ' من الاستلام ' . ($canReturn ? 'لإرجاع' : 'لاستبدال') . ' أي قطعة غير ملبوسة وبطاقاتها عليها. ابدأ من صفحة الإرجاع.',
@@ -4488,8 +4523,8 @@ function assistant_llm_accept(?array $j, string $reply, ?array $data, bool $ar =
     if (mb_strlen($out) > (int) ceil(mb_strlen($reply) * 1.3)) return null;
     $nr = assistant_normalise($reply);
     $no = assistant_normalise($out);
-    foreach (['women', 'unworn', 'tag', 'confirmed', 'returned but not exchanged', 'within 14 days', 'النسائية',
-              'غير ملبوس', 'فإرجاع فقط', 'بطاقات', 'المؤكدة'] as $w) {
+    foreach (['unworn', 'tag', 'confirmed', 'our review', 'within 14 days', 'مراجعتنا',
+              'غير ملبوس', 'بطاقات', 'المؤكدة'] as $w) {
         $w = assistant_normalise($w);
         if (str_contains($nr, $w) && !str_contains($no, $w)) return null;
     }
@@ -5161,6 +5196,12 @@ function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
                 // NOTHING FOUND, and the question never named a product: it is not told "try another word for the
                 // item", it is told what the assistant can help with and how to reach a person. It is still a gap
                 // (the hand-off below tells the shop what was asked).
+                // NOTHING FOUND because the garment is listed under another section ("women's t-shirt": ours are under
+                // Men): the pieces are shown, with where they are listed.
+                if (!$data && function_exists('assistant_faq_other_section') && $reply === assistant_canned($cfg, 'no_idea', $ar)) {
+                    $o = assistant_faq_other_section($db, $cfg, $message, $ar);
+                    if ($o !== null) { [$reply, $data] = $o; $missed = false; }
+                }
                 if (!$data && function_exists('assistant_faq_is_question')
                     && $reply === assistant_canned($cfg, 'no_idea', $ar) && assistant_faq_is_question($message)) {
                     $u = assistant_faq_answer($db, $cfg, 'unsure', $ar, $message);
@@ -5177,6 +5218,10 @@ function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
                 $reply = ($topic !== null ? assistant_canned($cfg, $topic, $ar) : null)
                     ?? assistant_canned($cfg, $intent, $ar)
                     ?? assistant_canned($cfg, 'greeting', $ar);
+        }
+        // The second thing a message asked ("…and does the courier call first?"), in one sentence after the answer.
+        if (function_exists('assistant_faq_suffix') && is_string($reply)) {
+            $reply .= assistant_faq_suffix($intent, $topic, $message, $ar, $intent === 'order_status' && $data !== null);
         }
     }
 
