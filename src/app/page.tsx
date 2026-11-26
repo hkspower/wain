@@ -60,11 +60,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ---------- Landmarks ---------- */}
-      {/* Six of the famous places, one at a time (LandmarksShow.tsx). Under
-          the search row, not on the picture: the hero is only the picture. */}
-      {showLandmarks && <LandmarksShow slides={landmarks} />}
-
       {/* ---------- Featured ---------- */}
       <section className="bg-sand-50">
         <div className="mx-auto max-w-6xl gutter py-2 sm:py-3">
@@ -104,6 +99,13 @@ export default function HomePage() {
           </ul>
         </div>
       </section>
+
+      {/* ---------- Landmarks ---------- */}
+      {/* Six of the famous places, one at a time (LandmarksShow.tsx). Below
+          the places row, not above it: once the pictures are on, a slideshow
+          above the row pushed the first place cards off a phone's first screen
+          (25 November). The hero is still only the picture. */}
+      {showLandmarks && <LandmarksShow slides={landmarks} />}
 
       {/* ---------- How it works ---------- */}
       <section className="bg-sand-100">
